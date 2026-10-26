@@ -12,9 +12,11 @@ Die Seite folgt den fünf Leitfragen des Projekts:
 4. Ziele, Motive und Werte
 5. Handlungsspielräume und Reaktionen
 
-Danach folgen ein Exkurs zu den Spitzeln in der Band, eine Quellenkritik („Ein Abend, drei Daten“),
-ein Vergleich mit Kim Pickenhain, die Zeit nach 1989, ein Urteil („War das Widerstand?“),
+Danach folgen eine Quellenkritik („Ein Abend, drei Daten“), ein Urteil („War das Widerstand?“),
 Fragen für das Zeitzeugengespräch und das Quellenverzeichnis.
+
+Die Gestaltung orientiert sich an den Booklets von Wutanfall und L’Attentat: schwarze Seiten,
+rote Farbspritzer, Schreibmaschinenschrift und ausgeschnittene Buchstaben.
 
 ## Ansehen
 
@@ -43,6 +45,7 @@ Online stellen mit GitHub Pages: *Settings → Pages → Branch auswählen → S
 | `css/style.css` | Gestaltung (Farben und Schriften oben in `:root`)   |
 | `js/main.js`  | Umschalter, Zeitleisten-Filter, Abwägung, Bildbetrachter |
 | `bilder/`     | Ausschnitte aus Booklets und Unterrichtsmaterial      |
+| `bilder/deko/` | Selbst erzeugte rote Farbspritzer                    |
 
 ## Hinweis zu Bildern und Quellen
 

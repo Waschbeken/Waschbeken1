@@ -75,7 +75,7 @@
   /* Zeitleiste filtern */
   var zeitleiste = document.querySelector('.zeitleiste');
   if (zeitleiste) {
-    gruppe(document.querySelectorAll('.filter button'), function (knopf) {
+    gruppe(document.querySelectorAll('button[data-filter]'), function (knopf) {
       var filter = knopf.getAttribute('data-filter');
       zeitleiste.setAttribute('data-filter', filter);
       zeitleiste.querySelectorAll('.ereignis').forEach(function (e) {
@@ -109,11 +109,11 @@
     var text = waage.querySelector('.anzeige-text');
 
     var stufen = [
-      { bis: -3, titel: 'Nonkonformität', satz: 'Für dich überwiegt: Er wollte anders leben, ein politischer Gegner des Staates war er nicht.' },
+      { bis: -2, titel: 'Nonkonformität', satz: 'Für dich überwiegt: Er wollte anders leben, ein politischer Gegner des Staates war er nicht.' },
       { bis: -1, titel: 'Verweigerung und Protest', satz: 'Für dich war es Widerspruch, aber kein Widerstand im engeren Sinn.' },
       { bis: 0, titel: 'Unentschieden', satz: 'Beide Seiten wiegen gleich schwer. Genau das macht den Fall so spannend.' },
       { bis: 2, titel: 'Protest mit politischem Ziel', satz: 'Für dich hat er sich bewusst gegen den Staat gestellt, an der Grenze zur Opposition.' },
-      { bis: 5, titel: 'Widerstand', satz: 'Für dich überwiegt: Er hat sich der SED-Diktatur bewusst entgegengestellt.' }
+      { bis: 3, titel: 'Widerstand', satz: 'Für dich überwiegt: Er hat sich der SED-Diktatur bewusst entgegengestellt.' }
     ];
 
     function auswerten() {
@@ -125,7 +125,7 @@
           anzahl += 1;
         }
       });
-      nadel.style.left = (50 + summe * 9) + '%';
+      nadel.style.left = (50 + summe * 15) + '%';
       if (anzahl === 0) {
         text.textContent = 'Wähle Argumente aus, die dich überzeugen.';
         return;
