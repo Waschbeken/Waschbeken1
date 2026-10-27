@@ -20,9 +20,12 @@ rote Farbspritzer, Schreibmaschinenschrift und ausgeschnittene Buchstaben.
 
 ## Ansehen
 
-Kein Build-Schritt nötig: `index.html` im Browser öffnen. Für die Ausstellung am besten im Vollbild (F11).
+**Am einfachsten:** die Datei `Akte-Stracke.html` per Doppelklick öffnen. Sie enthält alles
+(Texte, Bilder, Schriften und das Lied) und läuft in jedem Browser, auch ohne Internet.
+Für die Ausstellung im Vollbild zeigen (F11).
 
-Online stellen mit GitHub Pages: *Settings → Pages → Branch auswählen → Save*.
+Die Einzeldatei liegt nicht im Repo, weil sie die urheberrechtlich geschützte Tonaufnahme enthält.
+Neu bauen: Aufnahme als `audio/leipzig-in-truemmern.mp3` ablegen und `python3 werkzeuge/einzeldatei.py` ausführen.
 
 ## Interaktive Teile
 
@@ -37,9 +40,9 @@ Online stellen mit GitHub Pages: *Settings → Pages → Branch auswählen → S
 ## Vor der Ausstellung anpassen
 
 - Im Fußbereich von `index.html` den Platzhalter `[Namen, Klasse]` ersetzen.
-- **Das Lied einfügen:** die Aufnahme als `audio/leipzig-in-truemmern.mp3` speichern.
-  Solange sie fehlt, läuft der Text ohne Ton mit.
-- **Text genau auf den Gesang legen:** `index.html#zeitmarken` im Browser öffnen, das Lied abspielen
+- **Das Lied:** L’Attentat, „Leipzig in Trümmern (Original Version)“. Die Zeitmarken für die Zeilen
+  stehen schon in `index.html` (`data-zeiten`), per Computer-Analyse aus der Aufnahme ermittelt.
+- **Zeitmarken nachjustieren:** `index.html#zeitmarken` im Browser öffnen, das Lied abspielen
   und bei jeder neuen Zeile `T` drücken. Die Zahlen aus dem Kasten in `index.html` bei
   `data-zeiten=""` einfügen. Ohne Zeitmarken verteilt die Seite die Zeilen gleichmäßig über das Lied.
   Mit `data-vorspiel` und `data-nachspiel` (Sekunden) lässt sich einstellen, wie lange vor dem
@@ -54,7 +57,8 @@ Online stellen mit GitHub Pages: *Settings → Pages → Branch auswählen → S
 | `js/main.js`  | Umschalter, Zeitleisten-Filter, Abwägung, Bildbetrachter |
 | `bilder/`     | Ausschnitte aus Booklets und Unterrichtsmaterial      |
 | `bilder/deko/` | Selbst erzeugte rote Farbspritzer                    |
-| `audio/`      | Hierhin gehört die Aufnahme des Liedes (siehe `audio/LIESMICH.txt`) |
+| `audio/`      | Hierhin gehört die Aufnahme des Liedes (nicht im Repo, siehe `audio/LIESMICH.txt`) |
+| `werkzeuge/einzeldatei.py` | Baut `Akte-Stracke.html` mit allem eingebettet |
 
 ## Hinweis zu Bildern und Quellen
 

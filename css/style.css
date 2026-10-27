@@ -1036,6 +1036,17 @@ h3 {
   color: var(--grau);
 }
 
+.lz.ruf button {
+  font-family: var(--f-marker);
+  font-size: 1.25rem;
+  color: var(--rot-text);
+}
+
+.lz.musik button {
+  font-style: italic;
+  color: var(--grau);
+}
+
 .lz.aktuell button {
   color: var(--weiss);
   background: linear-gradient(transparent 52%, rgba(208, 40, 30, .75) 52%, rgba(208, 40, 30, .75) 90%, transparent 90%);

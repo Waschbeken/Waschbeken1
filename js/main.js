@@ -194,6 +194,8 @@
     var deutungText = song.querySelector('.deutung-text');
     var startText = deutungText.innerHTML;
     var zeilen = Array.prototype.slice.call(song.querySelectorAll('.lz'));
+    var leer = song.querySelector('.kasten-leer');
+    var textzeilen = zeilen.filter(function (z) { return !z.classList.contains('musik'); }).length;
     var deutungen = {};
     song.querySelectorAll('.deutungen li').forEach(function (li) {
       deutungen[li.getAttribute('data-g')] = li.innerHTML;
@@ -257,7 +259,10 @@
           z.classList.toggle('aktuell', k === index);
         });
         kasten.classList.toggle('leer', index < 0);
-        zaehler.textContent = index < 0 ? '' : 'Zeile ' + (index + 1) + ' von ' + zeilen.length;
+        var gesungen = zeilen.slice(0, index + 1).filter(function (z) { return !z.classList.contains('musik'); }).length;
+        if (index < 0) zaehler.textContent = '';
+        else if (zeilen[index].classList.contains('musik')) zaehler.textContent = '♪ Musik';
+        else zaehler.textContent = 'Zeile ' + gesungen + ' von ' + textzeilen;
         if (index < 0) {
           deutungText.innerHTML = startText;
           aktuelleGruppe = null;
@@ -276,6 +281,8 @@
         }
         aktuell = index;
       }
+      // Vor der ersten Zeile: zeigen, dass das Lied schon läuft
+      if (leer) leer.textContent = leer.getAttribute(index < 0 && t > 0.3 && !ohneTon ? 'data-intro' : 'data-start') || leer.textContent;
       anzeigeJetzt.textContent = format(t);
       if (dauer > 0) spur.value = String(Math.round(Math.min(t / dauer, 1) * 1000));
     };
