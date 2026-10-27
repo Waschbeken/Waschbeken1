@@ -196,36 +196,94 @@
       <div>
         <p class="etikett">Leitfrage 3 · Wogegen haben sie sich gewendet?</p>
         <h2>Leipzig in Trümmern</h2>
-        <p class="einleitung">Die beste Antwort gibt ein Lied von Wutanfall. Klick auf die markierten Zeilen.</p>
+        <p class="einleitung">Die beste Antwort gibt ein Lied von Wutanfall. Drück auf Abspielen: Der Text erscheint Zeile für Zeile, darunter steht unsere Deutung.</p>
       </div>
     </div>
 
-    <div class="lied">
-      <div>
-        <div class="strophe">
-          <details class="anm"><summary>Leipzig-City – kalt und verdreckt, / eingefallene Häuser hinter Fassaden versteckt.</summary><div><p>Saniert wurde, was Besucher sahen. In den Altbauvierteln zerfielen ganze Straßen.</p></div></details>
-          <details class="anm"><summary>Uni, Gewandhaus – die City wird fein, / woanders fallen die Wohnungen ein.</summary><div><p>Das Uni-Hochhaus und das 1981 eröffnete Neue Gewandhaus waren Vorzeigebauten. Der Text stellt sie neben die einstürzenden Wohnungen.</p></div></details>
-          <p class="zeile-text">Stumpfes, totes Menschenmeer / haben, haben immer mehr!</p>
+    <div class="song" data-zeiten="" data-vorspiel="6" data-nachspiel="4">
+      <div class="spieler">
+        <div class="kassette" aria-hidden="true">
+          <div class="kassette-label">
+            <span class="kassette-band">Wutanfall · 1981/82</span>
+            <span class="kassette-titel">Leipzig in Trümmern</span>
+            <div class="fenster"><span class="spule"></span><span class="spule"></span></div>
+          </div>
         </div>
-        <div class="strophe">
-          <details class="anm"><summary>Der Schnee von gestern im Capitol, / Cafe und Eisbar brechend voll.</summary><div><p>Das Kino Capitol. Genau hier wurde Stracke im November 1983 festgenommen.</p></div></details>
-          <details class="anm"><summary>Eingeschlossen von Chemie und Kohlengruben, / zurück bleiben Kranke und synthetische Nahrung aus Tuben.</summary><div><p>Im Süden der Stadt lagen Tagebaue und Chemiewerke. Über Umweltschäden schrieb die DDR-Presse kaum.</p></div></details>
-        </div>
-        <div class="strophe">
-          <details class="anm"><summary>Für Leipzigs Leute ’n neuer Shop im Hotel Merkur, / dort kann man alles haben, doch für D-Mark nur.</summary><div><p>Im Intershop gab es Westwaren, aber nur gegen Westgeld.</p></div></details>
-          <details class="anm"><summary>Zweimal stellt die Welt im Jahr sich aus, / Science Fiction für uns, im Messehaus.</summary><div><p>Zur Leipziger Messe zeigte sich die Stadt der Welt. Die Waren dort blieben für die meisten unerreichbar.</p></div></details>
-          <p class="zeile-text">Jauchengruben wie Elster und Pleiße, / wasserlos und stinkend vor Dreck und Scheiße.</p>
-        </div>
-        <div class="strophe">
-          <details class="anm"><summary>Leipzig in Trümmern, soll so dein Dasein enden? / Macht Schluß, sonst ist es bald soweit… / Leipzig, ich bin soweit!</summary><div><p>„Ich bin soweit“: Halte ich es nicht mehr aus, oder bin ich bereit zu handeln? Wie liest du die Zeile?</p></div></details>
-        </div>
-        <p class="beleg">Auszug. Text: Ray Schneider nach einem Entwurf von Chaos, um 1981/82 [Q2, Q6]</p>
+        <button class="abspielen" type="button" aria-pressed="false"><span class="symbol" aria-hidden="true">▶</span> <span class="beschriftung">Abspielen</span></button>
+        <label class="sr-only" for="song-position">Position im Lied</label>
+        <input class="spur" id="song-position" type="range" min="0" max="1000" value="0" step="1">
+        <p class="zeitanzeige"><span class="jetzt">0:00</span> / <span class="dauer">–:––</span><button class="alles" type="button">Ganzen Text zeigen</button></p>
+        <p class="ton-hinweis" hidden>Die Tonaufnahme fehlt noch. Der Text läuft ohne Ton mit.</p>
+        <audio preload="metadata" src="audio/leipzig-in-truemmern.mp3"></audio>
       </div>
-      <figure class="foto dokument">
+
+      <div class="kasten">
+        <div class="kasten-kopf"><span>Liedtext</span><span class="zaehler" aria-hidden="true"></span></div>
+        <div class="kasten-zeilen">
+          <p class="kasten-leer">Drück auf Abspielen.</p>
+          <ol class="liedzeilen">
+            <li class="lz strophe-anfang" data-g="1"><button type="button">Leipzig-City – kalt und verdreckt,</button></li>
+            <li class="lz" data-g="1"><button type="button">eingefallene Häuser hinter Fassaden versteckt.</button></li>
+            <li class="lz" data-g="2"><button type="button">Uni, Gewandhaus – die City wird fein,</button></li>
+            <li class="lz" data-g="2"><button type="button">woanders fallen die Wohnungen ein.</button></li>
+            <li class="lz" data-g="3"><button type="button">Stumpfes, totes Menschenmeer</button></li>
+            <li class="lz" data-g="3"><button type="button">haben, haben immer mehr!</button></li>
+            <li class="lz" data-g="4"><button type="button">Leben auf dem Bahnhof – stinkende Kneipen,</button></li>
+            <li class="lz" data-g="4"><button type="button">wo Besoffene liegenbleiben.</button></li>
+            <li class="lz" data-g="5"><button type="button">Natur und Wald finden keine Interessen</button></li>
+            <li class="lz" data-g="5"><button type="button">alles wird niedergewalzt und von Beton weggefressen.</button></li>
+            <li class="lz strophe-anfang" data-g="6"><button type="button">Lärm und Gestank, Kinder im Gedränge –</button></li>
+            <li class="lz" data-g="6"><button type="button">Streß und Spiesser jede Menge.</button></li>
+            <li class="lz" data-g="7"><button type="button">Der Schnee von gestern im Capitol,</button></li>
+            <li class="lz" data-g="7"><button type="button">Cafe und Eisbar brechend voll.</button></li>
+            <li class="lz" data-g="8"><button type="button">Leben auf dem Bahnhof – leer und abgebrannt,</button></li>
+            <li class="lz" data-g="8"><button type="button">Messerstechereien im Bahnhofsrestaurant.</button></li>
+            <li class="lz" data-g="9"><button type="button">Eingeschlossen von Chemie und Kohlengruben,</button></li>
+            <li class="lz" data-g="9"><button type="button">zurück bleiben Kranke und synthetische Nahrung aus Tuben.</button></li>
+            <li class="lz strophe-anfang" data-g="10"><button type="button">Vorgetäuschter Luxus – falsch und verlogen,</button></li>
+            <li class="lz" data-g="10"><button type="button">im Deli, Eden und Ex ums Geld betrogen.</button></li>
+            <li class="lz" data-g="11"><button type="button">Für Leipzigs Leute ’n neuer Shop im Hotel Merkur,</button></li>
+            <li class="lz" data-g="11"><button type="button">dort kann man alles haben, doch für D-Mark nur.</button></li>
+            <li class="lz" data-g="12"><button type="button">Zweimal stellt die Welt im Jahr sich aus,</button></li>
+            <li class="lz" data-g="12"><button type="button">Science Fiction für uns, im Messehaus.</button></li>
+            <li class="lz" data-g="13"><button type="button">Besoffene auf leeren Straßen bei Nacht,</button></li>
+            <li class="lz" data-g="13"><button type="button">wieder einen nach der Disco umgebracht.</button></li>
+            <li class="lz" data-g="14"><button type="button">Jauchengruben wie Elster und Pleiße,</button></li>
+            <li class="lz" data-g="14"><button type="button">wasserlos und stinkend vor Dreck und Scheiße.</button></li>
+            <li class="lz strophe-anfang" data-g="15"><button type="button">Leipzig in Trümmern, soll so dein Dasein enden?</button></li>
+            <li class="lz" data-g="15"><button type="button">Macht Schluß, sonst ist es bald soweit …</button></li>
+            <li class="lz" data-g="15"><button type="button">Leipzig, ich bin soweit!</button></li>
+          </ol>
+        </div>
+        <div class="deutung" aria-live="polite">
+          <span class="deutung-marke">Deutung</span>
+          <p class="deutung-text">Hier erscheint zu jeder Stelle unsere Deutung. Klick auf eine Zeile, um dorthin zu springen.</p>
+        </div>
+        <ol class="deutungen">
+          <li data-g="1"><b>Die Fassade</b> Das Bild, um das sich das ganze Lied dreht: vorne die schöne Fassade, dahinter der Verfall. Saniert wurde, was Besucher sahen.</li>
+          <li data-g="2"><b>Vorzeigebauten</b> Das Uni-Hochhaus und das 1981 eröffnete Neue Gewandhaus zeigten die DDR modern. Das Lied stellt sie direkt neben die Wohnungen, die einstürzen.</li>
+          <li data-g="3"><b>Die Mitläufer</b> Hier geht es nicht um den Staat, sondern um die Menschen: gleichgültig, angepasst, nur aufs Haben aus. Punk war auch ein Protest gegen das Mitmachen.</li>
+          <li data-g="4"><b>Der Bahnhof</b> Der Hauptbahnhof als Ort der Gestrandeten. So ein Leipzig kam in keiner Zeitung vor.</li>
+          <li data-g="5"><b>Beton</b> Gemeint sind wohl die neuen Plattenbausiedlungen. Ray Schneider, der den Text schrieb, nennt Grünau eine „Betonwüste“.</li>
+          <li data-g="6"><b>Enge</b> Lärm, Hektik, Spießer: das Gegenbild zu der Freiheit, die die Punks suchten.</li>
+          <li data-g="7"><b>Das Capitol</b> Ein Kino in der Innenstadt, hier mit „Schnee von gestern“, also alten Filmen. Im November 1983 wird Stracke genau vor diesem Kino festgenommen.</li>
+          <li data-g="8"><b>Gewalt</b> Gewalt im Alltag, über die offiziell niemand sprach. Stracke sagt 2017, Gewalt unter Jugendlichen habe es „schon immer“ gegeben.</li>
+          <li data-g="9"><b>Umwelt</b> Südlich von Leipzig lagen Braunkohletagebaue und Chemiewerke. Luft und Wasser waren verschmutzt, darüber berichtete die DDR-Presse kaum.</li>
+          <li data-g="10"><b>Luxus für wenige</b> „Deli“ und „Ex“ sind die Delikat- und Exquisit-Läden: bessere Waren zu sehr hohen Preisen. Was mit „Eden“ gemeint ist, konnten wir nicht klären.</li>
+          <li data-g="11"><b>Intershop</b> Im Hotel Merkur gab es Westwaren, aber nur gegen D-Mark. Wer keine Verwandten im Westen hatte, ging leer aus. Zwei Klassen im Staat der Gleichen.</li>
+          <li data-g="12"><b>Die Messe</b> Zweimal im Jahr zeigte sich Leipzig zur Messe der ganzen Welt. Für die meisten Leipziger blieben die ausgestellten Waren „Science Fiction“.</li>
+          <li data-g="13"><b>Die Nacht</b> Alkohol und Gewalt auf leeren Straßen. Auch das gehört zu dem Leipzig, das das Lied zeigen will.</li>
+          <li data-g="14"><b>Die Flüsse</b> Elster und Pleiße waren durch Abwässer stark verschmutzt. Das grobe Wort am Ende ist Absicht: Punk spricht aus, was man nicht sagen soll.</li>
+          <li data-g="15"><b>Der Schluss</b> Erst ein Appell an alle („Macht Schluß“), dann ein persönlicher Satz. „Ich bin soweit“: Halte ich es nicht mehr aus, oder bin ich bereit zu handeln? Wie liest du die Zeile?</li>
+        </ol>
+      </div>
+      <figure class="foto dokument typoskript">
         <a class="bildrahmen" href="bilder/leipzig-in-truemmern-typoskript.jpg" data-lupe><img src="bilder/leipzig-in-truemmern-typoskript.jpg" alt="Mit Schreibmaschine getippter Liedtext „Leipzig in Trümmern“." width="1100" height="1555" loading="lazy"></a>
-        <figcaption><b>Das Typoskript.</b> Die Band ließ ihre Texte abtippen. Ein Durchschlag landete bei der Stasi [Q2].</figcaption>
+        <figcaption><b>Das Typoskript.</b> Ein Durchschlag der Liedtexte landete bei der Stasi [Q2].</figcaption>
       </figure>
     </div>
+    <p class="beleg">Text nach dem Typoskript, die Aufnahme kann abweichen. Text: Ray Schneider nach einem Entwurf von Chaos [Q2, Q6]. Tonaufnahme: Wutanfall [Q14].</p>
+    <p class="song-fazit">Das Lied nennt weder SED noch Stasi. Es zeigt nur, was jeder sehen konnte, aber niemand sagen durfte.</p>
 
     <div class="abschnitt">
       <h3>1985: aus Beobachtung wird Anklage</h3>
@@ -562,6 +620,7 @@
       <li><strong>[Q11]</strong> Booklet „too much future. Punkrock GDR 1980–1989“, S. 3–4 und 40–41.</li>
       <li><strong>[Q12]</strong> Booklet „Heldenstadt anders“ zur Leipziger Punkszene, S. 138–139.</li>
       <li><strong>[Q13]</strong> Unterrichtsmaterial: Präsentation zur Vorbereitung des Zeitzeugengesprächs und Folie mit den fünf Leitfragen.</li>
+      <li><strong>[Q14]</strong> Wutanfall: „Leipzig in Trümmern“, Tonaufnahme (veröffentlicht auf der LP „Wutanfall 81–83“, 2017). Nur für schulische Zwecke.</li>
     </ol>
     <div class="hinweis">
       <p><strong>Bilder:</strong> aus den genannten Booklets und Unterrichtsmaterialien, nur für schulische Zwecke. Die Rechte liegen bei den Urhebern. Beteiligte nennen wir mit ihren Spitznamen aus den Quellen.</p>

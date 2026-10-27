@@ -783,83 +783,387 @@ h3 {
   transform: rotate(-6deg);
 }
 
-/* ---------- Kapitel 3: Liedtext ---------- */
+/* ---------- Kapitel 3: Lied mit mitlaufendem Text ---------- */
 
-.lied {
+.song {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 56px;
+  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+  gap: 40px 48px;
   align-items: start;
 }
 
-@media (max-width: 900px) {
-  .lied {
+.song .kasten {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+@media (max-width: 860px) {
+  .song {
     grid-template-columns: 1fr;
+    gap: 32px;
   }
 }
 
-.strophe {
-  margin: 0 0 26px;
+/* Kassette: in der Szene gingen die Lieder auf Tape von Hand zu Hand */
+.kassette {
+  position: relative;
+  aspect-ratio: 10 / 6.3;
+  max-width: 100%;
+  padding: 6% 6% 0;
+  background: #2b2a27;
+  border: 2px solid var(--weiss);
+  border-radius: 12px;
+  box-shadow: 8px 8px 0 #000;
+  transform: rotate(-2deg);
 }
 
-.strophe-kopf {
-  margin: 0 0 6px;
+.kassette::after {
+  content: "";
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  bottom: -2px;
+  height: 17%;
+  background: #1f1e1c;
+  border: 2px solid var(--weiss);
+  border-bottom: 0;
+  clip-path: polygon(8% 0, 92% 0, 100% 100%, 0 100%);
+}
+
+.kassette-label {
+  display: flex;
+  flex-direction: column;
+  height: 70%;
+  padding: 4% 6%;
+  color: var(--papier-ink);
+  background: var(--papier);
+  border-radius: 4px;
+}
+
+.kassette-band {
   font-family: var(--f-type);
   font-size: .78rem;
-  letter-spacing: .08em;
+  letter-spacing: .06em;
   text-transform: uppercase;
+}
+
+.kassette-titel {
+  font-family: var(--f-marker);
+  font-size: clamp(1.1rem, 2.4vw, 1.45rem);
+  line-height: 1.1;
+  color: #a3221a;
+}
+
+.fenster {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: auto 8% 0;
+  padding: 3% 8%;
+  background: #141413;
+  border-radius: 40px;
+}
+
+.spule {
+  width: 26%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, #141413 0 22%, transparent 23%),
+    repeating-conic-gradient(var(--weiss) 0 14deg, #6f6c64 14deg 60deg);
+  border: 3px solid var(--weiss);
+}
+
+.song.spielt .spule {
+  animation: spulen 2.2s linear infinite;
+}
+
+@keyframes spulen {
+  to { transform: rotate(-360deg); }
+}
+
+.abspielen {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 34px;
+  padding: 10px 22px 8px;
+  font-family: var(--f-marker);
+  font-size: 1.4rem;
+  color: var(--weiss);
+  background: var(--rot);
+  border: 0;
+  cursor: pointer;
+  transform: rotate(-1.5deg);
+  box-shadow: 5px 5px 0 #000;
+}
+
+.abspielen:hover {
+  background: #e3342a;
+}
+
+.abspielen:active {
+  transform: rotate(-1.5deg) translate(3px, 3px);
+  box-shadow: 2px 2px 0 #000;
+}
+
+.spur {
+  display: block;
+  width: 100%;
+  margin: 22px 0 6px;
+  accent-color: var(--rot);
+}
+
+.zeitanzeige {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 6px;
+  margin: 0;
+  font-family: var(--f-type);
+  font-size: .85rem;
+  font-variant-numeric: tabular-nums;
   color: var(--grau);
 }
 
-.zeile-text,
-details.anm > summary {
-  margin: 0;
-  padding: 2px 0 2px 13px;
-  font-family: var(--f-type);
-  font-size: 1.08rem;
-  line-height: 1.7;
-}
-
-details.anm {
-  border-left: 3px solid transparent;
-}
-
-details.anm > summary {
-  display: block;
-  padding-left: 10px;
-  list-style: none;
+.zeitanzeige .alles {
+  margin-left: auto;
+  padding: 0;
+  font: inherit;
+  color: var(--weiss);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  text-decoration-color: var(--rot);
+  text-underline-offset: .2em;
   cursor: pointer;
-  background: linear-gradient(transparent 60%, rgba(208, 40, 30, .45) 60%);
 }
 
-details.anm > summary::-webkit-details-marker {
+.ton-hinweis {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  font-family: var(--f-type);
+  font-size: .82rem;
+  color: var(--papier-ink);
+  background: var(--beige);
+}
+
+.song .typoskript {
+  grid-column: 1;
+  max-width: 230px;
+}
+
+/* Der Kasten mit dem Liedtext */
+.kasten {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 2px solid var(--weiss);
+  background: var(--schwarz-2);
+}
+
+.kasten-kopf {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  font-family: var(--f-type);
+  font-size: .82rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  border-bottom: 2px solid var(--weiss);
+}
+
+.zaehler {
+  color: var(--grau);
+  font-variant-numeric: tabular-nums;
+}
+
+.kasten-zeilen {
+  position: relative;
+  height: 320px;
+  overflow-y: auto;
+  padding: 16px 12px 40px;
+  scrollbar-color: var(--rot) transparent;
+}
+
+.kasten-leer {
   display: none;
+  margin: 0;
+  padding: 6px;
+  font-family: var(--f-marker);
+  font-size: 1.3rem;
+  color: var(--grau);
 }
 
-details.anm > summary::after {
-  content: " +";
+.song.bereit .kasten.leer .kasten-leer {
+  display: block;
+}
+
+.liedzeilen {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lz.strophe-anfang:not(:first-child) {
+  margin-top: 16px;
+}
+
+.lz button {
+  display: inline-block;
+  max-width: 100%;
+  padding: 1px 6px;
+  font-family: var(--f-type);
+  font-size: 1.05rem;
+  line-height: 1.55;
+  text-align: left;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.lz button:hover {
   color: var(--rot-text);
 }
 
-details.anm[open] {
-  border-left-color: var(--rot);
+.song.bereit .lz.kommt {
+  display: none;
 }
 
-details.anm[open] > summary::after {
-  content: " –";
+.song.bereit .lz.war {
+  color: var(--grau);
 }
 
-details.anm > div {
-  margin: 6px 0 14px 10px;
-  padding: 10px 14px;
-  font-size: .95rem;
-  line-height: 1.55;
+.lz.aktuell button {
+  color: var(--weiss);
+  background: linear-gradient(transparent 52%, rgba(208, 40, 30, .75) 52%, rgba(208, 40, 30, .75) 90%, transparent 90%);
+  animation: tippen .45s ease-out;
+}
+
+@keyframes tippen {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+}
+
+.deutung {
+  min-height: 150px;
+  padding: 16px 18px 18px;
   color: var(--papier-ink);
   background: var(--papier);
+  border-top: 4px solid var(--stempel);
 }
 
-details.anm > div p {
+.deutung-marke {
+  display: inline-block;
+  margin-bottom: 6px;
+  font-family: var(--f-marker);
+  font-size: 1.15rem;
+  color: #a3221a;
+}
+
+.deutung-text {
   margin: 0;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.deutung-text b {
+  display: block;
+  font-family: var(--f-kopf);
+  font-size: 1.2rem;
+  font-weight: 400;
+  text-transform: uppercase;
+}
+
+.deutung.wechsel .deutung-text {
+  animation: tippen .4s ease-out;
+}
+
+/* Ohne JavaScript stehen alle Deutungen als Liste da */
+.deutungen {
+  margin: 0;
+  padding: 16px 18px;
+  list-style: none;
+  font-size: .95rem;
+  border-top: 2px solid var(--weiss);
+}
+
+.deutungen li + li {
+  margin-top: 10px;
+}
+
+.song.bereit .deutungen {
+  display: none;
+}
+
+.song:not(.bereit) .deutung,
+.song:not(.bereit) .abspielen,
+.song:not(.bereit) .spur,
+.song:not(.bereit) .zeitanzeige {
+  display: none;
+}
+
+.song-fazit {
+  max-width: 36em;
+  margin: 28px 0 0;
+  font-family: var(--f-marker);
+  font-size: 1.35rem;
+  line-height: 1.3;
+  color: var(--rot-text);
+}
+
+/* Werkzeug zum Setzen der Zeitmarken (nur mit #zeitmarken in der Adresse) */
+.zeitmarken {
+  margin-top: 20px;
+  padding: 14px;
+  font-family: var(--f-type);
+  font-size: .85rem;
+  color: var(--papier-ink);
+  background: var(--beige);
+}
+
+.zeitmarken button {
+  margin: 8px 8px 8px 0;
+  padding: 6px 12px;
+  font: inherit;
+  color: var(--weiss);
+  background: var(--schwarz);
+  border: 0;
+  cursor: pointer;
+}
+
+.zeitmarken textarea {
+  width: 100%;
+  min-height: 70px;
+  font: .8rem var(--f-type);
+}
+
+@media (max-width: 860px) {
+  .kasten-zeilen {
+    height: 260px;
+  }
+
+  .song .kasten,
+  .song .typoskript {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .lz button {
+    font-size: .95rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .song.spielt .spule,
+  .lz.aktuell button,
+  .deutung.wechsel .deutung-text {
+    animation: none;
+  }
 }
 
 .vergleich {

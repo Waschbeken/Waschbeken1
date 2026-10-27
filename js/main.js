@@ -170,4 +170,266 @@
       if (event.target === dialog) dialog.close();
     });
   }
+
+  /* ---------- Lied: Kassette mit mitlaufendem Text und Deutung ---------- */
+  // Die Tonaufnahme gehört nach audio/leipzig-in-truemmern.mp3. Fehlt sie, läuft der Text ohne Ton mit.
+  // Zeitmarken stehen in data-zeiten am .song (Sekunden, eine pro Zeile, mit Komma getrennt).
+  // Ohne Zeitmarken werden die Zeilen nach ihrer Länge über das Lied verteilt.
+  // Mit #zeitmarken am Ende der Adresse erscheint ein Werkzeug, um die Marken beim Hören zu setzen.
+
+  var song = document.querySelector('.song');
+  if (song) {
+    var audio = song.querySelector('audio');
+    var knopf = song.querySelector('.abspielen');
+    var symbol = knopf.querySelector('.symbol');
+    var beschriftung = knopf.querySelector('.beschriftung');
+    var spur = song.querySelector('.spur');
+    var anzeigeJetzt = song.querySelector('.jetzt');
+    var anzeigeDauer = song.querySelector('.dauer');
+    var tonHinweis = song.querySelector('.ton-hinweis');
+    var kasten = song.querySelector('.kasten');
+    var fenster = song.querySelector('.kasten-zeilen');
+    var zaehler = song.querySelector('.zaehler');
+    var deutung = song.querySelector('.deutung');
+    var deutungText = song.querySelector('.deutung-text');
+    var startText = deutungText.innerHTML;
+    var zeilen = Array.prototype.slice.call(song.querySelectorAll('.lz'));
+    var deutungen = {};
+    song.querySelectorAll('.deutungen li').forEach(function (li) {
+      deutungen[li.getAttribute('data-g')] = li.innerHTML;
+    });
+
+    var SEKUNDEN_PRO_ZEILE = 3.6; // Tempo, wenn der Text ohne Ton mitläuft
+    var ruhig = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var ohneTon = false;
+    var dauer = 0;
+    var zeiten = [];
+    var laeuft = false;
+    var virtuellPos = 0;
+    var virtuellStart = 0;
+    var aktuell = -2;
+    var aktuelleGruppe = null;
+
+    song.classList.add('bereit');
+
+    var format = function (s) {
+      if (!isFinite(s)) return '–:––';
+      s = Math.max(0, Math.floor(s));
+      return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
+    };
+
+    var zeitenBerechnen = function () {
+      var fest = (song.getAttribute('data-zeiten') || '').split(',')
+        .map(parseFloat)
+        .filter(function (n) { return !isNaN(n); });
+      if (!ohneTon && fest.length === zeilen.length) {
+        zeiten = fest;
+        return;
+      }
+      var vor = ohneTon ? 0.5 : parseFloat(song.getAttribute('data-vorspiel')) || 0;
+      var nach = ohneTon ? 2 : parseFloat(song.getAttribute('data-nachspiel')) || 0;
+      var gewichte = zeilen.map(function (z) { return z.textContent.length + 15; });
+      var summe = gewichte.reduce(function (a, b) { return a + b; }, 0);
+      var platz = Math.max(1, dauer - vor - nach);
+      var t = vor;
+      zeiten = gewichte.map(function (g) {
+        var anfang = t;
+        t += platz * g / summe;
+        return anfang;
+      });
+    };
+
+    var position = function () {
+      if (!ohneTon) return audio.currentTime || 0;
+      return laeuft ? virtuellPos + (performance.now() - virtuellStart) / 1000 : virtuellPos;
+    };
+
+    var zeigen = function () {
+      var t = position();
+      var index = -1;
+      for (var k = 0; k < zeiten.length; k++) {
+        if (zeiten[k] <= t) index = k;
+      }
+      if (index !== aktuell) {
+        zeilen.forEach(function (z, k) {
+          z.classList.toggle('kommt', k > index);
+          z.classList.toggle('war', k < index);
+          z.classList.toggle('aktuell', k === index);
+        });
+        kasten.classList.toggle('leer', index < 0);
+        zaehler.textContent = index < 0 ? '' : 'Zeile ' + (index + 1) + ' von ' + zeilen.length;
+        if (index < 0) {
+          deutungText.innerHTML = startText;
+          aktuelleGruppe = null;
+        } else {
+          var zeile = zeilen[index];
+          // Nur im Kasten scrollen, nicht die ganze Seite
+          fenster.scrollTo({ top: Math.max(0, zeile.offsetTop - fenster.clientHeight * 0.45), behavior: ruhig ? 'auto' : 'smooth' });
+          var gruppe = zeile.getAttribute('data-g');
+          if (gruppe !== aktuelleGruppe) {
+            aktuelleGruppe = gruppe;
+            deutungText.innerHTML = deutungen[gruppe] || '';
+            deutung.classList.remove('wechsel');
+            void deutung.offsetWidth; // Animation neu starten
+            deutung.classList.add('wechsel');
+          }
+        }
+        aktuell = index;
+      }
+      anzeigeJetzt.textContent = format(t);
+      if (dauer > 0) spur.value = String(Math.round(Math.min(t / dauer, 1) * 1000));
+    };
+
+    var knopfZustand = function (an) {
+      laeuft = an;
+      song.classList.toggle('spielt', an);
+      knopf.setAttribute('aria-pressed', String(an));
+      symbol.textContent = an ? '❚❚' : '▶';
+      beschriftung.textContent = an ? 'Pause' : (ohneTon ? 'Text abspielen' : 'Abspielen');
+    };
+
+    var schleife = function () {
+      zeigen();
+      if (ohneTon && laeuft && position() >= dauer) {
+        virtuellPos = dauer;
+        knopfZustand(false);
+        zeigen();
+        return;
+      }
+      if (laeuft) window.requestAnimationFrame(schleife);
+    };
+
+    var setzen = function (t) {
+      t = Math.min(Math.max(0, t), dauer || 0);
+      if (ohneTon) {
+        virtuellPos = t;
+        virtuellStart = performance.now();
+      } else if (dauer > 0) {
+        audio.currentTime = t;
+      }
+      zeigen();
+    };
+
+    var aufOhneTonUmstellen = function () {
+      if (ohneTon) return;
+      ohneTon = true;
+      try { audio.pause(); } catch (e) { /* nichts zu tun */ }
+      dauer = zeilen.length * SEKUNDEN_PRO_ZEILE + 2.5;
+      zeitenBerechnen();
+      anzeigeDauer.textContent = format(dauer);
+      tonHinweis.hidden = false;
+      knopfZustand(false);
+      zeigen();
+    };
+
+    var abspielen = function () {
+      if (dauer > 0 && position() >= dauer - 0.05) setzen(0);
+      if (ohneTon) {
+        virtuellStart = performance.now();
+        knopfZustand(true);
+        schleife();
+        return;
+      }
+      var versuch = audio.play();
+      if (versuch && versuch.catch) {
+        versuch.catch(function (fehler) {
+          if (audio.error || (fehler && fehler.name === 'NotSupportedError')) {
+            aufOhneTonUmstellen();
+            abspielen();
+          }
+        });
+      }
+    };
+
+    var anhalten = function () {
+      if (ohneTon) {
+        virtuellPos = position();
+        knopfZustand(false);
+      } else {
+        audio.pause();
+      }
+    };
+
+    audio.addEventListener('loadedmetadata', function () {
+      if (ohneTon) return;
+      dauer = audio.duration;
+      zeitenBerechnen();
+      anzeigeDauer.textContent = format(dauer);
+      zeigen();
+    });
+    audio.addEventListener('error', aufOhneTonUmstellen);
+    audio.addEventListener('play', function () {
+      if (ohneTon) return;
+      knopfZustand(true);
+      schleife();
+    });
+    audio.addEventListener('pause', function () {
+      if (ohneTon) return;
+      knopfZustand(false);
+      zeigen();
+    });
+
+    // Der Ladefehler kann schon passiert sein, bevor dieses Skript läuft
+    if (audio.error || audio.networkState === 3) aufOhneTonUmstellen();
+    else if (audio.readyState >= 1) audio.dispatchEvent(new Event('loadedmetadata'));
+
+    knopf.addEventListener('click', function () {
+      if (laeuft) anhalten();
+      else abspielen();
+    });
+
+    spur.addEventListener('input', function () {
+      setzen(Number(spur.value) / 1000 * dauer);
+    });
+
+    zeilen.forEach(function (z, k) {
+      z.querySelector('button').addEventListener('click', function () {
+        setzen(zeiten[k] + 0.01);
+      });
+    });
+
+    song.querySelector('.alles').addEventListener('click', function () {
+      anhalten();
+      setzen(dauer);
+    });
+
+    knopfZustand(false);
+    zeigen();
+
+    if (window.location.hash === '#zeitmarken') {
+      var werkzeug = document.createElement('div');
+      werkzeug.className = 'zeitmarken';
+      werkzeug.innerHTML =
+        '<p><b>Zeitmarken setzen:</b> Spiel das Lied ab und drück bei jeder neuen Zeile auf den Knopf oder die Taste T. ' +
+        'Danach den Text unten in index.html bei <code>data-zeiten=""</code> einfügen.</p>' +
+        '<button type="button" data-marke>Neue Zeile beginnt (T)</button>' +
+        '<button type="button" data-neu>Von vorn</button>' +
+        '<p class="zm-stand"></p><textarea readonly aria-label="Zeitmarken"></textarea>';
+      song.querySelector('.spieler').appendChild(werkzeug);
+      var marken = [];
+      var stand = werkzeug.querySelector('.zm-stand');
+      var ausgabe = werkzeug.querySelector('textarea');
+      var standZeigen = function () {
+        stand.textContent = marken.length + ' von ' + zeilen.length + ' Zeilen';
+        ausgabe.value = marken.join(',');
+      };
+      var marke = function () {
+        if (marken.length < zeilen.length) marken.push(position().toFixed(1));
+        standZeigen();
+      };
+      werkzeug.querySelector('[data-marke]').addEventListener('click', marke);
+      werkzeug.querySelector('[data-neu]').addEventListener('click', function () {
+        marken = [];
+        standZeigen();
+        setzen(0);
+      });
+      document.addEventListener('keydown', function (event) {
+        if ((event.key === 't' || event.key === 'T') && !event.target.closest('input, textarea')) {
+          event.preventDefault();
+          marke();
+        }
+      });
+      standZeigen();
+    }
+  }
 })();

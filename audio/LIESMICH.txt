@@ -1,0 +1,13 @@
+Hier gehört die Tonaufnahme des Liedes hin:
+
+    leipzig-in-truemmern.mp3
+
+(genau dieser Dateiname, klein geschrieben, mit .mp3 am Ende)
+
+Solange die Datei fehlt, läuft der Liedtext auf der Webseite ohne Ton mit.
+
+Damit der Text genau zum Gesang passt:
+1. index.html im Browser öffnen und an die Adresse #zeitmarken anhängen,
+   z. B. .../index.html#zeitmarken
+2. Im Kapitel 3 das Lied abspielen und bei jeder neuen Zeile die Taste T drücken.
+3. Die Zahlen aus dem Kasten kopieren und in index.html bei data-zeiten="" einfügen.

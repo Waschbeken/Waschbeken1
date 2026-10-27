@@ -27,7 +27,8 @@ Online stellen mit GitHub Pages: *Settings → Pages → Branch auswählen → S
 ## Interaktive Teile
 
 - **Szene / Akte:** zeigt dieselben Personen einmal als Freunde, einmal so, wie die Stasi sie führte.
-- **Liedtext:** markierte Zeilen von „Leipzig in Trümmern“ lassen sich aufklappen.
+- **Lied „Leipzig in Trümmern“:** Kassette mit Abspielknopf. Daneben erscheint der Text Zeile für Zeile,
+  darunter unsere Deutung zur jeweiligen Stelle. Ein Klick auf eine Zeile springt dorthin.
 - **Zeitleiste:** Stracke & Freunde und Staat & Stasi nebeneinander, filterbar.
 - **Aktensprache / Klartext:** übersetzt den Übersichtsbogen der OPK „Stern“.
 - **Abwägung:** Besucherinnen und Besucher wählen Argumente und sehen, wohin ihr Urteil zeigt.
@@ -36,6 +37,13 @@ Online stellen mit GitHub Pages: *Settings → Pages → Branch auswählen → S
 ## Vor der Ausstellung anpassen
 
 - Im Fußbereich von `index.html` den Platzhalter `[Namen, Klasse]` ersetzen.
+- **Das Lied einfügen:** die Aufnahme als `audio/leipzig-in-truemmern.mp3` speichern.
+  Solange sie fehlt, läuft der Text ohne Ton mit.
+- **Text genau auf den Gesang legen:** `index.html#zeitmarken` im Browser öffnen, das Lied abspielen
+  und bei jeder neuen Zeile `T` drücken. Die Zahlen aus dem Kasten in `index.html` bei
+  `data-zeiten=""` einfügen. Ohne Zeitmarken verteilt die Seite die Zeilen gleichmäßig über das Lied.
+  Mit `data-vorspiel` und `data-nachspiel` (Sekunden) lässt sich einstellen, wie lange vor dem
+  Gesang und nach der letzten Zeile nur Musik läuft.
 
 ## Dateien
 
@@ -46,6 +54,7 @@ Online stellen mit GitHub Pages: *Settings → Pages → Branch auswählen → S
 | `js/main.js`  | Umschalter, Zeitleisten-Filter, Abwägung, Bildbetrachter |
 | `bilder/`     | Ausschnitte aus Booklets und Unterrichtsmaterial      |
 | `bilder/deko/` | Selbst erzeugte rote Farbspritzer                    |
+| `audio/`      | Hierhin gehört die Aufnahme des Liedes (siehe `audio/LIESMICH.txt`) |
 
 ## Hinweis zu Bildern und Quellen
 
