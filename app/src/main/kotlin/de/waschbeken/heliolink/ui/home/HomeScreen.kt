@@ -229,7 +229,7 @@ fun HomeScreen(nav: NavHostController) {
                             val stages = remember(d) { d.night?.stages?.associate { (t, st) -> t / 60 * 60 to st }.orEmpty() }
                             val counts = remember(d) {
                                 val c = HashMap<de.waschbeken.heliolink.ui.DayState, Int>()
-                                d.day.forEach { s -> c.merge(de.waschbeken.heliolink.ui.dayState(listOf(s), stages), 1, Int::plus) }
+                                d.day.forEach { s -> c.merge(de.waschbeken.heliolink.ui.dayState(listOf(s), stages), 1) { a, b -> a + b } }
                                 c
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {

@@ -253,7 +253,7 @@ private fun NoData(text: String) {
 private fun ActivityPage(d: DayData) {
     val counts = remember(d) {
         val c = HashMap<DayState, Int>()
-        d.activity.forEach { s -> c.merge(dayState(listOf(s), d.stages), 1, Int::plus) }
+        d.activity.forEach { s -> c.merge(dayState(listOf(s), d.stages), 1) { a, b -> a + b } }
         c
     }
     val steps = d.activity.sumOf { it.steps }
