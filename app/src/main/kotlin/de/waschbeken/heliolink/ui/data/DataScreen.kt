@@ -114,6 +114,14 @@ private enum class DataPage(val title: String, val metric: String?) {
     BATTERY("Akku", "battery"),
 }
 
+private class NightValues(
+    val heartRate: List<Pair<Long, Float>>,
+    val temperature: List<ValueSample>,
+    val breath: List<ValueSample>,
+    val spo2: List<ValueSample>,
+    val hrv: List<ValueSample>,
+)
+
 /** Everything of one day, loaded once for all pages. */
 private class DayData(
     val date: LocalDate,
@@ -132,6 +140,8 @@ private class DayData(
     val pai: List<PaiSample>,
     val workouts: List<Workout>,
     val resting: Int?,
+    /** Values during the night that ended this morning (with half an hour around it). */
+    val nightValues: NightValues?,
     /** The 7 days up to [date], for the week pages. */
     val weekNights: Map<LocalDate, Queries.NightSummary>,
     val weekTotals: Map<LocalDate, Queries.DayTotals>,
@@ -158,6 +168,15 @@ private fun loadDay(db: HealthDb, date: LocalDate): DayData {
         pai = db.pai(from - 6 * 86400, to),
         workouts = db.workouts().filter { it.start < to && it.end > from },
         resting = db.values(HealthDb.RESTING_HR, from - 86400, to).lastOrNull()?.value,
+        nightValues = nights[date]?.let { n ->
+            val a = n.start - 1800
+            val b = n.end + 1800
+            NightValues(
+                Queries.heartRatePoints(db, a, b, db.activity(a, b)),
+                db.values(HealthDb.TEMPERATURE, a, b), db.values(HealthDb.RESPIRATION, a, b),
+                db.values(HealthDb.SPO2, a, b), db.values(HealthDb.HRV, a, b),
+            )
+        },
         weekNights = Queries.nightSummaries(db, date.minusDays(6), date, zone),
         weekTotals = Queries.dayTotals(db, date.minusDays(6), date, zone, intArrayOf(100, 120, 140, 160, 180)),
     )
@@ -408,6 +427,9 @@ private fun SleepPage(d: DayData, nav: NavHostController) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+    d.nightValues?.let { v ->
+        de.waschbeken.heliolink.ui.sleep.NightCharts(n, v.heartRate, v.temperature, v.breath, v.spo2, v.hrv)
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = { nav.navigate(Routes.sleepEdit(d.date.toEpochDay())) }, modifier = Modifier.weight(1f)) { Text("Bearbeiten") }

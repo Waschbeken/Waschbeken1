@@ -363,7 +363,7 @@ private fun HeroCard(state: StrapUiState, d: HomeData?, stepGoal: Int, openSleep
                         Text("Erholung", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
                         Text(readiness.label, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                         Text(
-                            readiness.parts.joinToString(" · ") { "${it.first} ${it.second}" },
+                            "Punkte von 100: " + readiness.parts.joinToString(" · ") { "${it.first} ${it.second}" },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                         )

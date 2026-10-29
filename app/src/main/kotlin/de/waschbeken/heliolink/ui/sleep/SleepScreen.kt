@@ -97,8 +97,8 @@ private fun loadNight(db: HealthDb, date: LocalDate): NightData {
     val zone = ZoneId.systemDefault()
     val (start, end) = Queries.nightWindow(date, zone)
     val night = Queries.night(db, date, zone)
-    val s = night?.start ?: start
-    val e = night?.end ?: end
+    val s = night?.start?.minus(1800) ?: start
+    val e = night?.end?.plus(1800) ?: end
     val temps = db.values(HealthDb.TEMPERATURE, start - 21 * 86400, start)
     val baseline = temps.filter { Instant.ofEpochSecond(it.timestamp).atZone(zone).hour in 0..5 }.map { it.value / 100.0 }
         .takeIf { it.size > 60 }?.average()
@@ -379,16 +379,12 @@ private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(
             )
         }
     }
-    if (d.samples.any { it.heartRate > 0 }) {
-        item {
-            Panel {
-                Text("Puls im Schlaf", style = MaterialTheme.typography.titleMedium)
-                LineChart(
-                    listOf(Series(d.samples.filter { it.heartRate > 0 }.map { it.timestamp to it.heartRate.toFloat() }, Palette.Sleep, fill = true)),
-                    n.start, n.end,
-                )
-            }
-        }
+    item {
+        NightCharts(
+            n,
+            heartRate = d.samples.filter { it.heartRate > 0 }.map { it.timestamp to it.heartRate.toFloat() },
+            temperature = d.temperature, breath = d.breath, spo2 = d.spo2, hrv = d.hrv, tempBaseline = d.tempBaseline,
+        )
     }
 }
 

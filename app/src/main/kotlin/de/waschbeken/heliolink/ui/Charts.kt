@@ -333,12 +333,11 @@ fun LineChart(
     val tipBg = MaterialTheme.colorScheme.inverseSurface
     val tipFg = MaterialTheme.colorScheme.inverseOnSurface
     val inspect = rememberInspect()
-    val gestures = (if (zoom != null) Modifier.timeZoom(zoom) else Modifier).holdToInspect(inspect)
-    val fixedFrom = from
-    val fixedTo = to
-    Canvas(modifier.then(gestures)) {
-        val from = zoom?.start ?: fixedFrom
-        val to = zoom?.end ?: fixedTo
+    // every time chart can be zoomed; without a shared zoom it gets its own
+    val z = zoom ?: rememberTimeZoom(from, to, minSpan = minOf(600L, maxOf(60L, (to - from) / 4)))
+    Canvas(modifier.timeZoom(z).holdToInspect(inspect)) {
+        val from = z.start
+        val to = z.end
         if (to <= from) return@Canvas
         val values = series.flatMap { s -> s.points.filter { it.first in from..to }.map { it.second } }
             .ifEmpty { series.flatMap { s -> s.points.map { it.second } } }

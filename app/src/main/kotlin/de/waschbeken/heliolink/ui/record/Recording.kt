@@ -132,11 +132,15 @@ fun RecordingBanner(nav: NavHostController) {
         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.FiberManualRecord, contentDescription = null, tint = Palette.Heart, modifier = Modifier.size(16.dp))
             Spacer(Modifier.width(10.dp))
-            Text(
-                "${w.sport} läuft · ${formatDuration(now - w.start)}" + (w.plannedEnd?.let { " von ${formatDuration(it - w.start)}" } ?: ""),
-                style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f),
-            )
-            Text(state.heartRate?.let { "$it bpm" } ?: "", style = MaterialTheme.typography.titleSmall, color = Palette.Heart)
+            Column(Modifier.weight(1f)) {
+                Text(w.sport + " läuft", style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+                Text(
+                    formatDuration(now - w.start) + (w.plannedEnd?.let { " von ${formatDuration(it - w.start)}" } ?: ""),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Text(state.heartRate?.let { "$it bpm" } ?: "", style = MaterialTheme.typography.titleMedium, color = Palette.Heart, maxLines = 1)
         }
     }
 }
