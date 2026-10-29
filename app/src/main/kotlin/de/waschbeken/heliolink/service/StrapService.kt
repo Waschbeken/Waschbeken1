@@ -601,6 +601,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 "Wecker um %02d:%02d – für %s Schlaf ab %02d:%02d ins Bett.".format(
                     next.hour, next.minute, de.waschbeken.heliolink.ui.formatMinutes(prefs.profile.sleepGoalMinutes), bedtime.hour, bedtime.minute,
                 ),
+                de.waschbeken.heliolink.ui.MainActivity.openIntent(this, de.waschbeken.heliolink.ui.Routes.ALARMS),
             )
         }
     }
@@ -621,7 +622,10 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             }
             night.minHeartRate?.let { append(" · Puls min. $it") }
         }
-        Notifications.show(this, Notifications.ID_MORNING, Notifications.CHANNEL_HEALTH, "Guten Morgen! Deine Nacht", text)
+        Notifications.show(
+            this, Notifications.ID_MORNING, Notifications.CHANNEL_HEALTH, "Guten Morgen! Deine Nacht", "$text · Tippen zum Ansehen oder Korrigieren",
+            de.waschbeken.heliolink.ui.MainActivity.openIntent(this, de.waschbeken.heliolink.ui.Routes.SLEEP),
+        )
     }
 
     /** Offers a higher maximum heart rate when a workout went above it. */

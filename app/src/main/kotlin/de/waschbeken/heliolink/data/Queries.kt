@@ -63,6 +63,16 @@ object Queries {
         return kotlin.math.round(onset.average()).toInt() to (if (wake.isEmpty()) 0 else kotlin.math.round(wake.average()).toInt())
     }
 
+    /** Naps on [date] between 09:00 and 21:00 that are not part of the main night. */
+    fun naps(db: HealthDb, date: LocalDate, zone: ZoneId, mainNight: SleepSession?): List<SleepSession> {
+        val from = date.atTime(9, 0).atZone(zone).toEpochSecond()
+        val to = date.atTime(21, 0).atZone(zone).toEpochSecond()
+        val tuning = db.prefs.sleepTuning
+        return SleepAnalyzer.sessions(db.activity(from, to), maxGapMinutes = 15, minMinutes = 15)
+            .filter { s -> mainNight == null || s.end <= mainNight.start || s.start >= mainNight.end }
+            .filter { it.asleepMinutes < 4 * 60 && it.asleepMinutes >= tuning.minSleepMinutes.coerceAtMost(15) }
+    }
+
     /** Diary tags offered on the sleep page. */
     val SLEEP_TAGS = listOf("Sport", "Koffein", "Alkohol", "Stress", "Spät gegessen", "Bildschirm im Bett", "Krank", "Nickerchen", "Lesen", "Spät ins Bett")
 

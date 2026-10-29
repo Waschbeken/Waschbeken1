@@ -86,6 +86,7 @@ private class NightData(
     val breath: List<ValueSample>,
     val temperature: List<ValueSample>,
     val tempBaseline: Double?,
+    val naps: List<SleepSession> = emptyList(),
 )
 
 private class RangeData(val nights: Map<LocalDate, SleepSession>, val from: LocalDate, val to: LocalDate)
@@ -107,6 +108,7 @@ private fun loadNight(db: HealthDb, date: LocalDate): NightData {
         breath = db.values(HealthDb.RESPIRATION, s, e),
         temperature = db.values(HealthDb.TEMPERATURE, s, e),
         tempBaseline = baseline,
+        naps = Queries.naps(db, date, zone, night),
     )
 }
 
@@ -161,6 +163,7 @@ fun SleepScreen(nav: NavHostController) {
                     n == null -> item { Text("Lade …") }
                     n.night == null -> {
                         item { NoSleep { nav.navigate(Routes.sleepEdit(date.toEpochDay())) } }
+                        if (n.naps.isNotEmpty()) item { Naps(n.naps) }
                         item { SleepDiary(date) }
                     }
                     else -> {
@@ -171,6 +174,7 @@ fun SleepScreen(nav: NavHostController) {
                             askCheck = askCheck && date == LocalDate.now() && !n.night.edited,
                             onConfirm = { app.prefs.sleepCheckedDay = LocalDate.now().toEpochDay() },
                         )
+                        if (n.naps.isNotEmpty()) item { Naps(n.naps) }
                         item { SleepDiary(date) }
                     }
                 }
@@ -186,6 +190,24 @@ fun SleepScreen(nav: NavHostController) {
                 item { TagEffects(state.dataVersion) }
             }
         }
+    }
+}
+
+@Composable
+private fun Naps(naps: List<SleepSession>) {
+    Panel {
+        Text("Nickerchen", style = MaterialTheme.typography.titleMedium)
+        naps.forEach { s ->
+            Row {
+                Text("${clock(s.start)} – ${clock(s.end)}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                Text(formatMinutes(s.asleepMinutes), style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+        Text(
+            "Kurzer Schlaf am Tag – bis 20 Minuten erfrischt, länger kann die Nacht verkürzen.",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
