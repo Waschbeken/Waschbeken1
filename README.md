@@ -29,6 +29,32 @@ Verlauf (Puls, Schritte, Schlaf, Stress minutengenau) regelmäßig vom Strap.
 | **App-Updates** | Automatisch prüfen, Vorabversionen, Update-Quelle |
 | **Daten** | CSV-Export, Verbindungsprotokoll, alle Daten löschen |
 
+## Einrichtung auf GitHub (einmalig)
+
+### 1. Signatur-Schlüssel einrichten
+Damit sich die App später selbst aktualisieren kann, muss jede Version mit demselben Schlüssel
+signiert sein. Der Schlüssel ist mit einem Passwort geschützt, das nur als GitHub-Secret existiert.
+
+1. Auf GitHub: **Settings → Secrets and variables → Actions → New repository secret**
+   - Name: `SIGNING_PASSWORD`
+   - Wert: ein langes, zufälliges Passwort (mind. 12 Zeichen). Gut aufheben, z. B. im Passwort-Manager.
+2. **Actions → „Signatur einrichten“ → Run workflow** (Branch `main`).
+
+Der Workflow erzeugt den Schlüssel und legt ihn passwortgeschützt als `signing/release.p12` ins Repo.
+Danach baut „Build“ automatisch die erste Version **1.0.0** und veröffentlicht sie unter **Releases**.
+
+> Den Schlüssel nie neu erzeugen oder das Passwort ändern. Sonst lassen sich neue Versionen nicht mehr
+> über die installierte App installieren (dann App einmal deinstallieren und neu installieren).
+
+APKs aus *Artifacts*, die vor dem Einrichten gebaut wurden, sind mit einem Test-Schlüssel signiert.
+Wer so eine Version installiert hat, deinstalliert sie einmal und installiert dann `heliolink-1.0.0.apk`.
+
+### 2. Von Gadgetbridge umziehen
+In Gadgetbridge **Einstellungen → Daten exportieren** (Zip). In HelioLink bei der Einrichtung
+**„Gadgetbridge-Export auswählen“** (oder später *Einstellungen → Daten → Aus Gadgetbridge importieren*).
+HelioLink übernimmt Auth-Key, MAC-Adresse und den ganzen Verlauf: Puls und Schritte pro Minute,
+Schlafphasen, Stress, SpO₂, Ruhepuls und HRV. Danach in Gadgetbridge den Strap trennen.
+
 ## Installation
 
 Unter **Releases** liegt die neueste `heliolink-X.Y.Z.apk`. Auf dem Handy herunterladen und öffnen
@@ -52,9 +78,17 @@ bestätigst du einmal. Deine Daten und der Auth-Key bleiben erhalten.
   zählen die automatischen Updates von dort weiter.
 - Manuell suchen: in der App **Einstellungen → Nach Updates suchen**.
 
-Alle Versionen sind mit demselben Schlüssel (`app/debug.keystore`) signiert, deshalb lassen sie sich
+Alle Releases sind mit dem Schlüssel aus `signing/release.p12` signiert, deshalb lassen sie sich
 immer über die installierte App installieren. Das Repository ist öffentlich, die App braucht für
 Updates also kein Token.
+
+## Schlafphasen
+
+Der Helio Strap speichert Schlafphasen nicht in den Minutenwerten, sondern als eigenen Datensatz
+pro Nacht (Leicht, Tief, REM, Wach und ein Score). HelioLink liest ihn aus dem Gadgetbridge-Export
+und sucht nach dem ersten Abruf einmalig, unter welchem Code der Strap ihn liefert
+(*Einstellungen → Synchronisierung → Schlafphasen-Abruf suchen*). Findet sie ihn nicht, wird der
+Schlaf aus den Minutenwerten berechnet – dann ohne Phasen.
 
 ## Einrichtung: der Auth-Key
 

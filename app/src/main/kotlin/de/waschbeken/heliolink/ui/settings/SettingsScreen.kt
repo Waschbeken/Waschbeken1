@@ -382,6 +382,15 @@ private fun SyncPage(state: StrapUiState) {
         enabled = state.connected && !state.syncing,
     ) { controller?.syncNow() }
     SettingRow(
+        "Schlafphasen-Abruf suchen",
+        when (prefs.sleepCode) {
+            -1 -> "Noch nicht gesucht – passiert automatisch nach dem ersten Abruf"
+            0 -> "Nicht gefunden – tippen, um erneut zu suchen"
+            else -> "Aktiv (Code 0x%02x) – tippen, um neu zu suchen".format(prefs.sleepCode)
+        },
+        enabled = state.connected && !state.syncing,
+    ) { controller?.probeSleepCode() }
+    SettingRow(
         "Verlauf neu laden",
         "Holt alle Daten erneut vom Strap, z. B. nach einem Fehler",
         enabled = state.connected && !state.syncing,
@@ -496,6 +505,14 @@ private fun DataPage(state: StrapUiState) {
     val scope = rememberCoroutineScope()
     var showLog by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+
+    val importGadgetbridge = de.waschbeken.heliolink.ui.rememberGadgetbridgeImport {
+        context.app.repo.controller?.reconnect()
+    }
+    SettingsHeader("Import")
+    SettingRow("Aus Gadgetbridge importieren", "Zip aus „Daten exportieren“: Verlauf, Schlafphasen, SpO₂, Auth-Key") {
+        importGadgetbridge()
+    }
 
     SettingsHeader("Export")
     SettingRow("Aktivitätsdaten als CSV", "Minutenwerte: Schritte, Puls, Schlaf – z. B. für Excel") {

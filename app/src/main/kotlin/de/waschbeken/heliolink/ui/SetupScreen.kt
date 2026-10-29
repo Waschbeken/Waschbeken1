@@ -76,6 +76,23 @@ fun SetupScreen(hasPermission: Boolean, requestPermission: () -> Unit, onDone: (
                 style = MaterialTheme.typography.bodyMedium,
             )
 
+            val importGadgetbridge = rememberGadgetbridgeImport { r ->
+                if (r.keyFound) {
+                    key = prefs.authKeyHex.orEmpty()
+                    manualAddress = r.address.orEmpty()
+                    selected = null
+                }
+            }
+            SectionCard("Schon Gadgetbridge benutzt?") {
+                Text(
+                    "Dann geht es am schnellsten: In Gadgetbridge unter Einstellungen → „Daten exportieren“ eine " +
+                        "Zip-Datei erstellen und hier auswählen. HelioLink übernimmt Auth-Key, Strap und deinen " +
+                        "ganzen Verlauf (Puls, Schritte, Schlafphasen, Stress, SpO₂).",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedButton(onClick = importGadgetbridge) { Text("Gadgetbridge-Export auswählen") }
+            }
+
             SectionCard("1. Auth-Key") {
                 Text(
                     "Der Strap akzeptiert nur Apps, die seinen geheimen Schlüssel kennen. Du bekommst ihn, " +

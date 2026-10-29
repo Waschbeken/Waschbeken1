@@ -64,6 +64,15 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getInt("history_days", 30)
         set(v) = edit { putInt("history_days", v) }
 
+    /** Fetch code of the strap's sleep records: -1 not searched yet, 0 none found. */
+    var sleepCode: Int
+        get() = sp.getInt("sleep_code", -1)
+        set(v) = edit { putInt("sleep_code", v) }
+
+    var sleepOffset: Int
+        get() = sp.getInt("sleep_offset", 0)
+        set(v) = edit { putInt("sleep_offset", v) }
+
     var lastSync: Long
         get() = sp.getLong("last_sync", 0)
         set(v) = edit { putLong("last_sync", v) }

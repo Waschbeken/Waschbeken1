@@ -26,6 +26,7 @@ import de.waschbeken.heliolink.core.HeartRateMode
 import de.waschbeken.heliolink.core.HeartRateZones
 import de.waschbeken.heliolink.core.StrapEvent
 import de.waschbeken.heliolink.core.rmssd
+import de.waschbeken.heliolink.data.HealthDb
 import de.waschbeken.heliolink.data.Workout
 import de.waschbeken.heliolink.ui.MainActivity
 import java.time.Duration
@@ -155,7 +156,20 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
     override fun syncNow() {
         handler.post {
             val days = prefs.historyDays.toLong()
-            connection?.startSync { startSync(prefs, defaultHistory = Duration.ofDays(days)) }
+            val sleepCode = prefs.sleepCode.takeIf { it > 0 }
+            val offset = prefs.sleepOffset
+            connection?.startSync {
+                sleepRecordOffset = offset
+                startSync(prefs, defaultHistory = Duration.ofDays(days), sleepCode = sleepCode)
+            }
+        }
+    }
+
+    override fun probeSleepCode() {
+        handler.post {
+            repo.update { it.copy(syncing = true, syncText = "Suche Schlafphasen-Daten auf dem Strap …") }
+            repo.log("Suche, unter welchem Code der Strap Schlafphasen liefert …")
+            connection?.startSync { probeSleepCode(prefs) }
         }
     }
 
@@ -304,6 +318,31 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 db.insertStress(event.samples)
                 repo.log("${event.samples.size} Stresswerte gespeichert")
             }
+            is StrapEvent.Spo2Data -> {
+                db.insertValues(HealthDb.SPO2, event.samples)
+                repo.log("${event.samples.size} SpO₂-Werte gespeichert")
+            }
+            is StrapEvent.RestingHeartRateData -> {
+                db.insertValues(HealthDb.RESTING_HR, event.samples)
+                repo.log("${event.samples.size} Ruhepuls-Werte gespeichert")
+            }
+            is StrapEvent.SleepData -> {
+                db.insertSleepRecords(event.records)
+                repo.log("${event.records.size} Nächte mit Schlafphasen gespeichert")
+                repo.dataChanged()
+            }
+            is StrapEvent.SleepCodeProbed -> {
+                if (event.code != null) {
+                    prefs.sleepCode = event.code
+                    prefs.sleepOffset = event.offset
+                    repo.log("Schlafphasen gefunden (Code 0x%02x) – werden ab jetzt mit abgerufen".format(event.code))
+                } else {
+                    prefs.sleepCode = 0
+                    repo.log("Der Strap liefert keine Schlafphasen-Datensätze, Schlaf wird aus den Minutenwerten berechnet")
+                }
+                repo.update { it.copy(syncing = false, syncText = null) }
+                repo.dataChanged()
+            }
             is StrapEvent.SyncFinished -> {
                 val now = System.currentTimeMillis()
                 if (event.success) prefs.lastSync = now
@@ -312,6 +351,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 }
                 repo.log(if (event.success) "Synchronisierung abgeschlossen" else "Synchronisierung abgebrochen: ${event.message}")
                 repo.dataChanged()
+                if (event.success && prefs.sleepCode == -1) probeSleepCode()
                 if (!event.success && prefs.notifySyncErrors) {
                     alert(NOTIFICATION_SYNC, CHANNEL_ALERTS, "Abruf vom Strap abgebrochen", event.message ?: "Unbekannter Fehler")
                 }

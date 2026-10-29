@@ -46,6 +46,16 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "APP_VERSION_NAME=$VERSION" >> "$GITHUB_ENV"
 
+      # Releases must carry the permanent key, otherwise the app cannot update itself.
+      - name: Signatur prüfen
+        env:
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+        run: |
+          if [ -z "$SIGNING_PASSWORD" ] || [ ! -f signing/release.p12 ]; then
+            echo "::error::Signatur fehlt. Einmalig: Secret SIGNING_PASSWORD anlegen und den Workflow 'Signatur einrichten' starten (siehe README)."
+            exit 1
+          fi
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -54,6 +64,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Tests und Release-APK
+        env:
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
         run: ./gradlew --no-daemon :core:test :app:assembleRelease
 
       - name: GitHub-Release erstellen

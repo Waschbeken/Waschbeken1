@@ -56,10 +56,16 @@ enum class SleepStage { AWAKE, LIGHT, DEEP, REM }
 
 data class StressSample(val timestamp: Long, val stress: Int)
 
-enum class FetchType(val code: Byte, val label: String) {
+/** History data types. [code] is null when the strap's code is not known up front (see [StrapProtocol.probeSleepCode]). */
+enum class FetchType(val code: Int?, val label: String) {
     ACTIVITY(0x01, "Aktivität"),
     STRESS(0x13, "Stress"),
+    SPO2(0x25, "SpO₂"),
+    RESTING_HEART_RATE(0x3a, "Ruhepuls"),
+    SLEEP(null, "Schlafphasen"),
 }
+
+data class ValueSample(val timestamp: Long, val value: Int)
 
 data class DeviceInfo(val firmware: String? = null, val hardware: String? = null, val serial: String? = null)
 
@@ -79,6 +85,12 @@ sealed interface StrapEvent {
     data class SyncProgress(val type: FetchType, val since: Long, val expectedBytes: Long, val receivedBytes: Long) : StrapEvent
     data class ActivityData(val samples: List<ActivitySample>) : StrapEvent
     data class StressData(val samples: List<StressSample>) : StrapEvent
+    data class Spo2Data(val samples: List<ValueSample>) : StrapEvent
+    data class RestingHeartRateData(val samples: List<ValueSample>) : StrapEvent
+    data class SleepData(val records: List<SleepRecord>) : StrapEvent
+
+    /** Result of [StrapProtocol.probeSleepCode]: the fetch code of the sleep records, or null if none matched. */
+    data class SleepCodeProbed(val code: Int?, val offset: Int) : StrapEvent
     data class SyncFinished(val success: Boolean, val message: String? = null) : StrapEvent
     data class Log(val message: String) : StrapEvent
 }

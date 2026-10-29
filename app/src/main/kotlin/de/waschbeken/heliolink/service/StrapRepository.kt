@@ -49,6 +49,7 @@ data class StrapUiState(
 /** Commands the UI can send to the running [StrapService]. */
 interface StrapController {
     fun syncNow()
+    fun probeSleepCode()
     fun setLiveHeartRate(enabled: Boolean)
     fun findStrap()
     fun refresh()

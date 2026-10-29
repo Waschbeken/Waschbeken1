@@ -37,6 +37,7 @@ import de.waschbeken.heliolink.core.DayAnalyzer
 import de.waschbeken.heliolink.core.HeartRateZones
 import de.waschbeken.heliolink.core.SleepAnalyzer
 import de.waschbeken.heliolink.core.SleepStage
+import de.waschbeken.heliolink.data.HealthDb
 import de.waschbeken.heliolink.service.StrapUiState
 import kotlinx.coroutines.delay
 import java.text.DateFormat
@@ -57,6 +58,10 @@ fun TodayScreen(state: StrapUiState, openSleep: () -> Unit) {
     val nightStart = date.minusDays(1).atTime(18, 0).atZone(zone).toEpochSecond()
     val samples by dbValue(date, state.dataVersion) { it.activity(nightStart, dayEnd) }
     val stress by dbValue(date, state.dataVersion) { it.stress(dayStart, dayEnd) }
+    val records by dbValue(date, state.dataVersion) { it.sleepRecords(nightStart, dayEnd) }
+    val spo2 by dbValue(date, state.dataVersion) { it.values(HealthDb.SPO2, nightStart, dayEnd) }
+    val resting by dbValue(date, state.dataVersion) { it.values(HealthDb.RESTING_HR, dayStart - 86400, dayEnd) }
+    val hrv by dbValue(date, state.dataVersion) { it.values(HealthDb.HRV, nightStart, dayEnd) }
 
     Column(
         Modifier
@@ -103,7 +108,7 @@ fun TodayScreen(state: StrapUiState, openSleep: () -> Unit) {
             }
         }
 
-        val sessions = SleepAnalyzer.sessions(all)
+        val sessions = SleepAnalyzer.combine(records.orEmpty().map { it.toSession(all) }, SleepAnalyzer.sessions(all))
         val night = SleepAnalyzer.nightOf(date, sessions, zone)
         SectionCard("Schlaf", modifier = Modifier.clickable(onClick = openSleep)) {
             if (night == null) {
@@ -115,6 +120,27 @@ fun TodayScreen(state: StrapUiState, openSleep: () -> Unit) {
                     Metric("Tiefschlaf", formatMinutes(night.minutes(SleepStage.DEEP)), Modifier.weight(1f))
                 }
                 StackedBar(SleepStage.entries.map { night.minutes(it).toFloat() to Palette.stage(it) })
+            }
+        }
+
+        val spo2Values = spo2.orEmpty().map { it.value }
+        val strapResting = resting.orEmpty().lastOrNull { it.timestamp < dayEnd }?.value
+        val nightHrv = night?.let { n -> hrv.orEmpty().filter { it.timestamp in n.start until n.end }.map { it.value } }.orEmpty()
+        if (spo2Values.isNotEmpty() || strapResting != null || nightHrv.isNotEmpty()) {
+            SectionCard("Erholung") {
+                Row(Modifier.fillMaxWidth()) {
+                    Metric("Ruhepuls", strapResting?.let { "$it bpm" } ?: "–", Modifier.weight(1f))
+                    Metric("HRV nachts", if (nightHrv.isEmpty()) "–" else "${nightHrv.average().toInt()} ms", Modifier.weight(1f))
+                    Metric(
+                        "SpO₂",
+                        if (spo2Values.isEmpty()) "–" else "${spo2Values.average().toInt()} %",
+                        Modifier.weight(1f),
+                        color = if (spo2Values.isNotEmpty() && spo2Values.min() < 90) Color(0xFFFFB74D) else Color.Unspecified,
+                    )
+                }
+                if (spo2Values.isNotEmpty()) {
+                    Text("SpO₂ min. ${spo2Values.min()} % aus ${spo2Values.size} Messungen", style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
 

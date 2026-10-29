@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import de.waschbeken.heliolink.core.SleepAnalyzer
 import de.waschbeken.heliolink.core.SleepStage
+import de.waschbeken.heliolink.data.HealthDb
 import de.waschbeken.heliolink.service.StrapUiState
 import java.time.Instant
 import java.time.LocalDate
@@ -33,7 +34,12 @@ fun SleepScreen(state: StrapUiState) {
     val weekStart = date.minusDays(7).atTime(18, 0).atZone(zone).toEpochSecond()
     val end = date.atTime(18, 0).atZone(zone).toEpochSecond()
     val samples by dbValue(date, state.dataVersion) { it.activity(weekStart, end) }
-    val sessions = remember(samples) { SleepAnalyzer.sessions(samples.orEmpty()) }
+    val records by dbValue(date, state.dataVersion) { it.sleepRecords(weekStart, end) }
+    val hrv by dbValue(date, state.dataVersion) { it.values(HealthDb.HRV, weekStart, end) }
+    val sessions = remember(samples, records) {
+        val minutes = samples.orEmpty()
+        SleepAnalyzer.combine(records.orEmpty().map { it.toSession(minutes) }, SleepAnalyzer.sessions(minutes))
+    }
     val night = SleepAnalyzer.nightOf(date, sessions, zone)
     val time = DateTimeFormatter.ofPattern("HH:mm", Locale.GERMANY)
 
@@ -62,7 +68,19 @@ fun SleepScreen(state: StrapUiState) {
             SectionCard("Nacht $from – $to") {
                 Row(Modifier.fillMaxWidth()) {
                     Metric("Schlafdauer", formatMinutes(night.asleepMinutes), Modifier.weight(1f))
-                    Metric("Schlaf-Score", "${night.score}", Modifier.weight(1f), color = scoreColor(night.score))
+                    Metric(
+                        if (night.strapScore != null) "Score vom Strap" else "Schlaf-Score",
+                        "${night.score}",
+                        Modifier.weight(1f),
+                        color = scoreColor(night.score),
+                    )
+                }
+                if (night.strapScore == null && night.minutes(SleepStage.DEEP) == 0 && night.minutes(SleepStage.REM) == 0) {
+                    Text(
+                        "Für diese Nacht liegen nur Minutenwerte ohne Schlafphasen vor.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
                 Hypnogram(night.stages)
                 StackedBar(SleepStage.entries.map { night.minutes(it).toFloat() to Palette.stage(it) })
@@ -76,9 +94,11 @@ fun SleepScreen(state: StrapUiState) {
                 }
             }
             SectionCard("Puls im Schlaf") {
+                val nightHrv = hrv.orEmpty().filter { it.timestamp in night.start until night.end }.map { it.value }
                 Row(Modifier.fillMaxWidth()) {
                     Metric("Durchschnitt", "${night.avgHeartRate ?: "–"} bpm", Modifier.weight(1f))
                     Metric("Minimum", "${night.minHeartRate ?: "–"} bpm", Modifier.weight(1f))
+                    if (nightHrv.isNotEmpty()) Metric("HRV", "${nightHrv.average().toInt()} ms", Modifier.weight(1f))
                 }
                 val nightSamples = samples.orEmpty().filter { it.timestamp in night.start until night.end && it.heartRate > 0 }
                 TimeLineChart(nightSamples.map { it.timestamp to it.heartRate }, night.start, night.end, Palette.Deep)
