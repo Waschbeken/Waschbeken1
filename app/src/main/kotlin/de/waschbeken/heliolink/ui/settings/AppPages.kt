@@ -259,6 +259,11 @@ internal fun NotificationsPage() {
         "Nach dem ersten Abruf am Morgen: Schlafdauer, Phasen und Erholung",
         prefs.morningSummary,
     ) { prefs.morningSummary = it }
+    SwitchSetting(
+        "Frühwarnung",
+        "Wenn Hauttemperatur, Ruhepuls, HRV und Atmung nachts zusammen deutlich von deinem Normalwert abweichen",
+        prefs.bodyCheckNotify,
+    ) { prefs.bodyCheckNotify = it }
 
     SettingsHeader("System")
     SettingRow("Android-Benachrichtigungen", "Töne, Wichtigkeit und Kanäle in den Systemeinstellungen") {

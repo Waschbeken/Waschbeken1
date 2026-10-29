@@ -24,6 +24,7 @@ object Notifications {
     const val ID_MAX_HR = 7
     const val ID_INSTALLED = 8
     const val ID_WEEKLY = 9
+    const val ID_BODY_CHECK = 10
 
     fun createChannels(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return

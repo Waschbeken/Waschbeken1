@@ -208,6 +208,15 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getLong("morning_summary_day", 0)
         set(v) = edit { putLong("morning_summary_day", v) }
 
+    /** Notify when the night values look like the body is fighting something (see BodyCheck). */
+    var bodyCheckNotify: Boolean
+        get() = sp.getBoolean("body_check_notify", true)
+        set(v) = edit { putBoolean("body_check_notify", v) }
+
+    var bodyCheckDay: Long
+        get() = sp.getLong("body_check_day", 0)
+        set(v) = edit { putLong("body_check_day", v) }
+
     /** Highest heart rate the app offered as new maximum, so it does not ask twice. */
     var suggestedMaxHr: Int
         get() = sp.getInt("suggested_max_hr", 0)

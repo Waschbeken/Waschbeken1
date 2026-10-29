@@ -208,6 +208,9 @@ fun HomeScreen(nav: NavHostController) {
             }
             val d = data
             item { HeroCard(state, d, profile.stepGoal) { nav.navigateToTab(Routes.SLEEP) } }
+            d?.bodyCheck?.takeIf { it.level != de.waschbeken.heliolink.core.BodyCheck.Level.NORMAL }?.let { check ->
+                item { BodyCheckCard(check, d.bodyCheckHints) }
+            }
             item { de.waschbeken.heliolink.ui.record.RecordingBanner(nav) }
             item {
                 LiveHeartCard(state, profile.maxHeartRate, d?.resting?.let { profile.zoneRest(it) }, onRecord = startRecording) {
@@ -516,7 +519,7 @@ private fun TileGrid(d: HomeData, state: StrapUiState, stepGoal: Int, hidden: Se
     add(Tile.HRV) { m ->
         StatTile(
             "HRV nachts", d.hrvNight?.let { "${it.toInt()} ms" } ?: "–", m,
-            caption = if (d.hrvNight != null && d.hrvBaseline != null) "Schnitt ${d.hrvBaseline.toInt()} ms" else "Herzfrequenzvariabilität",
+            caption = hrvCaption(d),
             icon = Icons.Default.Favorite, tint = Palette.Hrv,
             onClick = { nav.navigate(Routes.metric("hrv")) },
         )
@@ -548,7 +551,7 @@ private fun TileGrid(d: HomeData, state: StrapUiState, stepGoal: Int, hidden: Se
     add(Tile.BATTERY) { m ->
         StatTile(
             "Akku", state.battery?.let { "$it %" } ?: "–", m,
-            caption = d.batteryDays?.let { "reicht noch ca. %.1f Tage".format(it) } ?: if (state.charging) "lädt" else "Strap",
+            caption = if (state.charging) "lädt" else d.batteryDays?.let { "reicht noch ca. %.1f Tage".format(it) } ?: "Strap",
             icon = Icons.Default.BatteryStd, tint = Palette.Battery,
             onClick = { nav.navigate(Routes.metric("battery")) },
         )
