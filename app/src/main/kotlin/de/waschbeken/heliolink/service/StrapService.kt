@@ -660,6 +660,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
 
     /** Morning summary after the first successful sync of the day. */
     private fun afterSync() {
+        de.waschbeken.heliolink.data.AutoBackup.runIfDueInBackground(this)
         weeklySummary()
         val today = LocalDate.now()
         if (!prefs.morningSummary || prefs.morningSummaryDay == today.toEpochDay() || LocalTime.now().hour < 5) return

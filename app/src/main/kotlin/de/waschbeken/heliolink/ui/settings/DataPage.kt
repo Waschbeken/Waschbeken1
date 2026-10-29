@@ -3,8 +3,11 @@ package de.waschbeken.heliolink.ui.settings
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
@@ -25,6 +28,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import de.waschbeken.heliolink.BuildConfig
 import de.waschbeken.heliolink.app
+import de.waschbeken.heliolink.data.AutoBackup
 import de.waschbeken.heliolink.data.Backup
 import de.waschbeken.heliolink.service.StrapUiState
 import de.waschbeken.heliolink.ui.exportFile
@@ -73,6 +77,33 @@ internal fun DataPage(state: StrapUiState) {
         app.repo.dataChanged()
     }
     val importGadgetbridge = rememberGadgetbridgeImport { app.repo.controller?.reconnect() }
+    prefsTick()
+    val prefs = app.prefs
+    var backupRunning by remember { mutableStateOf(false) }
+    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+                )
+                prefs.autoBackupTree = uri.toString()
+            } catch (e: SecurityException) {
+                Toast.makeText(context, "Dieser Ordner lässt sich nicht dauerhaft nutzen", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+    fun backupNow() {
+        backupRunning = true
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { runCatching { AutoBackup.run(context) } }
+            backupRunning = false
+            Toast.makeText(
+                context,
+                result.fold({ "Gesichert: $it" }, { "Sicherung fehlgeschlagen: ${it.message}" }),
+                Toast.LENGTH_LONG,
+            ).show()
+        }
+    }
 
     SettingsHeader("Export")
     ChoiceSetting("Zeitraum", Backup.Range.entries.map { it to it.label }, range) { range = it }
@@ -91,6 +122,46 @@ internal fun DataPage(state: StrapUiState) {
         }
     }
     SettingsNote("Der Export enthält keinen Auth-Key und kann gefahrlos geteilt werden. Trainings gibt es einzeln als TCX im Tab „Training“.")
+
+    SettingsHeader("Automatische Sicherung")
+    ChoiceSetting(
+        "Automatisch sichern",
+        listOf(0 to "Aus", 1 to "Täglich", 3 to "Alle 3 Tage", 7 to "Wöchentlich"),
+        prefs.autoBackupDays,
+        subtitle = "beim Öffnen der App oder nach dem Abruf",
+    ) { prefs.autoBackupDays = it }
+    SettingRow(
+        "Speicherort",
+        AutoBackup.placeName(context) + if (prefs.autoBackupTree == null) " · tippen, um einen Ordner zu wählen (z. B. Google Drive)" else " · tippen zum Ändern",
+    ) { pickFolder.launch(null) }
+    if (prefs.autoBackupTree != null) {
+        SettingRow("Ordner zurücksetzen", "Wieder in Downloads/HelioLink sichern") { prefs.autoBackupTree = null }
+    }
+    ChoiceSetting(
+        "Aufbewahren",
+        listOf(3 to "Letzte 3", 7 to "Letzte 7", 14 to "Letzte 14", 30 to "Letzte 30"),
+        prefs.autoBackupKeep,
+        subtitle = "ältere automatische Sicherungen werden gelöscht",
+    ) { prefs.autoBackupKeep = it }
+    SwitchSetting(
+        "Vor jedem Update sichern",
+        "Bevor eine neue Version installiert wird",
+        prefs.autoBackupBeforeUpdate,
+    ) { prefs.autoBackupBeforeUpdate = it }
+    SettingRow(
+        "Jetzt automatisch sichern",
+        when {
+            backupRunning -> "Sichere …"
+            prefs.lastAutoBackupFailed -> "Letzter Versuch fehlgeschlagen: ${prefs.lastAutoBackupInfo}"
+            prefs.lastAutoBackup > 0 -> "Zuletzt ${formatDate(prefs.lastAutoBackup)} · ${prefs.lastAutoBackupInfo}"
+            else -> "Noch keine automatische Sicherung"
+        },
+        enabled = !backupRunning,
+    ) { backupNow() }
+    SettingsNote(
+        "Automatische Sicherungen enthalten wie die normale Sicherung deinen Auth-Key und bleiben auch erhalten, wenn du " +
+            "HelioLink deinstallierst. Wiederherstellen: „Sicherung wiederherstellen“ und die neueste Datei heliolink-auto-… wählen.",
+    )
 
     SettingsHeader("Sicherung")
     SettingRow("Sicherung erstellen", "Alle Daten und Einstellungen inkl. Auth-Key – zum Umzug auf ein neues Handy") {

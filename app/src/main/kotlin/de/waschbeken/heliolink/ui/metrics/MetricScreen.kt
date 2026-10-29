@@ -1,6 +1,27 @@
 package de.waschbeken.heliolink.ui.metrics
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+import de.waschbeken.heliolink.core.Bucket
+import de.waschbeken.heliolink.core.Buckets
+import de.waschbeken.heliolink.data.Workout
+import de.waschbeken.heliolink.ui.Legend
+import de.waschbeken.heliolink.ui.StackedBarChart
+import de.waschbeken.heliolink.ui.TrendChart
+import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -111,63 +132,103 @@ enum class Metric(val key: String, val title: String, val color: Color, val abou
 
 /** Data of one metric for a period. */
 private class MetricData(
+    val period: Period,
+    val date: LocalDate,
     val from: LocalDate,
     val to: LocalDate,
     val start: Long,
     val end: Long,
+    val buckets: List<Bucket>,
     val activity: List<ActivitySample> = emptyList(),
-    val days: List<DayStats> = emptyList(),
+    /** Per-day totals for every period but a single day (heart rate and steps). */
+    val totals: Map<LocalDate, Queries.DayTotals> = emptyMap(),
     val values: List<ValueSample> = emptyList(),
     val stress: List<StressSample> = emptyList(),
     val pai: List<PaiSample> = emptyList(),
     val hr: List<Pair<Long, Float>> = emptyList(),
     val strapResting: Int? = null,
+    /** Average strap resting heart rate of the 30 days before the period. */
+    val restingBaseline: Int? = null,
     val heatmap: List<Pair<LocalDate, Float>> = emptyList(),
+    val sleepHr: Pair<Int?, Int?>? = null,
+    val workouts: List<Workout> = emptyList(),
 )
 
-private fun load(db: HealthDb, metric: Metric, period: Period, date: LocalDate): MetricData {
+private fun zoneLower(profile: UserProfile, rest: Int?) = IntArray(5) { HeartRateZones.lowerBpm(it, profile.maxHeartRate, rest) }
+
+private fun load(db: HealthDb, metric: Metric, period: Period, date: LocalDate, profile: UserProfile): MetricData {
     val zone = ZoneId.systemDefault()
     val (from, to) = period.range(date)
     var start = from.atStartOfDay(zone).toEpochSecond()
     val end = to.plusDays(1).atStartOfDay(zone).toEpochSecond()
+    val buckets = period.buckets(date)
     // HRV, temperature and breathing belong to the night before the day
     if (metric in setOf(Metric.HRV, Metric.TEMPERATURE, Metric.RESPIRATION, Metric.SPO2)) start -= 6 * 3600
+    val base = MetricData(period, date, from, to, start, end, buckets)
+    fun copy(
+        activity: List<ActivitySample> = emptyList(),
+        totals: Map<LocalDate, Queries.DayTotals> = emptyMap(),
+        values: List<ValueSample> = emptyList(),
+        stress: List<StressSample> = emptyList(),
+        pai: List<PaiSample> = emptyList(),
+        hr: List<Pair<Long, Float>> = emptyList(),
+        strapResting: Int? = null,
+        restingBaseline: Int? = null,
+        heatmap: List<Pair<LocalDate, Float>> = emptyList(),
+        sleepHr: Pair<Int?, Int?>? = null,
+        workouts: List<Workout> = emptyList(),
+    ) = MetricData(
+        base.period, base.date, base.from, base.to, base.start, base.end, base.buckets,
+        activity, totals, values, stress, pai, hr, strapResting, restingBaseline, heatmap, sleepHr, workouts,
+    )
     return when (metric) {
         Metric.HEART, Metric.STEPS -> {
-            val activity = db.activity(start, end)
+            val resting = db.values(HealthDb.RESTING_HR, start - 30 * 86400L, end)
+            val strapResting = resting.lastOrNull { it.timestamp < end }?.value
+            val baseline = resting.filter { it.timestamp < start }.map { it.value }.takeIf { it.size >= 3 }?.average()?.toInt()
+            val rest = profile.zoneRest(strapResting)
             val heat = if (metric == Metric.STEPS) {
                 val hFrom = LocalDate.now().minusWeeks(19).let { it.minusDays((it.dayOfWeek.value - 1).toLong()) }
-                Aggregates.days(db.activity(hFrom.atStartOfDay(zone).toEpochSecond(), end), hFrom, LocalDate.now(), zone)
-                    .map { it.date to it.steps.toFloat() }
+                Queries.dayTotals(db, hFrom, LocalDate.now(), zone, zoneLower(profile, rest)).map { (d, t) -> d to t.steps.toFloat() }
             } else emptyList()
-            MetricData(
-                from, to, start, end,
-                activity = activity,
-                days = Aggregates.days(activity, from, to, zone),
-                hr = if (period == Period.DAY) Queries.heartRatePoints(db, start, end, activity) else emptyList(),
-                strapResting = db.values(HealthDb.RESTING_HR, start - 86400, end).lastOrNull()?.value,
-                values = db.values(HealthDb.RESTING_HR, start - 86400, end),
-                heatmap = heat,
-            )
+            if (period == Period.DAY) {
+                val activity = db.activity(start, end)
+                copy(
+                    activity = activity,
+                    totals = Queries.dayTotals(db, from, to, zone, zoneLower(profile, rest)),
+                    hr = Queries.heartRatePoints(db, start, end, activity),
+                    strapResting = strapResting,
+                    restingBaseline = baseline,
+                    values = resting.filter { it.timestamp >= start },
+                    heatmap = heat,
+                    sleepHr = if (metric == Metric.HEART) Queries.night(db, date, zone)?.let { it.avgHeartRate to it.minHeartRate } else null,
+                    workouts = if (metric == Metric.HEART) db.workouts().filter { it.start in start until end } else emptyList(),
+                )
+            } else {
+                copy(
+                    totals = Queries.dayTotals(db, from, to, zone, zoneLower(profile, rest)),
+                    strapResting = strapResting,
+                    restingBaseline = baseline,
+                    values = resting.filter { it.timestamp >= start },
+                    heatmap = heat,
+                )
+            }
         }
-        Metric.STRESS -> MetricData(from, to, start, end, stress = db.stress(start, end))
-        Metric.PAI -> MetricData(from, to, start, end, pai = db.pai(start - 86400, end))
-        Metric.SPO2 -> MetricData(from, to, start, end, values = db.values(HealthDb.SPO2, start, end))
-        Metric.HRV -> MetricData(from, to, start, end, values = db.values(HealthDb.HRV, start, end))
-        Metric.TEMPERATURE -> MetricData(from, to, start, end, values = db.values(HealthDb.TEMPERATURE, start, end))
-        Metric.RESPIRATION -> MetricData(from, to, start, end, values = db.values(HealthDb.RESPIRATION, start, end))
-        Metric.BATTERY -> MetricData(from, to, start, end, values = db.values(HealthDb.BATTERY, start - 3 * 86400, end))
+        Metric.STRESS -> copy(stress = db.stress(start, end))
+        Metric.PAI -> copy(pai = db.pai(start - 86400, end))
+        Metric.SPO2 -> copy(values = db.values(HealthDb.SPO2, start, end))
+        Metric.HRV -> copy(values = db.values(HealthDb.HRV, start, end))
+        Metric.TEMPERATURE -> copy(values = db.values(HealthDb.TEMPERATURE, start, end))
+        Metric.RESPIRATION -> copy(values = db.values(HealthDb.RESPIRATION, start, end))
+        Metric.BATTERY -> copy(values = db.values(HealthDb.BATTERY, start - 3 * 86400, end))
     }
 }
 
-private fun dayLabels(from: LocalDate, to: LocalDate, period: Period): List<String> {
-    val days = generateSequence(from) { it.plusDays(1) }.takeWhile { !it.isAfter(to) }.toList()
-    return days.mapIndexed { i, d ->
-        when (period) {
-            Period.WEEK -> d.dayOfWeek.getDisplayName(TextStyle.SHORT, German).take(2)
-            else -> if (d.dayOfMonth == 1 || d.dayOfMonth % 5 == 0) "${d.dayOfMonth}" else ""
-        }
-    }
+/** Per-day average of a value table; values in the evening count for the next day ([shiftHours]). */
+private fun perDay(values: List<ValueSample>, scale: Double = 1.0, shiftHours: Long = 0): Map<LocalDate, List<Double>> {
+    val zone = ZoneId.systemDefault()
+    return values.groupBy { java.time.Instant.ofEpochSecond(it.timestamp + shiftHours * 3600).atZone(zone).toLocalDate() }
+        .mapValues { (_, v) -> v.map { it.value * scale } }
 }
 
 @Composable
@@ -181,8 +242,8 @@ fun MetricScreen(nav: NavHostController, key: String) {
     var dateEpoch by rememberSaveable { mutableStateOf(LocalDate.now().toEpochDay()) }
     val period = Period.valueOf(periodName)
     val date = LocalDate.ofEpochDay(dateEpoch)
-    val data by dbValue(metric, period, date, state.dataVersion) { load(it, metric, period, date) }
     val profile = app.prefs.profile.also { tick }
+    val data by dbValue(metric, period, date, state.dataVersion, tick) { load(it, metric, period, date, profile) }
 
     Scaffold(topBar = { BackTopBar(metric.title, onBack = { nav.popBackStack() }) }) { padding ->
         LazyColumn(
@@ -192,20 +253,23 @@ fun MetricScreen(nav: NavHostController, key: String) {
         ) {
             item { PeriodSelector(period, { periodName = it.name }) }
             item { DateNavigator(period, date) { dateEpoch = it.toEpochDay() } }
-            val d = data
+            // Older data stays visible while the new period loads; only show it when it matches.
+            val d = data?.takeIf { it.period == period && it.date == date }
             if (d == null) {
                 item { Text("Lade …", style = MaterialTheme.typography.bodyMedium) }
             } else {
                 item {
                     when (metric) {
-                        Metric.HEART -> HeartContent(d, period, profile)
-                        Metric.STEPS -> StepsContent(d, period, profile)
-                        Metric.STRESS -> StressContent(d, period)
-                        Metric.SPO2 -> ValueContent(d, period, metric, "%", 1.0, minY = 80f, maxY = 100f)
-                        Metric.HRV -> ValueContent(d, period, metric, "ms", 1.0)
-                        Metric.TEMPERATURE -> ValueContent(d, period, metric, "°C", 0.01, decimals = 1)
-                        Metric.RESPIRATION -> ValueContent(d, period, metric, "/min", 1.0)
-                        Metric.PAI -> PaiContent(d, period)
+                        Metric.HEART -> if (d.period == Period.DAY) {
+                            HeartDay(d, profile, state.heartRate.takeIf { date == LocalDate.now() && System.currentTimeMillis() - state.heartRateAt < 120_000 })
+                        } else HeartRange(d, profile)
+                        Metric.STEPS -> StepsContent(d, profile)
+                        Metric.STRESS -> StressContent(d)
+                        Metric.SPO2 -> ValueContent(d, metric, "%", 1.0, minY = 80f, maxY = 100f)
+                        Metric.HRV -> ValueContent(d, metric, "ms", 1.0)
+                        Metric.TEMPERATURE -> ValueContent(d, metric, "°C", 0.01, decimals = 1)
+                        Metric.RESPIRATION -> ValueContent(d, metric, "/min", 1.0)
+                        Metric.PAI -> PaiContent(d)
                         Metric.BATTERY -> BatteryContent(d)
                     }
                 }
@@ -227,85 +291,273 @@ private fun TileRow(vararg tiles: Pair<String, String>) {
     }
 }
 
+private val clockFormat = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+private fun clock(epoch: Long) = java.time.Instant.ofEpochSecond(epoch).atZone(ZoneId.systemDefault()).format(clockFormat)
+
+private fun signed(v: Int) = if (v > 0) "+$v" else "$v"
+
+/** Big number with a caption, used at the top of the heart rate pages. */
 @Composable
-private fun HeartContent(d: MetricData, period: Period, profile: UserProfile) {
-    val zone = ZoneId.systemDefault()
-    val rest = profile.zoneRest(d.strapResting)
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (period == Period.DAY) {
-            val values = d.hr.map { it.second }
-            Panel {
-                if (values.isEmpty()) {
-                    Text("Keine Pulswerte an diesem Tag.", style = MaterialTheme.typography.bodyMedium)
-                } else {
-                    LineChart(
-                        listOf(Series(d.hr, Palette.Heart, fill = true)), d.start, d.end,
-                        bands = (1..4).map { HeartRateZones.lowerBpm(it, profile.maxHeartRate, rest).toFloat() to Palette.zones[it] },
-                    )
+private fun HeartHero(value: String, unit: String, caption: String, side: List<Pair<String, String>>) {
+    Card(colors = CardDefaults.cardColors(containerColor = Palette.Heart.copy(alpha = 0.13f))) {
+        Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Icon(Icons.Default.Favorite, contentDescription = null, tint = Palette.Heart, modifier = Modifier.padding(bottom = 10.dp).size(22.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(value, fontSize = 52.sp, fontWeight = FontWeight.Bold, color = Palette.Heart)
+                    Spacer(Modifier.width(4.dp))
+                    Text(unit, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 10.dp))
                 }
+                Text(caption, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (values.isNotEmpty()) {
-                TileRow("Ruhepuls" to (d.strapResting?.let { "$it" } ?: d.days.firstOrNull()?.restingHeartRate?.toString() ?: "–"), "Durchschnitt" to "${values.average().toInt()}")
-                Spacer(Modifier.height(0.dp))
-                TileRow("Minimum" to "${values.min().toInt()}", "Maximum" to "${values.max().toInt()}")
-                // time in zones from minute values (app values count as their share of a minute)
-                val minuteValues = d.activity.filter { it.heartRate > 0 }.map { it.heartRate }
-                val zones = IntArray(5)
-                minuteValues.forEach { bpm -> HeartRateZones.zoneOf(bpm, profile.maxHeartRate, rest).takeIf { it >= 0 }?.let { zones[it]++ } }
-                if (zones.sum() > 0) {
-                    SectionHeader("Zeit in Pulszonen")
-                    Panel {
-                        StackedBar(zones.mapIndexed { i, v -> v.toFloat() to Palette.zones[i] })
-                        zones.forEachIndexed { i, v ->
-                            if (v > 0) Text("Zone ${i + 1} · ${HeartRateZones.names[i]}: ${formatMinutes(v)}", style = MaterialTheme.typography.bodySmall, color = Palette.zones[i])
-                        }
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                side.forEach { (label, v) ->
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(v, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }
-        } else {
-            Panel {
-                RangeChart(
-                    d.days.map { Triple(it.minHeartRate?.toFloat(), it.avgHeartRate?.toFloat(), it.maxHeartRate?.toFloat()) },
-                    dayLabels(d.from, d.to, period), Palette.Heart,
-                )
-                Text("Balken: niedrigster bis höchster Wert, Punkt: Durchschnitt", style = MaterialTheme.typography.labelSmall)
+        }
+    }
+}
+
+/** Zone list with bpm range, minutes and a bar for the share. */
+@Composable
+private fun ZonePanel(title: String, minutes: IntArray, lower: IntArray, daily: Boolean = false) {
+    val total = minutes.sum()
+    if (total == 0) return
+    Panel {
+        Text(title, style = MaterialTheme.typography.titleMedium)
+        StackedBar(minutes.mapIndexed { i, v -> v.toFloat() to Palette.zones[i] }, Modifier.fillMaxWidth().height(12.dp))
+        for (i in 4 downTo 0) {
+            val v = minutes[i]
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(10.dp).background(Palette.zones[i], CircleShape))
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Zone ${i + 1} · ${HeartRateZones.names[i]}", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        if (i < 4) "${lower[i]}–${lower[i + 1] - 1} bpm" else "ab ${lower[i]} bpm",
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Text(formatMinutes(v) + if (daily) " /Tag" else "", style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.width(8.dp))
+                Text("${v * 100 / total} %", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(40.dp))
             }
-            val restingPerDay = Queries.dailyAverage(d.values, d.from, d.to, zone)
-            if (restingPerDay.any { it != null }) {
-                SectionHeader("Ruhepuls")
-                Panel { BarChart(restingPerDay.map { it ?: 0f }, Palette.Heart, labels = dayLabels(d.from, d.to, period)) }
-            }
-            TileRow(
-                "Ø Ruhepuls" to (restingPerDay.filterNotNull().takeIf { it.isNotEmpty() }?.average()?.toInt()?.toString() ?: "–"),
-                "Ø Puls" to (Aggregates.avg(d.days.map { it.avgHeartRate })?.toString() ?: "–"),
-            )
         }
     }
 }
 
 @Composable
-private fun StepsContent(d: MetricData, period: Period, profile: UserProfile) {
+private fun HeartDay(d: MetricData, profile: UserProfile, live: Int?) {
+    val zone = ZoneId.systemDefault()
+    val rest = profile.zoneRest(d.strapResting)
+    val lower = zoneLower(profile, rest)
+    val points = d.hr
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (points.isEmpty()) {
+            Panel { Text("Keine Pulswerte an diesem Tag.", style = MaterialTheme.typography.bodyMedium) }
+            return@Column
+        }
+        val values = points.map { it.second }
+        val minP = points.minBy { it.second }
+        val maxP = points.maxBy { it.second }
+        val avg = values.average().roundToInt()
+        val restingToday = d.strapResting ?: d.totals[d.date]?.hrMin
+        val last = points.last()
+        HeartHero(
+            value = (live ?: last.second.toInt()).toString(),
+            unit = "bpm",
+            caption = if (live != null) "Jetzt gemessen" else "Zuletzt um ${clock(last.first)}",
+            side = listOf(
+                "Ruhepuls" to (restingToday?.let { "$it" } ?: "–"),
+                "Ø Tag" to "$avg",
+                "Spanne" to "${minP.second.toInt()}–${maxP.second.toInt()}",
+            ),
+        )
+        Panel {
+            Text("Verlauf", style = MaterialTheme.typography.titleMedium)
+            LineChart(
+                listOf(Series(points, Palette.Heart, fill = true, width = 2f)), d.start, d.end,
+                modifier = Modifier.fillMaxWidth().height(220.dp),
+                areas = (0..4).map { i -> Triple(lower[i].toFloat(), if (i < 4) lower[i + 1].toFloat() else 260f, Palette.zones[i]) },
+                markers = listOf(
+                    Triple(minP.first, minP.second, "${minP.second.toInt()}"),
+                    Triple(maxP.first, maxP.second, "${maxP.second.toInt()}"),
+                ),
+            )
+            Legend((0..4).map { "Z${it + 1}" to Palette.zones[it] })
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            val diff = if (restingToday != null && d.restingBaseline != null) restingToday - d.restingBaseline else null
+            StatTile(
+                "Ruhepuls", restingToday?.let { "$it bpm" } ?: "–", Modifier.weight(1f),
+                caption = when {
+                    diff == null -> "vom Strap"
+                    diff <= -2 -> "${signed(diff)} unter deinem Schnitt"
+                    diff >= 3 -> "${signed(diff)} über deinem Schnitt"
+                    else -> "wie üblich (Ø ${d.restingBaseline})"
+                },
+                icon = Icons.Default.Favorite, tint = Palette.Heart,
+            )
+            StatTile("Im Schlaf", d.sleepHr?.second?.let { "$it bpm" } ?: "–", Modifier.weight(1f), caption = d.sleepHr?.first?.let { "Ø $it bpm" } ?: "keine Nacht", icon = Icons.Default.Bedtime, tint = Palette.Sleep)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile("Tiefster", "${minP.second.toInt()} bpm", Modifier.weight(1f), caption = "um ${clock(minP.first)}")
+            StatTile("Höchster", "${maxP.second.toInt()} bpm", Modifier.weight(1f), caption = "um ${clock(maxP.first)}")
+        }
+        d.totals[d.date]?.let { ZonePanel("Zeit in Pulszonen", it.zones, lower) }
+        // per hour: lowest, average and highest value
+        val byHour = points.groupBy { java.time.Instant.ofEpochSecond(it.first).atZone(zone).hour }
+        Panel {
+            Text("Stundenverlauf", style = MaterialTheme.typography.titleMedium)
+            RangeChart(
+                List(24) { h ->
+                    val v = byHour[h]?.map { it.second }
+                    if (v.isNullOrEmpty()) Triple(null, null, null) else Triple(v.min(), v.average().toFloat(), v.max())
+                },
+                List(24) { if (it % 3 == 0) "$it" else "" }, Palette.Heart,
+            )
+            Text("Balken: niedrigster bis höchster Wert der Stunde, Punkt: Durchschnitt", style = MaterialTheme.typography.labelSmall)
+        }
+        // distribution in 10 bpm steps
+        val bins = (40 until 200 step 10).toList()
+        val counts = bins.map { b -> values.count { it >= b && it < b + 10 }.toFloat() }
+        val first = counts.indexOfFirst { it > 0 }.coerceAtLeast(0)
+        val lastBin = counts.indexOfLast { it > 0 }.coerceAtLeast(first)
+        Panel {
+            Text("Verteilung", style = MaterialTheme.typography.titleMedium)
+            BarChart(
+                counts.subList(first, lastBin + 1), Palette.Heart,
+                colors = bins.subList(first, lastBin + 1).map { b -> HeartRateZones.zoneOf(b + 5, profile.maxHeartRate, rest).let { if (it >= 0) Palette.zones[it] else Palette.Heart.copy(alpha = 0.5f) } },
+                labels = bins.subList(first, lastBin + 1).mapIndexed { i, b -> if (i % 2 == 0) "$b" else "" },
+            )
+            val common = bins[counts.indices.maxBy { counts[it] }]
+            Text("Am häufigsten: $common–${common + 9} bpm", style = MaterialTheme.typography.bodySmall)
+        }
+        if (d.workouts.isNotEmpty()) {
+            SectionHeader("Trainings an diesem Tag")
+            d.workouts.forEach { w ->
+                Panel {
+                    Text("${w.sport} · ${clock(w.start)}", style = MaterialTheme.typography.titleSmall)
+                    Text("${formatMinutes(((w.end - w.start) / 60).toInt())} · Ø ${w.avgHr} · max. ${w.maxHr} bpm · ${w.calories} kcal", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeartRange(d: MetricData, profile: UserProfile) {
+    val rest = profile.zoneRest(d.strapResting)
+    val lower = zoneLower(profile, rest)
+    val labels = d.buckets.map { it.label }
+    val days = d.totals.values.filter { it.hrAvg != null }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (days.isEmpty()) {
+            Panel { Text("Keine Pulswerte in diesem Zeitraum.", style = MaterialTheme.typography.bodyMedium) }
+            return@Column
+        }
+        val restingByDay = perDay(d.values)
+        val restingValues = restingByDay.values.flatten()
+        val restingAvg = restingValues.takeIf { it.isNotEmpty() }?.average()?.roundToInt()
+        val restingTrend = Buckets.average(d.buckets) { day -> restingByDay[day]?.average() }
+        val firstR = restingTrend.firstOrNull { it != null }
+        val lastR = restingTrend.lastOrNull { it != null }
+        val change = if (firstR != null && lastR != null && restingTrend.count { it != null } >= 2) (lastR - firstR).roundToInt() else null
+        HeartHero(
+            value = restingAvg?.toString() ?: (Aggregates.avg(days.map { it.hrAvg })?.toString() ?: "–"),
+            unit = "bpm",
+            caption = if (restingAvg != null) "Ø Ruhepuls · ${d.period.label}" else "Ø Puls · ${d.period.label}",
+            side = listOfNotNull(
+                change?.let { "Veränderung" to "${signed(it)} bpm" },
+                "Ø Puls" to (Aggregates.avg(days.map { it.hrAvg })?.toString() ?: "–"),
+                "Tage mit Daten" to "${days.size}",
+            ),
+        )
+        if (restingTrend.any { it != null }) {
+            Panel {
+                Text("Ruhepuls", style = MaterialTheme.typography.titleMedium)
+                TrendChart(restingTrend, labels, Palette.Heart, baseline = d.restingBaseline?.toFloat())
+                Text(
+                    (if (d.restingBaseline != null) "Gestrichelt: dein Schnitt davor (${d.restingBaseline} bpm). " else "") +
+                        "Sinkt der Ruhepuls über Wochen, wirst du fitter.",
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        }
+        Panel {
+            Text("Puls ${d.period.perBar}", style = MaterialTheme.typography.titleMedium)
+            RangeChart(
+                d.buckets.map { b ->
+                    val inB = days.filter { it.date in b }
+                    if (inB.isEmpty()) Triple(null, null, null)
+                    else Triple(inB.mapNotNull { it.hrMin }.minOrNull()?.toFloat(), inB.mapNotNull { it.hrAvg }.average().toFloat(), inB.mapNotNull { it.hrMax }.maxOrNull()?.toFloat())
+                },
+                labels, Palette.Heart,
+            )
+            Text("Balken: niedrigster bis höchster Wert, Punkt: Durchschnitt", style = MaterialTheme.typography.labelSmall)
+        }
+        Panel {
+            Text("Intensive Minuten (Zone 2–5)", style = MaterialTheme.typography.titleMedium)
+            StackedBarChart(
+                d.buckets.map { b ->
+                    val inB = days.filter { it.date in b }
+                    if (inB.isEmpty()) emptyList() else (1..4).map { z -> inB.sumOf { it.zones[z] }.toFloat() / inB.size to Palette.zones[z] }
+                },
+                labels,
+            )
+            Text("Ø Minuten pro Tag", style = MaterialTheme.typography.labelSmall)
+        }
+        val zoneSums = IntArray(5) { z -> days.sumOf { it.zones[z] } / days.size.coerceAtLeast(1) }
+        ZonePanel("Zeit in Pulszonen", zoneSums, lower, daily = true)
+        val record = days.maxBy { it.hrMax ?: 0 }
+        val calm = days.filter { it.hrMin != null }.minByOrNull { it.hrMin!! }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile("Höchster Puls", "${record.hrMax ?: "–"} bpm", Modifier.weight(1f), caption = record.date.format(java.time.format.DateTimeFormatter.ofPattern("d. MMM yyyy", German)))
+            StatTile("Tiefster Puls", calm?.hrMin?.let { "$it bpm" } ?: "–", Modifier.weight(1f), caption = calm?.date?.format(java.time.format.DateTimeFormatter.ofPattern("d. MMM yyyy", German)))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile("Intensiv Ø", "${formatMinutes(days.sumOf { it.intenseMinutes } / days.size)} /Tag", Modifier.weight(1f))
+            StatTile("Tiefster Ruhepuls", restingValues.minOrNull()?.let { "${it.toInt()} bpm" } ?: "–", Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun StepsContent(d: MetricData, profile: UserProfile) {
     val zone = ZoneId.systemDefault()
     val strideKm = profile.heightCm * 0.414 / 100_000
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (period == Period.DAY) {
+        if (d.period == Period.DAY) {
             val hourly = FloatArray(24)
             d.activity.forEach { s -> hourly[java.time.Instant.ofEpochSecond(s.timestamp).atZone(zone).hour] += s.steps.toFloat() }
-            val total = d.days.firstOrNull()?.steps ?: 0
+            val t = d.totals[d.date]
+            val total = t?.steps ?: 0
             Panel { BarChart(hourly.toList(), Palette.Steps, labels = List(24) { if (it % 6 == 0) "$it" else "" }) }
             TileRow("Schritte" to total.fmt(), "Ziel" to "${total * 100 / profile.stepGoal.coerceAtLeast(1)} %")
-            TileRow("Strecke" to "%.1f km".format(total * strideKm), "Aktive Minuten" to "${d.days.firstOrNull()?.activeMinutes ?: 0}")
+            TileRow("Strecke" to "%.1f km".format(total * strideKm), "Aktive Minuten" to "${t?.activeMinutes ?: 0}")
         } else {
-            val steps = d.days.map { it.steps.toFloat() }
-            Panel { BarChart(steps, Palette.Steps, labels = dayLabels(d.from, d.to, period), goal = profile.stepGoal.toFloat()) }
-            val withData = d.days.filter { it.steps > 0 }
+            val withData = d.totals.values.filter { it.steps > 0 }
+            val perBar = Buckets.average(d.buckets) { day -> d.totals[day]?.steps?.takeIf { it > 0 }?.toDouble() }
+            Panel {
+                Text("Schritte ${d.period.perBar}", style = MaterialTheme.typography.titleMedium)
+                BarChart(perBar.map { it ?: 0f }, Palette.Steps, labels = d.buckets.map { it.label }, goal = profile.stepGoal.toFloat())
+            }
             TileRow(
                 "Ø pro Tag" to (withData.takeIf { it.isNotEmpty() }?.map { it.steps }?.average()?.toInt()?.fmt() ?: "–"),
-                "Gesamt" to d.days.sumOf { it.steps }.fmt(),
+                "Gesamt" to withData.sumOf { it.steps }.fmt(),
             )
             TileRow(
-                "Ziel erreicht" to "${d.days.count { it.steps >= profile.stepGoal }} Tage",
-                "Bester Tag" to (d.days.maxByOrNull { it.steps }?.takeIf { it.steps > 0 }?.steps?.fmt() ?: "–"),
+                "Ziel erreicht" to "${withData.count { it.steps >= profile.stepGoal }} Tage",
+                "Bester Tag" to (withData.maxByOrNull { it.steps }?.steps?.fmt() ?: "–"),
+            )
+            TileRow(
+                "Strecke" to "%.0f km".format(withData.sumOf { it.steps } * strideKm),
+                "Aktive Min. Ø" to (withData.takeIf { it.isNotEmpty() }?.map { it.activeMinutes }?.average()?.toInt()?.let { "$it /Tag" } ?: "–"),
             )
         }
         if (d.heatmap.isNotEmpty()) {
@@ -319,7 +571,8 @@ private fun StepsContent(d: MetricData, period: Period, profile: UserProfile) {
 }
 
 @Composable
-private fun StressContent(d: MetricData, period: Period) {
+private fun StressContent(d: MetricData) {
+    val period = d.period
     val zone = ZoneId.systemDefault()
     val values = d.stress.map { it.stress }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -334,9 +587,11 @@ private fun StressContent(d: MetricData, period: Period) {
             }
             Panel { BarChart(buckets, Palette.Stress, colors = buckets.map { stressColor(it.toInt()) }, labels = List(48) { if (it % 12 == 0) "${it / 2}" else "" }) }
         } else {
-            val perDay = Queries.dailyAverage(d.stress.map { ValueSample(it.timestamp, it.stress) }, d.from, d.to, zone)
+            val byDay = perDay(d.stress.map { ValueSample(it.timestamp, it.stress) })
+            val perBar = Buckets.average(d.buckets) { day -> byDay[day]?.average() }
             Panel {
-                BarChart(perDay.map { it ?: 0f }, Palette.Stress, colors = perDay.map { stressColor((it ?: 0f).toInt()) }, labels = dayLabels(d.from, d.to, period))
+                Text("Ø Stress ${period.perBar}", style = MaterialTheme.typography.titleMedium)
+                BarChart(perBar.map { it ?: 0f }, Palette.Stress, colors = perBar.map { stressColor((it ?: 0f).toInt()) }, labels = d.buckets.map { it.label })
             }
         }
         val parts = listOf(0 until 40, 40 until 60, 60 until 80, 80..100).map { r -> values.count { it in r } }
@@ -355,7 +610,6 @@ private fun StressContent(d: MetricData, period: Period) {
 @Composable
 private fun ValueContent(
     d: MetricData,
-    period: Period,
     metric: Metric,
     unit: String,
     scale: Double,
@@ -363,7 +617,7 @@ private fun ValueContent(
     minY: Float? = null,
     maxY: Float? = null,
 ) {
-    val zone = ZoneId.systemDefault()
+    val period = d.period
     fun f(v: Double) = "%.${decimals}f".format(v)
     val values = d.values.map { it.value * scale }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -379,16 +633,24 @@ private fun ValueContent(
                 )
             }
         } else {
-            val byDay = d.values.groupBy { java.time.Instant.ofEpochSecond(it.timestamp + 6 * 3600).atZone(zone).toLocalDate() }
-            val days = generateSequence(d.from) { it.plusDays(1) }.takeWhile { !it.isAfter(d.to) }.toList()
+            val byDay = perDay(d.values, scale, shiftHours = 6)
+            val avgPerBar = Buckets.average(d.buckets) { day -> byDay[day]?.average() }
             Panel {
+                Text("${metric.title} ${period.perBar}", style = MaterialTheme.typography.titleMedium)
                 RangeChart(
-                    days.map { day ->
-                        val v = byDay[day]?.map { it.value * scale }
-                        if (v.isNullOrEmpty()) Triple(null, null, null) else Triple(v.min().toFloat(), v.average().toFloat(), v.max().toFloat())
+                    d.buckets.mapIndexed { i, b ->
+                        val v = generateSequence(b.from) { it.plusDays(1) }.takeWhile { !it.isAfter(b.to) }.flatMap { byDay[it].orEmpty() }.toList()
+                        if (v.isEmpty()) Triple(null, null, null) else Triple(v.min().toFloat(), avgPerBar[i], v.max().toFloat())
                     },
-                    dayLabels(d.from, d.to, period), metric.color,
+                    d.buckets.map { it.label }, metric.color,
                 )
+            }
+            if (period.long) {
+                Panel {
+                    Text("Trend", style = MaterialTheme.typography.titleMedium)
+                    TrendChart(avgPerBar, d.buckets.map { it.label }, metric.color, baseline = values.average().toFloat(), format = { f(it.toDouble()) })
+                    Text("Gestrichelt: Durchschnitt des Zeitraums", style = MaterialTheme.typography.labelSmall)
+                }
             }
         }
         TileRow("Durchschnitt" to "${f(values.average())} $unit", "Messungen" to "${values.size}")
@@ -397,10 +659,10 @@ private fun ValueContent(
 }
 
 @Composable
-private fun PaiContent(d: MetricData, period: Period) {
+private fun PaiContent(d: MetricData) {
+    val period = d.period
     val zone = ZoneId.systemDefault()
     val byDay = d.pai.associateBy { java.time.Instant.ofEpochSecond(it.timestamp).atZone(zone).toLocalDate() }
-    val days = generateSequence(d.from) { it.plusDays(1) }.takeWhile { !it.isAfter(d.to) }.toList()
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         val latest = d.pai.lastOrNull()
         if (latest == null) {
@@ -410,8 +672,8 @@ private fun PaiContent(d: MetricData, period: Period) {
         TileRow("PAI (7 Tage)" to "${latest.total.toInt()}", "Heute verdient" to "%.1f".format(latest.today))
         if (period != Period.DAY) {
             Panel {
-                Text("PAI-Stand pro Tag", style = MaterialTheme.typography.titleSmall)
-                BarChart(days.map { byDay[it]?.total ?: 0f }, Palette.Pai, labels = dayLabels(d.from, d.to, period), goal = 100f)
+                Text("PAI-Stand ${period.perBar}", style = MaterialTheme.typography.titleSmall)
+                BarChart(Buckets.average(d.buckets) { byDay[it]?.total?.toDouble() }.map { it ?: 0f }, Palette.Pai, labels = d.buckets.map { it.label }, goal = 100f)
             }
         }
         Panel {

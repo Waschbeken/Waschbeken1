@@ -89,7 +89,7 @@ private class NightData(
     val naps: List<SleepSession> = emptyList(),
 )
 
-private class RangeData(val nights: Map<LocalDate, SleepSession>, val from: LocalDate, val to: LocalDate)
+private class RangeData(val nights: Map<LocalDate, Queries.NightSummary>, val period: Period, val date: LocalDate)
 
 private fun loadNight(db: HealthDb, date: LocalDate): NightData {
     val zone = ZoneId.systemDefault()
@@ -129,7 +129,7 @@ fun SleepScreen(nav: NavHostController) {
     val night by dbValue(date, state.dataVersion, period) { if (period == Period.DAY) loadNight(it, date) else null }
     val range by dbValue(date, state.dataVersion, period) {
         val (from, to) = period.range(date)
-        RangeData(Queries.nights(it, from, minOf(to, LocalDate.now()), ZoneId.systemDefault()), from, to)
+        RangeData(Queries.nightSummaries(it, from, minOf(to, LocalDate.now()), ZoneId.systemDefault()), period, date)
     }
 
     val askCheck = app.prefs.sleepAskCheck && app.prefs.sleepCheckedDay != LocalDate.now().toEpochDay()
@@ -179,7 +179,7 @@ fun SleepScreen(nav: NavHostController) {
                     }
                 }
             } else {
-                range?.let { r ->
+                range?.takeIf { it.period == period && it.date == date }?.let { r ->
                     item {
                         RangeContent(r, period, goal) { d ->
                             periodName = Period.DAY.name
@@ -389,21 +389,31 @@ private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(
 @Composable
 private fun RangeContent(r: RangeData, period: Period, goal: Int, onOpen: (LocalDate) -> Unit) {
     val zone = ZoneId.systemDefault()
-    val days = generateSequence(r.from) { it.plusDays(1) }.takeWhile { !it.isAfter(r.to) }.toList()
+    val buckets = period.buckets(r.date)
     val nights = r.nights.values.toList()
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Panel {
-            Text("Schlafdauer und Phasen", style = MaterialTheme.typography.titleMedium)
+            Text("Schlafdauer und Phasen" + if (period.long) " (Ø je Nacht)" else "", style = MaterialTheme.typography.titleMedium)
             StackedBarChart(
-                days.map { d ->
-                    val n = r.nights[d]
-                    if (n == null) emptyList() else listOf(SleepStage.DEEP, SleepStage.LIGHT, SleepStage.REM, SleepStage.AWAKE)
-                        .map { n.minutes(it) / 60f to Palette.stage(it) }
+                buckets.map { b ->
+                    val inB = nights.filter { it.date in b }
+                    if (inB.isEmpty()) emptyList() else listOf(SleepStage.DEEP, SleepStage.LIGHT, SleepStage.REM, SleepStage.AWAKE)
+                        .map { st -> inB.sumOf { it.minutes(st) } / 60f / inB.size to Palette.stage(st) }
                 },
-                days.map { d -> if (period == Period.WEEK) d.dayOfWeek.getDisplayName(TextStyle.SHORT, German).take(2) else if (d.dayOfMonth % 5 == 0 || d.dayOfMonth == 1) "${d.dayOfMonth}" else "" },
+                buckets.map { it.label },
                 goal = goal / 60f,
                 format = { "%.1f h".format(it) },
             )
+        }
+        if (period.long && nights.size >= 2) {
+            Panel {
+                Text("Score", style = MaterialTheme.typography.titleMedium)
+                de.waschbeken.heliolink.ui.TrendChart(
+                    de.waschbeken.heliolink.core.Buckets.average(buckets) { day -> r.nights[day]?.score?.toDouble() },
+                    buckets.map { it.label }, Palette.Sleep,
+                    baseline = nights.map { it.score }.average().toFloat(),
+                )
+            }
         }
         if (nights.isEmpty()) {
             Panel { Text("Keine Nächte in diesem Zeitraum.", style = MaterialTheme.typography.bodyMedium) }
@@ -440,8 +450,8 @@ private fun RangeContent(r: RangeData, period: Period, goal: Int, onOpen: (Local
             val debt = nights.sumOf { (goal - it.asleepMinutes).coerceAtLeast(0) }
             if (debt > 0) Text("Schlafdefizit zum Ziel: ${formatMinutes(debt)}", style = MaterialTheme.typography.bodyMedium)
         }
-        Text("Nächte", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-        r.nights.entries.sortedByDescending { it.key }.forEach { (d, n) ->
+        if (!period.long) Text("Nächte", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        if (!period.long) r.nights.entries.sortedByDescending { it.key }.forEach { (d, n) ->
             Panel(onClick = { onOpen(d) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {

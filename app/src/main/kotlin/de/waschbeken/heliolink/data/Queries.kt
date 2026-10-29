@@ -4,6 +4,7 @@ import de.waschbeken.heliolink.core.ActivitySample
 import de.waschbeken.heliolink.core.SleepAnalyzer
 import de.waschbeken.heliolink.core.SleepEditor
 import de.waschbeken.heliolink.core.SleepSession
+import de.waschbeken.heliolink.core.SleepStage
 import de.waschbeken.heliolink.core.ValueSample
 import java.time.Instant
 import java.time.LocalDate
@@ -61,6 +62,79 @@ object Queries {
         val wake = pairs.map { (e, d) -> (d.end - e.end) / 60 }.filter { kotlin.math.abs(it) < 180 }
         if (onset.size < 2) return null
         return kotlin.math.round(onset.average()).toInt() to (if (wake.isEmpty()) 0 else kotlin.math.round(wake.average()).toInt())
+    }
+
+    /** A night without its minutes, for long periods. */
+    data class NightSummary(
+        val date: LocalDate,
+        val start: Long,
+        val end: Long,
+        val asleepMinutes: Int,
+        val deep: Int,
+        val light: Int,
+        val rem: Int,
+        val awake: Int,
+        val score: Int,
+        val edited: Boolean,
+        val estimated: Boolean,
+    ) {
+        fun minutes(stage: SleepStage) = when (stage) {
+            SleepStage.DEEP -> deep
+            SleepStage.LIGHT -> light
+            SleepStage.REM -> rem
+            SleepStage.AWAKE -> awake
+        }
+
+        companion object {
+            fun of(date: LocalDate, s: SleepSession) = NightSummary(
+                date, s.start, s.end, s.asleepMinutes, s.minutes(SleepStage.DEEP), s.minutes(SleepStage.LIGHT),
+                s.minutes(SleepStage.REM), s.minutes(SleepStage.AWAKE), s.score, s.edited, s.estimated,
+            )
+        }
+    }
+
+    /** Nights between [from] and [to], computed month by month so years fit into memory. */
+    fun nightSummaries(db: HealthDb, from: LocalDate, to: LocalDate, zone: ZoneId): Map<LocalDate, NightSummary> {
+        val out = LinkedHashMap<LocalDate, NightSummary>()
+        var chunk = from
+        while (!chunk.isAfter(to)) {
+            val chunkEnd = minOf(chunk.plusMonths(1).minusDays(1), to)
+            for ((d, s) in nights(db, chunk, chunkEnd, zone)) out[d] = NightSummary.of(d, s)
+            chunk = chunkEnd.plusDays(1)
+        }
+        return out
+    }
+
+    /** One day of [HealthDb.hourTotals]. */
+    class DayTotals(
+        val date: LocalDate,
+        val steps: Int,
+        val hrMin: Int?,
+        val hrAvg: Int?,
+        val hrMax: Int?,
+        val activeMinutes: Int,
+        val zones: IntArray,
+    ) {
+        /** Minutes in zone 2 and higher. */
+        val intenseMinutes get() = zones.drop(1).sum()
+    }
+
+    /** Per-day totals from the hourly sums (fast even for years). */
+    fun dayTotals(db: HealthDb, from: LocalDate, to: LocalDate, zone: ZoneId, zoneLower: IntArray): Map<LocalDate, DayTotals> {
+        val hours = db.hourTotals(from.atStartOfDay(zone).toEpochSecond(), to.plusDays(1).atStartOfDay(zone).toEpochSecond(), zoneLower)
+        return hours.groupBy { Instant.ofEpochSecond(it.hour).atZone(zone).toLocalDate() }.mapValues { (date, list) ->
+            val count = list.sumOf { it.hrCount }
+            val withHr = list.filter { it.hrCount > 0 }
+            DayTotals(
+                date = date,
+                steps = list.sumOf { it.steps },
+                hrMin = withHr.minOfOrNull { it.hrMin },
+                hrAvg = if (count == 0) null else (list.sumOf { it.hrSum } / count).toInt(),
+                hrMax = withHr.maxOfOrNull { it.hrMax },
+                activeMinutes = list.sumOf { it.activeMinutes },
+                zones = IntArray(5) { i -> list.sumOf { it.zones[i] } },
+            )
+        }
     }
 
     /** Naps on [date] between 09:00 and 21:00 that are not part of the main night. */
