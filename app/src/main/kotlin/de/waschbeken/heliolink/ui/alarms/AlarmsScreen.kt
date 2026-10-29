@@ -117,7 +117,7 @@ private fun delete(app: HelioApp, row: HealthDb.AlarmRow) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AlarmsScreen(nav: NavHostController) {
     val app = LocalContext.current.app
@@ -228,7 +228,6 @@ fun AlarmsScreen(nav: NavHostController) {
             if (free != null) {
                 item { SectionHeader("Schnell anlegen") }
                 item {
-                    @OptIn(ExperimentalLayoutApi::class)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(Triple(6, 30, StrapAlarm.WEEKDAYS), Triple(7, 0, StrapAlarm.WEEKDAYS), Triple(9, 0, 0x60)).forEach { (h, m, rep) ->
                             OutlinedButton(onClick = { save(app, StrapAlarm(free, true, true, h, m, rep), "") }) {

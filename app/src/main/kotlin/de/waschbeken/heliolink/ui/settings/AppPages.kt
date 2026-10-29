@@ -51,6 +51,7 @@ import de.waschbeken.heliolink.ui.home.Tile
 import de.waschbeken.heliolink.update.ShizukuInstaller
 import de.waschbeken.heliolink.update.UpdateState
 import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 
 // --------------------------------------------------------------------------- Strap: Gerät & Verbindung
 
@@ -285,7 +286,7 @@ internal fun AppearancePage() {
         )
         Slider(
             value = scale,
-            onValueChange = { scale = (it * 20).toInt() / 20f },
+            onValueChange = { scale = (it * 20).roundToInt() / 20f },
             onValueChangeFinished = { prefs.fontScale = scale },
             valueRange = 0.85f..1.3f,
             steps = 8,
