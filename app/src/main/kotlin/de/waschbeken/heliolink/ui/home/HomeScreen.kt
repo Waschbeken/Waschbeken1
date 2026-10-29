@@ -413,7 +413,13 @@ private fun TileGrid(d: HomeData, state: StrapUiState, stepGoal: Int, hidden: Se
         val n = d.night
         StatTile(
             "Schlaf", n?.let { formatHours(it.asleepMinutes) } ?: "–", m,
-            caption = n?.let { "Score ${it.score}" + if (it.estimated) " · geschätzt" else " · Tief ${formatMinutes(it.minutes(SleepStage.DEEP))}" } ?: "keine Daten",
+            caption = n?.let {
+                "Score ${it.score}" + when {
+                    it.edited -> " · korrigiert"
+                    it.estimated -> " · geschätzt"
+                    else -> " · Tief ${formatMinutes(it.minutes(SleepStage.DEEP))}"
+                }
+            } ?: "keine Daten",
             icon = Icons.Default.Bedtime, tint = Palette.Sleep,
             onClick = { nav.navigateToTab(Routes.SLEEP) },
         )

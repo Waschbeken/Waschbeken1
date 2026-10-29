@@ -33,7 +33,9 @@ object Queries {
         val out = LinkedHashMap<LocalDate, SleepSession>()
         var d = from
         while (!d.isAfter(to)) {
-            var night = SleepAnalyzer.nightOf(d, sessions, zone)?.let { SleepEditor.ignoreShortAwake(it, tuning.ignoreAwakeMinutes) }
+            var night = SleepAnalyzer.nightOf(d, sessions, zone)
+                ?.let { SleepEditor.trim(it, tuning) }
+                ?.let { SleepEditor.ignoreShortAwake(it, tuning.ignoreAwakeMinutes) }
             val edit = edits[d.toEpochDay()]
             if (edit != null) night = SleepEditor.apply(night, edit, samples)
             night?.let { out[d] = it }
@@ -44,6 +46,22 @@ object Queries {
 
     fun night(db: HealthDb, date: LocalDate, zone: ZoneId, applyEdits: Boolean = true): SleepSession? =
         nights(db, date, date, zone, applyEdits)[date]
+
+    /**
+     * What the user's corrections say: on average how many minutes later they fell asleep and how
+     * many minutes earlier they woke up than detected. Null with fewer than two corrected nights.
+     */
+    fun correctionBias(db: HealthDb, zone: ZoneId): Pair<Int, Int>? {
+        val today = LocalDate.now()
+        val edits = db.sleepEdits(today.minusDays(90).toEpochDay(), today.toEpochDay()).values.filter { !it.deleted }
+        if (edits.size < 2) return null
+        val detected = nights(db, LocalDate.ofEpochDay(edits.minOf { it.night }), today, zone, applyEdits = false)
+        val pairs = edits.mapNotNull { e -> detected[LocalDate.ofEpochDay(e.night)]?.let { e to it } }
+        val onset = pairs.map { (e, d) -> (e.start - d.start) / 60 }.filter { kotlin.math.abs(it) < 180 }
+        val wake = pairs.map { (e, d) -> (d.end - e.end) / 60 }.filter { kotlin.math.abs(it) < 180 }
+        if (onset.size < 2) return null
+        return kotlin.math.round(onset.average()).toInt() to (if (wake.isEmpty()) 0 else kotlin.math.round(wake.average()).toInt())
+    }
 
     /** Average per day of a value table, null for days without values. */
     fun dailyAverage(samples: List<ValueSample>, from: LocalDate, to: LocalDate, zone: ZoneId, scale: Double = 1.0): List<Float?> {

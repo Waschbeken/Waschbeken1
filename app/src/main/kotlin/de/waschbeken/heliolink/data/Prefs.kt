@@ -124,7 +124,17 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getLong("sleep_checked_day", 0)
         set(v) = edit { putLong("sleep_checked_day", v) }
 
-    val sleepTuning get() = de.waschbeken.heliolink.core.SleepTuning(sleepIgnoreAwake, sleepMaxGap, sleepMinMinutes)
+    var sleepOnsetDelay: Int
+        get() = sp.getInt("sleep_onset_delay", 0)
+        set(v) = edit { putInt("sleep_onset_delay", v) }
+
+    var sleepWakeEarlier: Int
+        get() = sp.getInt("sleep_wake_earlier", 0)
+        set(v) = edit { putInt("sleep_wake_earlier", v) }
+
+    val sleepTuning get() = de.waschbeken.heliolink.core.SleepTuning(
+        sleepIgnoreAwake, sleepMaxGap, sleepMinMinutes, sleepOnsetDelay, sleepWakeEarlier,
+    )
 
     // --- notifications
 

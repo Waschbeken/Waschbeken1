@@ -40,6 +40,10 @@ data class SleepTuning(
     val maxGapMinutes: Int = 45,
     /** Shorter sleep is not shown as a night. */
     val minSleepMinutes: Int = 20,
+    /** The strap often counts lying still as sleep: start the night this many minutes later. */
+    val onsetDelayMinutes: Int = 0,
+    /** End the night this many minutes earlier (e.g. lying in bed after waking up). */
+    val wakeEarlierMinutes: Int = 0,
 )
 
 object SleepEditor {
@@ -95,6 +99,17 @@ object SleepEditor {
             i = j
         }
         return session.copy(stages = out)
+    }
+
+    /** Moves the start later and the end earlier by the tuning's minutes (keeps at least an hour). */
+    fun trim(session: SleepSession, tuning: SleepTuning): SleepSession {
+        val cutStart = tuning.onsetDelayMinutes.coerceAtLeast(0) * 60L
+        val cutEnd = tuning.wakeEarlierMinutes.coerceAtLeast(0) * 60L
+        if (cutStart == 0L && cutEnd == 0L) return session
+        val start = session.start + cutStart
+        val end = session.end - cutEnd
+        if (end - start < 3600) return session
+        return session.copy(start = start, end = end, stages = session.stages.filter { it.first >= start && it.first < end })
     }
 
     /** Consecutive minutes of the same stage as (from, to, stage). */

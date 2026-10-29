@@ -58,4 +58,16 @@ class SleepEditTest {
         val seg = SleepEditor.segments(session(SleepStage.LIGHT, SleepStage.LIGHT, SleepStage.DEEP))
         assertEquals(listOf(StageRange(t0, t0 + 120, SleepStage.LIGHT), StageRange(t0 + 120, t0 + 180, SleepStage.DEEP)), seg)
     }
+
+    @Test
+    fun trimMovesStartAndEnd() {
+        val s = session(*Array(180) { SleepStage.LIGHT })
+        val t = SleepEditor.trim(s, SleepTuning(onsetDelayMinutes = 20, wakeEarlierMinutes = 10))
+        assertEquals(s.start + 1200, t.start)
+        assertEquals(s.end - 600, t.end)
+        assertEquals(150, t.stages.size)
+        // Too short nights stay as they are.
+        val short = session(*Array(70) { SleepStage.LIGHT })
+        assertEquals(short, SleepEditor.trim(short, SleepTuning(onsetDelayMinutes = 30)))
+    }
 }

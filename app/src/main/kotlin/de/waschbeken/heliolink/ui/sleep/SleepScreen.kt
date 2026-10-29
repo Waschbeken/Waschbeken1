@@ -269,8 +269,11 @@ private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(
         }
     }
     item {
-        Panel {
-            Text("Schlafphasen", style = MaterialTheme.typography.titleMedium)
+        Panel(onClick = onEdit) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Schlafphasen", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Text("Tippen zum Korrigieren", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Hypnogram(n.stages)
         }
     }

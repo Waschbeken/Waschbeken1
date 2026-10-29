@@ -44,6 +44,18 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
 
+        <!-- Quick settings tile "Strap finden". -->
+        <service
+            android:name=".service.FindStrapTile"
+            android:exported="true"
+            android:icon="@drawable/ic_notification"
+            android:label="Strap finden"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <!-- Starts the connection after a reboot and after an update of the app. -->
         <receiver
             android:name=".service.StartReceiver"

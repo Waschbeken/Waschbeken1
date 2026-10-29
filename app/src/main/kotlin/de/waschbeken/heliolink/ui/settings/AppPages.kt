@@ -468,6 +468,18 @@ internal fun SleepSettingsPage(nav: androidx.navigation.NavHostController) {
         prefs.sleepMinMinutes,
         subtitle = "kürzerer Schlaf wird nicht als Nacht gezählt",
     ) { prefs.sleepMinMinutes = it; changed() }
+    ChoiceSetting(
+        "Einschlafen später werten",
+        (0..60 step 5).map { it to if (it == 0) "Nein" else "$it min später" },
+        prefs.sleepOnsetDelay,
+        subtitle = "wenn der Strap stilles Liegen schon als Schlaf zählt",
+    ) { prefs.sleepOnsetDelay = it; changed() }
+    ChoiceSetting(
+        "Aufwachen früher werten",
+        (0..60 step 5).map { it to if (it == 0) "Nein" else "$it min früher" },
+        prefs.sleepWakeEarlier,
+        subtitle = "wenn du nach dem Aufwachen noch liegen bleibst",
+    ) { prefs.sleepWakeEarlier = it; changed() }
     SwitchSetting(
         "Phasen immer schätzen",
         "Statt der Phasen vom Strap oder aus Gadgetbridge die Schätzung aus Puls und Bewegung nutzen",
@@ -479,6 +491,29 @@ internal fun SleepSettingsPage(nav: androidx.navigation.NavHostController) {
     )
 
     SettingsHeader("Korrekturen")
+    val bias by de.waschbeken.heliolink.ui.dbValue(state.dataVersion, tick) {
+        de.waschbeken.heliolink.data.Queries.correctionBias(it, java.time.ZoneId.systemDefault())
+    }
+    bias?.let { (onset, wake) ->
+        if (onset >= 5 || wake >= 5) {
+            SettingRow(
+                "Aus deinen Korrekturen lernen",
+                buildString {
+                    append("Laut deinen Korrekturen ")
+                    if (onset >= 5) append("schläfst du im Schnitt $onset min später ein")
+                    if (onset >= 5 && wake >= 5) append(" und ")
+                    if (wake >= 5) append("wachst $wake min früher auf")
+                    append(" als erkannt. Tippen, um das für alle Nächte zu übernehmen.")
+                },
+            ) {
+                fun step(v: Int) = ((v + 2) / 5 * 5).coerceIn(0, 60)
+                if (onset >= 5) prefs.sleepOnsetDelay = step(prefs.sleepOnsetDelay + onset)
+                if (wake >= 5) prefs.sleepWakeEarlier = step(prefs.sleepWakeEarlier + wake)
+                changed()
+                Toast.makeText(context, "Übernommen", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
     SettingRow("Letzte Nacht bearbeiten", "Zeiten und Phasen anpassen") {
         nav.navigate(de.waschbeken.heliolink.ui.Routes.sleepEdit(java.time.LocalDate.now().toEpochDay()))
     }
