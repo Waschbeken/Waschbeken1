@@ -30,8 +30,15 @@ jobs:
       - name: Version bestimmen
         id: version
         if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch && vars.AUTO_RELEASE != 'false'
+        env:
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
         run: |
           echo "release=false" >> "$GITHUB_OUTPUT"
+          # Until the password protected key is set up, releases keep the test key that version 1.0.0
+          # was signed with, so installed apps can update. The app guides through the one-time switch.
+          if [ -z "$SIGNING_PASSWORD" ] || [ ! -f signing/release.p12 ]; then
+            echo "::warning::Signatur noch nicht eingerichtet – das Update wird mit dem Test-Schlüssel signiert (siehe README)."
+          fi
           LAST=$(git tag -l 'app-v*' | sed 's/^app-v//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
           if [ -z "$LAST" ]; then
             NEXT="1.0.0"
@@ -64,7 +71,10 @@ jobs:
       - name: Tests
         run: ./gradlew --no-daemon :core:test
 
+      # Signed with the release key once it is set up; otherwise with the test key.
       - name: APKs bauen
+        env:
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
         run: ./gradlew --no-daemon :app:assembleDebug :app:assembleRelease
 
       - name: Update veröffentlichen

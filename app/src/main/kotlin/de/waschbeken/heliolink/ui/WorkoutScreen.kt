@@ -1,7 +1,6 @@
 package de.waschbeken.heliolink.ui
 
 import android.content.Context
-import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -32,7 +31,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
 import de.waschbeken.heliolink.app
 import de.waschbeken.heliolink.core.HeartRateZones
 import de.waschbeken.heliolink.core.Tcx
@@ -42,7 +40,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -63,7 +60,12 @@ fun WorkoutScreen(state: StrapUiState) {
     val context = LocalContext.current
     val controller = context.app.repo.controller
     val maxHr = context.app.prefs.profile.maxHeartRate
-    var sport by remember { mutableStateOf(sports.first().first) }
+    var sport by remember { mutableStateOf(context.app.prefs.defaultSport) }
+    val restingValues by dbValue(state.dataVersion) { db ->
+        val now = System.currentTimeMillis() / 1000
+        db.values(de.waschbeken.heliolink.data.HealthDb.RESTING_HR, now - 14 * 86400, now + 60)
+    }
+    val rest = context.app.prefs.profile.zoneRest(restingValues.orEmpty().lastOrNull()?.value)
     val workouts by dbValue(state.dataVersion) { it.workouts() }
 
     Column(
@@ -83,7 +85,7 @@ fun WorkoutScreen(state: StrapUiState) {
                 }
             }
             val bpm = state.heartRate.takeIf { System.currentTimeMillis() - state.heartRateAt < 15_000 }
-            val zone = bpm?.let { HeartRateZones.zoneOf(it, maxHr) } ?: -1
+            val zone = bpm?.let { HeartRateZones.zoneOf(it, maxHr, rest) } ?: -1
             SectionCard(live.sport) {
                 Text(formatDuration(now - live.start), fontSize = 40.sp, fontWeight = FontWeight.Bold)
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -132,7 +134,8 @@ fun WorkoutScreen(state: StrapUiState) {
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text(if (state.connected) "Start" else "Strap nicht verbunden") }
                 Text(
-                    "Zonen bei max. Puls $maxHr: " + (0..4).joinToString(" · ") { "Z${it + 1} ab ${HeartRateZones.lowerBpm(it, maxHr)}" },
+                    "Zonen bei max. Puls $maxHr" + (rest?.let { ", Ruhepuls $it" } ?: "") + ": " +
+                        (0..4).joinToString(" · ") { "Z${it + 1} ab ${HeartRateZones.lowerBpm(it, maxHr, rest)}" },
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -162,6 +165,7 @@ private fun ZoneSummary(zoneSeconds: List<Int>) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WorkoutItem(w: Workout) {
     val context = LocalContext.current
@@ -180,30 +184,45 @@ private fun WorkoutItem(w: Workout) {
             val points by dbValue(w.id) { it.workoutHr(w.id) }
             TimeLineChart(points.orEmpty().map { it.timestamp to it.bpm }, w.start, w.end, Palette.Coral, gapSeconds = 30)
         }
-        Row {
+        val fileName = "helio-training-${Instant.ofEpochSecond(w.start).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmm"))}.tcx"
+        val saveTcx = rememberSaveFile("application/octet-stream", "Training gespeichert") { uri ->
+            context.contentResolver.openOutputStream(uri)?.use { it.write(tcxOf(context, w).toByteArray()) }
+        }
+        var confirmDelete by remember { mutableStateOf(false) }
+        FlowRow {
             TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Weniger" else "Pulskurve") }
-            TextButton(onClick = { scope.launch { shareTcx(context, w) } }) { Text("TCX teilen") }
+            TextButton(onClick = { saveTcx(fileName) }) { Text("TCX speichern") }
             TextButton(onClick = {
                 scope.launch {
-                    withContext(Dispatchers.IO) { context.app.db.deleteWorkout(w.id) }
-                    context.app.repo.dataChanged()
+                    val file = withContext(Dispatchers.IO) { exportFile(context, fileName).apply { writeText(tcxOf(context, w)) } }
+                    shareFile(context, file, "application/octet-stream", "Training teilen")
                 }
-            }) { Text("Löschen") }
+            }) { Text("Teilen") }
+            TextButton(onClick = { confirmDelete = true }) { Text("Löschen") }
+        }
+        if (confirmDelete) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { confirmDelete = false },
+                title = { Text("Training löschen?") },
+                text = { Text("Das Training und seine Pulswerte werden gelöscht.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmDelete = false
+                        scope.launch {
+                            withContext(Dispatchers.IO) { context.app.db.deleteWorkout(w.id) }
+                            context.app.repo.dataChanged()
+                        }
+                    }) { Text("Löschen") }
+                },
+                dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Abbrechen") } },
+            )
         }
     }
 }
 
-private suspend fun shareTcx(context: Context, w: Workout) {
+/** TCX with every recorded heart rate value; Strava, Garmin Connect & Co. import it. */
+private fun tcxOf(context: Context, w: Workout): String {
     val sport = sports.firstOrNull { it.first == w.sport }?.second ?: "Other"
-    val file = withContext(Dispatchers.IO) {
-        val points = context.app.db.workoutHr(w.id).map { Tcx.Point(it.timestamp, it.bpm) }
-        val dir = File(context.cacheDir, "exports").apply { mkdirs() }
-        File(dir, "helio-training-${w.start}.tcx").apply { writeText(Tcx.write(sport, w.start, w.end, points, w.calories)) }
-    }
-    val uri = FileProvider.getUriForFile(context, context.packageName + ".files", file)
-    val intent = Intent(Intent.ACTION_SEND)
-        .setType("application/vnd.garmin.tcx+xml")
-        .putExtra(Intent.EXTRA_STREAM, uri)
-        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    context.startActivity(Intent.createChooser(intent, "Training exportieren"))
+    val points = context.app.db.workoutHr(w.id).map { Tcx.Point(it.timestamp, it.bpm) }
+    return Tcx.write(sport, w.start, w.end, points, w.calories)
 }

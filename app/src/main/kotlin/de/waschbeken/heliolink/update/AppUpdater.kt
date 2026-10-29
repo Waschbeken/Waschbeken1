@@ -19,6 +19,9 @@ sealed interface UpdateState {
     data class Available(val info: UpdateInfo) : UpdateState
     data class Downloading(val info: UpdateInfo, val progress: Float) : UpdateState
     data class Ready(val info: UpdateInfo, val apk: File) : UpdateState
+
+    /** The update is signed with a different key (the new password protected one): reinstall needed. */
+    data class KeyChanged(val info: UpdateInfo, val apk: File) : UpdateState
     data class Failed(val message: String) : UpdateState
 }
 
@@ -65,6 +68,11 @@ class AppUpdater(val manager: UpdateManager, private val skipped: () -> String, 
             _state.value = UpdateState.Downloading(info, 0f)
             try {
                 val apk = manager.download(info) { p -> _state.value = UpdateState.Downloading(info, p) }
+                if (manager.sameSignature(apk) == false) {
+                    _state.value = UpdateState.KeyChanged(info, apk)
+                    showDialog.value = true
+                    return@launch
+                }
                 _state.value = UpdateState.Ready(info, apk)
                 install(apk)
             } catch (e: CancellationException) {
@@ -95,7 +103,8 @@ class AppUpdater(val manager: UpdateManager, private val skipped: () -> String, 
 
     /** Shows an update the background check announced. */
     fun announce(info: UpdateInfo) {
-        if (_state.value is UpdateState.Downloading || _state.value is UpdateState.Ready) return
+        val s = _state.value
+        if (s is UpdateState.Downloading || s is UpdateState.Ready || s is UpdateState.KeyChanged) return
         _state.value = UpdateState.Available(info)
     }
 }

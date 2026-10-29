@@ -17,6 +17,9 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -271,4 +274,28 @@ fun ConfirmDialog(title: String, text: String, confirm: String, onConfirm: () ->
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
     )
+}
+
+/** Time of day as minutes since midnight. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TimeSetting(title: String, minutes: Int, enabled: Boolean = true, subtitle: String? = null, onChange: (Int) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    val text = "%02d:%02d Uhr".format(minutes / 60, minutes % 60)
+    SettingRow(title, if (subtitle != null) "$text · $subtitle" else text, enabled, onClick = { open = true })
+    if (open) {
+        val state = rememberTimePickerState(initialHour = minutes / 60, initialMinute = minutes % 60, is24Hour = true)
+        AlertDialog(
+            onDismissRequest = { open = false },
+            title = { Text(title) },
+            text = { TimePicker(state = state) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onChange(state.hour * 60 + state.minute)
+                    open = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { open = false }) { Text("Abbrechen") } },
+        )
+    }
 }

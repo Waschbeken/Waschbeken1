@@ -37,6 +37,7 @@ import de.waschbeken.heliolink.core.DayAnalyzer
 import de.waschbeken.heliolink.core.HeartRateZones
 import de.waschbeken.heliolink.core.SleepAnalyzer
 import de.waschbeken.heliolink.core.SleepStage
+import de.waschbeken.heliolink.data.HealthDb
 import de.waschbeken.heliolink.service.StrapUiState
 import kotlinx.coroutines.delay
 import java.text.DateFormat
@@ -57,6 +58,11 @@ fun TodayScreen(state: StrapUiState, openSleep: () -> Unit) {
     val nightStart = date.minusDays(1).atTime(18, 0).atZone(zone).toEpochSecond()
     val samples by dbValue(date, state.dataVersion) { it.activity(nightStart, dayEnd) }
     val stress by dbValue(date, state.dataVersion) { it.stress(dayStart, dayEnd) }
+    val records by dbValue(date, state.dataVersion) { it.sleepRecords(nightStart, dayEnd) }
+    val spo2 by dbValue(date, state.dataVersion) { it.values(HealthDb.SPO2, nightStart, dayEnd) }
+    val resting by dbValue(date, state.dataVersion) { it.values(HealthDb.RESTING_HR, dayStart - 86400, dayEnd) }
+    val hrv by dbValue(date, state.dataVersion) { it.values(HealthDb.HRV, nightStart, dayEnd) }
+    val appHr by dbValue(date, state.dataVersion, state.heartRateAt / 60_000) { it.hr(dayStart, dayEnd) }
 
     Column(
         Modifier
@@ -103,7 +109,7 @@ fun TodayScreen(state: StrapUiState, openSleep: () -> Unit) {
             }
         }
 
-        val sessions = SleepAnalyzer.sessions(all)
+        val sessions = SleepAnalyzer.combine(records.orEmpty().map { it.toSession(all) }, SleepAnalyzer.sessions(all))
         val night = SleepAnalyzer.nightOf(date, sessions, zone)
         SectionCard("Schlaf", modifier = Modifier.clickable(onClick = openSleep)) {
             if (night == null) {
@@ -118,8 +124,29 @@ fun TodayScreen(state: StrapUiState, openSleep: () -> Unit) {
             }
         }
 
+        val spo2Values = spo2.orEmpty().map { it.value }
+        val strapResting = resting.orEmpty().lastOrNull { it.timestamp < dayEnd }?.value
+        val nightHrv = night?.let { n -> hrv.orEmpty().filter { it.timestamp in n.start until n.end }.map { it.value } }.orEmpty()
+        if (spo2Values.isNotEmpty() || strapResting != null || nightHrv.isNotEmpty()) {
+            SectionCard("Erholung") {
+                Row(Modifier.fillMaxWidth()) {
+                    Metric("Ruhepuls", strapResting?.let { "$it bpm" } ?: "–", Modifier.weight(1f))
+                    Metric("HRV nachts", if (nightHrv.isEmpty()) "–" else "${nightHrv.average().toInt()} ms", Modifier.weight(1f))
+                    Metric(
+                        "SpO₂",
+                        if (spo2Values.isEmpty()) "–" else "${spo2Values.average().toInt()} %",
+                        Modifier.weight(1f),
+                        color = if (spo2Values.isNotEmpty() && spo2Values.min() < 90) Color(0xFFFFB74D) else Color.Unspecified,
+                    )
+                }
+                if (spo2Values.isNotEmpty()) {
+                    Text("SpO₂ min. ${spo2Values.min()} % aus ${spo2Values.size} Messungen", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+
         SectionCard("Herzfrequenz") {
-            if (summary.avgHeartRate == null) {
+            if (summary.avgHeartRate == null && appHr.isNullOrEmpty()) {
                 Text("Noch keine Pulswerte für diesen Tag", style = MaterialTheme.typography.bodyMedium)
             } else {
                 Row(Modifier.fillMaxWidth()) {
@@ -127,12 +154,19 @@ fun TodayScreen(state: StrapUiState, openSleep: () -> Unit) {
                     Metric("Durchschnitt", "${summary.avgHeartRate}", Modifier.weight(1f))
                     Metric("Min / Max", "${summary.minHeartRate}/${summary.maxHeartRate}", Modifier.weight(1f))
                 }
-                TimeLineChart(
-                    day.filter { it.heartRate > 0 }.map { it.timestamp to it.heartRate },
-                    dayStart,
-                    dayEnd,
-                    Palette.Coral,
-                )
+                val recorded = appHr.orEmpty()
+                // Where the app recorded more often than once a minute, those values replace the minute values.
+                val recordedMinutes = recorded.map { it.timestamp / 60 }.toHashSet()
+                val points = (day.filter { it.heartRate > 0 && it.timestamp / 60 !in recordedMinutes }.map { it.timestamp to it.heartRate } +
+                    recorded.map { it.timestamp to it.bpm }).sortedBy { it.first }
+                TimeLineChart(points, dayStart, dayEnd, Palette.Coral)
+                if (recorded.isNotEmpty()) {
+                    Text(
+                        "${recorded.size} zusätzliche Werte aus der Puls-Aufzeichnung der App",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
 
@@ -231,7 +265,14 @@ private fun LiveHeartCard(state: StrapUiState, maxHr: Int, onToggle: (Boolean) -
         state.hrv?.takeIf { fresh }?.let {
             Text("HRV (RMSSD): ${it.toInt()} ms", style = MaterialTheme.typography.bodySmall)
         }
-        if (!state.liveHeartRate && !fresh) {
+        if (state.recordingHr) {
+            Text(
+                "Puls-Aufzeichnung läuft (Einstellungen → Puls-Aufzeichnung)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (!state.liveHeartRate && !fresh && !state.recordingHr) {
             Text(
                 "Schalte die Live-Messung ein, um den Puls in Echtzeit zu sehen.",
                 style = MaterialTheme.typography.bodySmall,

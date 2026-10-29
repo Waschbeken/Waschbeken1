@@ -9,6 +9,7 @@ import de.waschbeken.heliolink.core.parseHex
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import org.json.JSONObject
 
 data class UserProfile(
     val age: Int = 30,
@@ -17,8 +18,17 @@ data class UserProfile(
     val male: Boolean = true,
     val maxHrOverride: Int = 0,
     val stepGoal: Int = 8000,
+    val sleepGoalMinutes: Int = 480,
+    /** 0 = take the strap's resting heart rate. */
+    val restingHrManual: Int = 0,
+    /** Zones from the heart rate reserve (Karvonen) instead of % of the maximum. */
+    val zonesFromReserve: Boolean = false,
 ) {
     val maxHeartRate get() = if (maxHrOverride > 0) maxHrOverride else HeartRateZones.maxHeartRate(age)
+
+    /** Resting heart rate for the zone calculation, or null for zones as % of the maximum. */
+    fun zoneRest(strapResting: Int?): Int? =
+        if (!zonesFromReserve) null else (restingHrManual.takeIf { it > 0 } ?: strapResting ?: 60)
 }
 
 enum class ThemeMode(val label: String) { SYSTEM("Wie System"), LIGHT("Hell"), DARK("Dunkel") }
@@ -63,6 +73,15 @@ class Prefs(context: Context) : SyncCursor {
     var historyDays: Int
         get() = sp.getInt("history_days", 30)
         set(v) = edit { putInt("history_days", v) }
+
+    /** Fetch code of the strap's sleep records: -1 not searched yet, 0 none found. */
+    var sleepCode: Int
+        get() = sp.getInt("sleep_code", -1)
+        set(v) = edit { putInt("sleep_code", v) }
+
+    var sleepOffset: Int
+        get() = sp.getInt("sleep_offset", 0)
+        set(v) = edit { putInt("sleep_offset", v) }
 
     var lastSync: Long
         get() = sp.getLong("last_sync", 0)
@@ -119,6 +138,31 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getString("skipped_update", "").orEmpty()
         set(v) = edit { putString("skipped_update", v) }
 
+    // --- heart rate recording and workouts
+
+    /** Seconds between heart rate values the app records itself (realtime mode), 0 = off. */
+    var continuousHrSeconds: Int
+        get() = sp.getInt("continuous_hr", 0)
+        set(v) = edit { putInt("continuous_hr", v) }
+
+    var defaultSport: String
+        get() = sp.getString("default_sport", null) ?: "Laufen"
+        set(v) = edit { putString("default_sport", v) }
+
+    /** The strap vibrates during a workout above this heart rate, 0 = off. */
+    var workoutHrUpper: Int
+        get() = sp.getInt("workout_hr_upper", 0)
+        set(v) = edit { putInt("workout_hr_upper", v) }
+
+    /** The strap vibrates during a workout below this heart rate (after the first 3 minutes), 0 = off. */
+    var workoutHrLower: Int
+        get() = sp.getInt("workout_hr_lower", 0)
+        set(v) = edit { putInt("workout_hr_lower", v) }
+
+    var notificationShowsHr: Boolean
+        get() = sp.getBoolean("notification_hr", true)
+        set(v) = edit { putBoolean("notification_hr", v) }
+
     // --- profile
 
     var profile: UserProfile
@@ -129,6 +173,9 @@ class Prefs(context: Context) : SyncCursor {
             male = sp.getBoolean("male", true),
             maxHrOverride = sp.getInt("max_hr", 0),
             stepGoal = sp.getInt("step_goal", 8000),
+            sleepGoalMinutes = sp.getInt("sleep_goal", 480),
+            restingHrManual = sp.getInt("resting_hr", 0),
+            zonesFromReserve = sp.getBoolean("zones_reserve", false),
         )
         set(p) = edit {
             putInt("age", p.age)
@@ -137,6 +184,9 @@ class Prefs(context: Context) : SyncCursor {
             putBoolean("male", p.male)
             putInt("max_hr", p.maxHrOverride)
             putInt("step_goal", p.stepGoal)
+            putInt("sleep_goal", p.sleepGoalMinutes)
+            putInt("resting_hr", p.restingHrManual)
+            putBoolean("zones_reserve", p.zonesFromReserve)
         }
 
     // --- sync cursors
@@ -154,6 +204,38 @@ class Prefs(context: Context) : SyncCursor {
         remove("name")
         remove("auth_key")
         FetchType.entries.forEach { remove("cursor_${it.name}") }
+    }
+
+    /** All settings as JSON, for the backup (contains the auth key). */
+    fun exportAll(): JSONObject {
+        val json = JSONObject()
+        for ((key, value) in sp.all) {
+            val entry = JSONObject()
+            when (value) {
+                is Boolean -> entry.put("type", "boolean").put("value", value)
+                is Int -> entry.put("type", "int").put("value", value)
+                is Long -> entry.put("type", "long").put("value", value)
+                is Float -> entry.put("type", "float").put("value", value.toDouble())
+                is String -> entry.put("type", "string").put("value", value)
+                else -> continue
+            }
+            json.put(key, entry)
+        }
+        return json
+    }
+
+    fun importAll(json: JSONObject) = edit {
+        clear()
+        for (key in json.keys()) {
+            val entry = json.optJSONObject(key) ?: continue
+            when (entry.optString("type")) {
+                "boolean" -> putBoolean(key, entry.optBoolean("value"))
+                "int" -> putInt(key, entry.optInt("value"))
+                "long" -> putLong(key, entry.optLong("value"))
+                "float" -> putFloat(key, entry.optDouble("value").toFloat())
+                "string" -> putString(key, entry.optString("value"))
+            }
+        }
     }
 
     companion object {

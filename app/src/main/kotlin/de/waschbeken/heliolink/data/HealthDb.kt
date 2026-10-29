@@ -5,7 +5,10 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import de.waschbeken.heliolink.core.ActivitySample
+import de.waschbeken.heliolink.core.SleepRecord
+import de.waschbeken.heliolink.core.SleepStage
 import de.waschbeken.heliolink.core.StressSample
+import de.waschbeken.heliolink.core.ValueSample
 
 data class Workout(
     val id: Long,
@@ -20,7 +23,7 @@ data class Workout(
 
 data class HrPoint(val timestamp: Long, val bpm: Int)
 
-class HealthDb(context: Context) : SQLiteOpenHelper(context, "health.db", null, 1) {
+class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME, null, 3) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -34,9 +37,160 @@ class HealthDb(context: Context) : SQLiteOpenHelper(context, "health.db", null, 
         )
         db.execSQL("CREATE TABLE workout_hr (workout INTEGER, ts INTEGER, bpm INTEGER)")
         db.execSQL("CREATE INDEX workout_hr_idx ON workout_hr (workout, ts)")
+        createV2(db)
+        createV3(db)
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) createV2(db)
+        if (oldVersion < 3) createV3(db)
+    }
+
+    /** Version 3: heart rate values the app records itself (more often than once a minute). */
+    private fun createV3(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS hr (ts INTEGER PRIMARY KEY, bpm INTEGER)")
+    }
+
+    fun insertHr(ts: Long, bpm: Int) {
+        val cv = ContentValues()
+        cv.put("ts", ts)
+        cv.put("bpm", bpm)
+        writableDatabase.insertWithOnConflict("hr", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    fun hr(from: Long, to: Long): List<HrPoint> {
+        val out = ArrayList<HrPoint>()
+        readableDatabase.rawQuery("SELECT ts, bpm FROM hr WHERE ts >= ? AND ts < ? ORDER BY ts", arrayOf(from.toString(), to.toString())).use { c ->
+            while (c.moveToNext()) out += HrPoint(c.getLong(0), c.getInt(1))
+        }
+        return out
+    }
+
+    /** Writes every table from [from] (epoch seconds, 0 = everything) as CSV files into [zip]. */
+    fun exportCsv(zip: java.util.zip.ZipOutputStream, from: Long) {
+        val tables = listOf(
+            Triple("aktivitaet.csv", "SELECT ts, kind, intensity, steps, hr, sleep, deep, rem FROM activity WHERE ts >= ? ORDER BY ts",
+                "zeit,unix,typ,intensitaet,schritte,puls,schlaf,tiefschlaf,rem"),
+            Triple("puls_app.csv", "SELECT ts, bpm FROM hr WHERE ts >= ? ORDER BY ts", "zeit,unix,puls"),
+            Triple("stress.csv", "SELECT ts, value FROM stress WHERE ts >= ? ORDER BY ts", "zeit,unix,stress"),
+            Triple("spo2.csv", "SELECT ts, value FROM spo2 WHERE ts >= ? ORDER BY ts", "zeit,unix,spo2"),
+            Triple("ruhepuls.csv", "SELECT ts, value FROM resting_hr WHERE ts >= ? ORDER BY ts", "zeit,unix,ruhepuls"),
+            Triple("hrv.csv", "SELECT ts, value FROM hrv WHERE ts >= ? ORDER BY ts", "zeit,unix,hrv_ms"),
+            Triple("schlaf.csv", "SELECT start, end, score, segments FROM sleep_record WHERE end >= ? ORDER BY start", "zeit,unix_start,unix_ende,score,phasen"),
+            Triple("trainings.csv", "SELECT start, end, sport, avg_hr, max_hr, kcal, zones, id FROM workout WHERE end > start AND start >= ? ORDER BY start",
+                "zeit,unix_start,unix_ende,sport,puls_avg,puls_max,kcal,zonen_sekunden,id"),
+            Triple("training_puls.csv", "SELECT ts, bpm, workout FROM workout_hr WHERE ts >= ? ORDER BY ts", "zeit,unix,puls,training_id"),
+        )
+        val fmt = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+        val zone = java.time.ZoneId.systemDefault()
+        for ((name, sql, header) in tables) {
+            zip.putNextEntry(java.util.zip.ZipEntry(name))
+            val w = zip.bufferedWriter()
+            w.write(header)
+            w.write("\n")
+            readableDatabase.rawQuery(sql, arrayOf(from.toString())).use { c ->
+                while (c.moveToNext()) {
+                    w.write(java.time.Instant.ofEpochSecond(c.getLong(0)).atZone(zone).format(fmt))
+                    for (i in 0 until c.columnCount) {
+                        w.write(",")
+                        val v = c.getString(i).orEmpty()
+                        w.write(if (v.contains(',') || v.contains(';')) "\"$v\"" else v)
+                    }
+                    w.write("\n")
+                }
+            }
+            w.flush()
+            zip.closeEntry()
+        }
+    }
+
+    /** The database file for the backup; call [close] first so everything is written. */
+    fun databaseFile(): java.io.File = context.getDatabasePath(DB_NAME)
+
+    /** Version 2: sleep records with stages, SpO2, resting heart rate and HRV. */
+    private fun createV2(db: SQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS sleep_record (day INTEGER PRIMARY KEY, updated INTEGER, start INTEGER, " +
+                "end INTEGER, score INTEGER, segments TEXT)"
+        )
+        for (t in listOf("spo2", "resting_hr", "hrv")) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS $t (ts INTEGER PRIMARY KEY, value INTEGER)")
+        }
+    }
+
+    fun insertSleepRecords(records: List<SleepRecord>) = transaction { db ->
+        val cv = ContentValues()
+        for (r in records) {
+            // Keep the newest version of a night.
+            val known = db.rawQuery("SELECT updated FROM sleep_record WHERE day = ?", arrayOf(r.day.toString())).use { c ->
+                if (c.moveToFirst()) c.getLong(0) else null
+            }
+            if (known != null && known > r.updated) continue
+            cv.clear()
+            cv.put("day", r.day)
+            cv.put("updated", r.updated)
+            cv.put("start", r.start)
+            cv.put("end", r.end)
+            if (r.score != null) cv.put("score", r.score) else cv.putNull("score")
+            cv.put("segments", r.segments.joinToString(";") { "${it.start},${it.end},${it.stage.name}" })
+            db.insertWithOnConflict("sleep_record", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+        }
+    }
+
+    /** Sleep records whose night ended between [from] and [to] (epoch seconds). */
+    fun sleepRecords(from: Long, to: Long): List<SleepRecord> {
+        val out = ArrayList<SleepRecord>()
+        readableDatabase.rawQuery(
+            "SELECT day, updated, start, end, score, segments FROM sleep_record WHERE end > ? AND end <= ? ORDER BY end",
+            arrayOf(from.toString(), to.toString()),
+        ).use { c ->
+            while (c.moveToNext()) {
+                val segments = c.getString(5).split(";").mapNotNull { part ->
+                    val f = part.split(",")
+                    if (f.size != 3) return@mapNotNull null
+                    val stage = SleepStage.entries.firstOrNull { it.name == f[2] } ?: return@mapNotNull null
+                    SleepRecord.Segment(f[0].toLong(), f[1].toLong(), stage)
+                }
+                if (segments.isEmpty()) continue
+                out += SleepRecord(
+                    c.getLong(0), c.getLong(1), c.getLong(2), c.getLong(3),
+                    if (c.isNull(4)) null else c.getInt(4), segments,
+                )
+            }
+        }
+        return out
+    }
+
+    fun insertValues(table: String, samples: List<ValueSample>) = transaction { db ->
+        require(table in VALUE_TABLES)
+        val cv = ContentValues()
+        for (s in samples) {
+            cv.clear()
+            cv.put("ts", s.timestamp)
+            cv.put("value", s.value)
+            db.insertWithOnConflict(table, null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+        }
+    }
+
+    fun values(table: String, from: Long, to: Long): List<ValueSample> {
+        require(table in VALUE_TABLES)
+        val out = ArrayList<ValueSample>()
+        readableDatabase.rawQuery(
+            "SELECT ts, value FROM $table WHERE ts >= ? AND ts < ? ORDER BY ts",
+            arrayOf(from.toString(), to.toString()),
+        ).use { c ->
+            while (c.moveToNext()) out += ValueSample(c.getLong(0), c.getInt(1))
+        }
+        return out
+    }
+
+    companion object {
+        const val DB_NAME = "health.db"
+        const val SPO2 = "spo2"
+        const val RESTING_HR = "resting_hr"
+        const val HRV = "hrv"
+        private val VALUE_TABLES = setOf(SPO2, RESTING_HR, HRV)
+    }
 
     fun insertActivity(samples: List<ActivitySample>) = transaction { db ->
         val cv = ContentValues()
@@ -179,7 +333,8 @@ class HealthDb(context: Context) : SQLiteOpenHelper(context, "health.db", null, 
 
     /** Deletes all health data and workouts. */
     fun clearAll() = transaction { db ->
-        listOf("activity", "stress", "workout", "workout_hr").forEach { db.delete(it, null, null) }
+        listOf("activity", "stress", "workout", "workout_hr", "sleep_record", SPO2, RESTING_HR, HRV, "hr")
+            .forEach { db.delete(it, null, null) }
     }
 
     private inline fun transaction(block: (SQLiteDatabase) -> Unit) {

@@ -34,7 +34,7 @@ class StrapProtocolTest {
         assertTrue(HealthConfigCodec.ENDPOINT in ready.encryptedEndpoints)
         // The health settings request goes to an encrypted endpoint and must decrypt on the strap.
         val config = h.strap.received.last { it.first == HealthConfigCodec.ENDPOINT }
-        assertEquals(HealthConfigCodec.request().toList(), config.second.toList())
+        assertEquals(HealthConfigCodec.requests().last().toList(), config.second.toList())
         assertTrue(h.writes.any { it.target == WriteTarget.CURRENT_TIME })
     }
 

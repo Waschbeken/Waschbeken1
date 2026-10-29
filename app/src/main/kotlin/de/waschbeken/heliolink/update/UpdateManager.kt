@@ -2,7 +2,9 @@ package de.waschbeken.heliolink.update
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import de.waschbeken.heliolink.BuildConfig
@@ -117,6 +119,43 @@ class UpdateManager(private val context: Context, private val prefs: Prefs) {
             tmp.delete()
         }
         target
+    }
+
+    /**
+     * Whether [apk] is signed with the same key as the installed app; null if Android cannot tell.
+     * Releases switch to the password protected key once it is set up; such an update cannot be
+     * installed over the app and needs a reinstall.
+     */
+    @Suppress("DEPRECATION")
+    fun sameSignature(apk: File): Boolean? = try {
+        val pm = context.packageManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val flags = PackageManager.GET_SIGNING_CERTIFICATES
+            val archive = pm.getPackageArchiveInfo(apk.path, flags)?.signingInfo ?: return null
+            val installed = pm.getPackageInfo(context.packageName, flags).signingInfo ?: return null
+            val a = archive.apkContentsSigners.map { it.toCharsString() }.toSet()
+            val b = installed.apkContentsSigners.map { it.toCharsString() }.toSet()
+            if (a.isEmpty() || b.isEmpty()) null else a == b
+        } else {
+            val archive = pm.getPackageArchiveInfo(apk.path, PackageManager.GET_SIGNATURES)?.signatures ?: return null
+            val installed = pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES).signatures ?: return null
+            archive.map { it.toCharsString() }.toSet() == installed.map { it.toCharsString() }.toSet()
+        }
+    } catch (_: Exception) {
+        null
+    }
+
+    /** Copies the downloaded APK to a place the user picked (e.g. Downloads) for a manual install. */
+    fun saveApk(apk: File, target: Uri) {
+        val out = context.contentResolver.openOutputStream(target) ?: throw IOException("Datei lässt sich nicht schreiben")
+        out.use { o -> apk.inputStream().use { it.copyTo(o) } }
+    }
+
+    /** Opens the system dialog to uninstall this app. */
+    fun uninstall() {
+        val intent = Intent(Intent.ACTION_DELETE, Uri.parse("package:${context.packageName}"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(intent)
     }
 
     /** Android requires the user to allow "install unknown apps" once for this app. */

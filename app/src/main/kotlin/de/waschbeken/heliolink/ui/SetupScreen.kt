@@ -76,6 +76,39 @@ fun SetupScreen(hasPermission: Boolean, requestPermission: () -> Unit, onDone: (
                 style = MaterialTheme.typography.bodyMedium,
             )
 
+            val importGadgetbridge = rememberGadgetbridgeImport { r ->
+                if (r.keyFound) {
+                    key = prefs.authKeyHex.orEmpty()
+                    manualAddress = r.address.orEmpty()
+                    selected = null
+                }
+            }
+            val restoreBackup = rememberOpenFile(
+                arrayOf("application/zip", "application/octet-stream", "*/*"),
+                "Sicherung wiederhergestellt",
+                onSuccess = { if (prefs.isConfigured) onDone() },
+            ) { uri ->
+                de.waschbeken.heliolink.data.Backup(context, prefs, context.app.db).restore(uri)
+                context.app.repo.dataChanged()
+            }
+            SectionCard("HelioLink-Sicherung vorhanden?") {
+                Text(
+                    "Nach einer Neuinstallation: Sicherung auswählen – Daten, Einstellungen und Auth-Key sind sofort wieder da.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedButton(onClick = restoreBackup) { Text("Sicherung wiederherstellen") }
+            }
+
+            SectionCard("Schon Gadgetbridge benutzt?") {
+                Text(
+                    "Dann geht es am schnellsten: In Gadgetbridge unter Einstellungen → „Daten exportieren“ eine " +
+                        "Zip-Datei erstellen und hier auswählen. HelioLink übernimmt Auth-Key, Strap und deinen " +
+                        "ganzen Verlauf (Puls, Schritte, Schlafphasen, Stress, SpO₂).",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedButton(onClick = importGadgetbridge) { Text("Gadgetbridge-Export auswählen") }
+            }
+
             SectionCard("1. Auth-Key") {
                 Text(
                     "Der Strap akzeptiert nur Apps, die seinen geheimen Schlüssel kennen. Du bekommst ihn, " +
