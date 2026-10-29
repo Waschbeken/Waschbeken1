@@ -80,6 +80,7 @@ class SleepRecordTest {
         val probed = events.filterIsInstance<StrapEvent.SleepCodeProbed>().single()
         assertEquals(0x31, probed.code)
         assertEquals(1, events.filterIsInstance<StrapEvent.SleepData>().single().records.size)
-        assertEquals(listOf<Byte>(0x03, 0x01), writes.last().value.toList())
+        // stored, but kept on the strap like all fetched data
+        assertEquals(listOf<Byte>(0x03, 0x09), writes.last().value.toList())
     }
 }

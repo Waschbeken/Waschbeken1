@@ -93,7 +93,8 @@ class StrapProtocolTest {
         h.protocol.onFetchDataNotification(byteArrayOf(0, 120, 10, 0, 55, 0, 30, 1, 60))
         h.protocol.onFetchDataNotification(byteArrayOf(1, 1, 50, 20, 80, 0, 0, 0, 0))
         h.protocol.onFetchControlNotification(byteArrayOf(0x10, 0x02, 0x01) + le32(0))
-        assertEquals(listOf<Byte>(0x03, 0x01), h.writes.last().value.toList())
+        // the data stays on the strap, HelioLink keeps its own cursor
+        assertEquals(listOf<Byte>(0x03, 0x09), h.writes.last().value.toList())
 
         val samples = h.events.filterIsInstance<StrapEvent.ActivityData>().single().samples
         assertEquals(2, samples.size)

@@ -146,132 +146,134 @@ fun TrainingScreen(nav: NavHostController) {
     val sections = de.waschbeken.heliolink.ui.rememberSections()
 
     Scaffold(topBar = { TopAppBar(title = { Text("Training") }) }) { padding ->
-        LazyColumn(
-            Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            val live = state.workout
-            state.cooldownUntil?.takeIf { live == null }?.let { until -> item { CooldownCard(until) } }
-            if (live != null) {
-                item { LiveWorkoutCard(live, state.heartRate.takeIf { System.currentTimeMillis() - state.heartRateAt < 15_000 }, profile.maxHeartRate, rest, state.connected) { controller?.stopWorkout() } }
-            } else {
-                item {
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("Training starten", style = MaterialTheme.typography.titleLarge)
-                            Text(
-                                "Der Strap misst sekündlich deinen Puls. Du siehst Zone, Kalorien und Verlauf – und kannst es als TCX exportieren.",
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                sports.forEach { (name, _) -> FilterChip(selected = sport == name, onClick = { sport = name }, label = { Text(name) }) }
-                            }
-                            FilterChip(
-                                selected = useIntervals,
-                                onClick = { useIntervals = !useIntervals },
-                                label = { Text("Intervalle mit Vibration") },
-                                leadingIcon = { Icon(Icons.Default.Timer, contentDescription = null) },
-                            )
-                            if (useIntervals) IntervalChooser(plan) { plan = it }
-                            Button(
-                                onClick = { if (useIntervals) controller?.startIntervals(sport, plan) else controller?.startWorkout(sport) },
-                                enabled = state.connected,
-                                modifier = Modifier.fillMaxWidth(),
-                            ) {
-                                Icon(Icons.Default.PlayArrow, contentDescription = null)
-                                Spacer(Modifier.width(8.dp))
-                                Text(if (!state.connected) "Strap nicht verbunden" else if (useIntervals) "Intervalle starten" else "Start")
+        de.waschbeken.heliolink.ui.SyncRefreshBox(Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                val live = state.workout
+                state.cooldownUntil?.takeIf { live == null }?.let { until -> item { CooldownCard(until) } }
+                if (live != null) {
+                    item { LiveWorkoutCard(live, state.heartRate.takeIf { System.currentTimeMillis() - state.heartRateAt < 15_000 }, profile.maxHeartRate, rest, state.connected) { controller?.stopWorkout() } }
+                } else {
+                    item {
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text("Training starten", style = MaterialTheme.typography.titleLarge)
+                                Text(
+                                    "Der Strap misst sekündlich deinen Puls. Du siehst Zone, Kalorien und Verlauf – und kannst es als TCX exportieren.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    sports.forEach { (name, _) -> FilterChip(selected = sport == name, onClick = { sport = name }, label = { Text(name) }) }
+                                }
+                                FilterChip(
+                                    selected = useIntervals,
+                                    onClick = { useIntervals = !useIntervals },
+                                    label = { Text("Intervalle mit Vibration") },
+                                    leadingIcon = { Icon(Icons.Default.Timer, contentDescription = null) },
+                                )
+                                if (useIntervals) IntervalChooser(plan) { plan = it }
+                                Button(
+                                    onClick = { if (useIntervals) controller?.startIntervals(sport, plan) else controller?.startWorkout(sport) },
+                                    enabled = state.connected,
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) {
+                                    Icon(Icons.Default.PlayArrow, contentDescription = null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(if (!state.connected) "Strap nicht verbunden" else if (useIntervals) "Intervalle starten" else "Start")
+                                }
                             }
                         }
                     }
-                }
-                item {
-                    Panel {
-                        Text("Deine Zonen (max. ${profile.maxHeartRate} bpm)", style = MaterialTheme.typography.titleSmall)
-                        StackedBar((0..4).map { 1f to Palette.zones[it] })
-                        Text(
-                            (0..4).joinToString("  ") { "Z${it + 1} ${HeartRateZones.lowerBpm(it, profile.maxHeartRate, rest)}" },
-                            style = MaterialTheme.typography.labelSmall,
-                        )
-                    }
-                }
-            }
-            summary?.let { t -> item { TrainingSummaryPanel(t, profile) } }
-            data?.let { d ->
-                item { SectionHeader("Aktive Minuten – letzte 7 Tage") }
-                item { Panel { BarChart(d.weekMinutes, Palette.Steps, labels = d.weekLabels, goal = 30f) } }
-                if (d.detected.isNotEmpty()) {
-                    val open = sections.isOpen("training-detected")
                     item {
-                        CollapsibleHeader(
-                            "Automatisch erkannt (7 Tage)", open, count = d.detected.size,
-                            summary = "${d.detected.count { it.kind == DetectedActivity.Kind.RUN }} Läufe · ${d.detected.count { it.kind != DetectedActivity.Kind.RUN }} Spaziergänge",
-                        ) { sections.toggle("training-detected") }
+                        Panel {
+                            Text("Deine Zonen (max. ${profile.maxHeartRate} bpm)", style = MaterialTheme.typography.titleSmall)
+                            StackedBar((0..4).map { 1f to Palette.zones[it] })
+                            Text(
+                                (0..4).joinToString("  ") { "Z${it + 1} ${HeartRateZones.lowerBpm(it, profile.maxHeartRate, rest)}" },
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
                     }
-                    if (open) d.detected.take(20).forEach { a ->
+                }
+                summary?.let { t -> item { TrainingSummaryPanel(t, profile) } }
+                data?.let { d ->
+                    item { SectionHeader("Aktive Minuten – letzte 7 Tage") }
+                    item { Panel { BarChart(d.weekMinutes, Palette.Steps, labels = d.weekLabels, goal = 30f) } }
+                    if (d.detected.isNotEmpty()) {
+                        val open = sections.isOpen("training-detected")
                         item {
-                            Panel(onClick = { nav.navigate(Routes.metric("heart")) }) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        if (a.kind == DetectedActivity.Kind.RUN) Icons.AutoMirrored.Filled.DirectionsRun else Icons.AutoMirrored.Filled.DirectionsWalk,
-                                        contentDescription = null, tint = MaterialTheme.colorScheme.primary,
-                                    )
-                                    Spacer(Modifier.width(12.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text("${a.kind.label} · ${dateTime(a.start)}", style = MaterialTheme.typography.titleSmall)
-                                        Text(
-                                            "${formatMinutes(a.minutes)} · ${a.steps.fmt()} Schritte · ${a.cadence}/min" + (a.avgHeartRate?.let { " · Ø $it bpm" } ?: ""),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            CollapsibleHeader(
+                                "Automatisch erkannt (7 Tage)", open, count = d.detected.size,
+                                summary = "${d.detected.count { it.kind == DetectedActivity.Kind.RUN }} Läufe · ${d.detected.count { it.kind != DetectedActivity.Kind.RUN }} Spaziergänge",
+                            ) { sections.toggle("training-detected") }
+                        }
+                        if (open) d.detected.take(20).forEach { a ->
+                            item {
+                                Panel(onClick = { nav.navigate(Routes.metric("heart")) }) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            if (a.kind == DetectedActivity.Kind.RUN) Icons.AutoMirrored.Filled.DirectionsRun else Icons.AutoMirrored.Filled.DirectionsWalk,
+                                            contentDescription = null, tint = MaterialTheme.colorScheme.primary,
                                         )
+                                        Spacer(Modifier.width(12.dp))
+                                        Column(Modifier.weight(1f)) {
+                                            Text("${a.kind.label} · ${dateTime(a.start)}", style = MaterialTheme.typography.titleSmall)
+                                            Text(
+                                                "${formatMinutes(a.minutes)} · ${a.steps.fmt()} Schritte · ${a.cadence}/min" + (a.avgHeartRate?.let { " · Ø $it bpm" } ?: ""),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
-                item { SectionHeader("Verlauf") }
-                if (d.workouts.isEmpty()) {
-                    item { Text("Noch keine Trainings aufgezeichnet.", style = MaterialTheme.typography.bodyMedium) }
-                }
-                // grouped by month; the current month is open
-                val zone = ZoneId.systemDefault()
-                val byMonth = d.workouts.groupBy { Instant.ofEpochSecond(it.start).atZone(zone).toLocalDate().withDayOfMonth(1) }
-                byMonth.entries.sortedByDescending { it.key }.forEachIndexed { index, (month, list) ->
-                    val key = "training-${month.year}-${month.monthValue}"
-                    val open = sections.isOpen(key, default = index == 0)
-                    item {
-                        CollapsibleHeader(
-                            month.format(DateTimeFormatter.ofPattern("MMMM yyyy", German)), open, count = list.size,
-                            summary = "${formatDuration(list.sumOf { it.end - it.start })} · ${list.sumOf { it.calories }} kcal · " +
-                                list.groupingBy { it.sport }.eachCount().entries.joinToString(", ") { "${it.value}× ${it.key}" },
-                        ) { sections.toggle(key, default = index == 0) }
+                    item { SectionHeader("Verlauf") }
+                    if (d.workouts.isEmpty()) {
+                        item { Text("Noch keine Trainings aufgezeichnet.", style = MaterialTheme.typography.bodyMedium) }
                     }
-                    if (open) list.sortedByDescending { it.start }.forEach { w ->
+                    // grouped by month; the current month is open
+                    val zone = ZoneId.systemDefault()
+                    val byMonth = d.workouts.groupBy { Instant.ofEpochSecond(it.start).atZone(zone).toLocalDate().withDayOfMonth(1) }
+                    byMonth.entries.sortedByDescending { it.key }.forEachIndexed { index, (month, list) ->
+                        val key = "training-${month.year}-${month.monthValue}"
+                        val open = sections.isOpen(key, default = index == 0)
                         item {
-                            Panel(onClick = { nav.navigate(Routes.workout(w.id)) }) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        if (w.sport == de.waschbeken.heliolink.service.RECORDING_SPORT) Icons.Default.FiberManualRecord else Icons.Default.Favorite,
-                                        contentDescription = null, tint = Palette.Heart,
-                                    )
-                                    Spacer(Modifier.width(12.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text("${w.sport} · ${dateTime(w.start)}", style = MaterialTheme.typography.titleSmall)
-                                        Text(
-                                            "${formatDuration(w.end - w.start)} · Ø ${w.avgHr} · max. ${w.maxHr} bpm · ${w.calories} kcal",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            CollapsibleHeader(
+                                month.format(DateTimeFormatter.ofPattern("MMMM yyyy", German)), open, count = list.size,
+                                summary = "${formatDuration(list.sumOf { it.end - it.start })} · ${list.sumOf { it.calories }} kcal · " +
+                                    list.groupingBy { it.sport }.eachCount().entries.joinToString(", ") { "${it.value}× ${it.key}" },
+                            ) { sections.toggle(key, default = index == 0) }
+                        }
+                        if (open) list.sortedByDescending { it.start }.forEach { w ->
+                            item {
+                                Panel(onClick = { nav.navigate(Routes.workout(w.id)) }) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            if (w.sport == de.waschbeken.heliolink.service.RECORDING_SPORT) Icons.Default.FiberManualRecord else Icons.Default.Favorite,
+                                            contentDescription = null, tint = Palette.Heart,
                                         )
-                                        de.waschbeken.heliolink.ui.events.notesText(w.tags, w.note)?.let {
-                                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                        Spacer(Modifier.width(12.dp))
+                                        Column(Modifier.weight(1f)) {
+                                            Text("${w.sport} · ${dateTime(w.start)}", style = MaterialTheme.typography.titleSmall)
+                                            Text(
+                                                "${formatDuration(w.end - w.start)} · Ø ${w.avgHr} · max. ${w.maxHr} bpm · ${w.calories} kcal",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                            de.waschbeken.heliolink.ui.events.notesText(w.tags, w.note)?.let {
+                                                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                            }
+                                            if (w.zoneSeconds.size == 5) {
+                                                StackedBar(w.zoneSeconds.mapIndexed { i, s -> s.toFloat() to Palette.zones[i] }, Modifier.fillMaxWidth().padding(top = 6.dp))
+                                            }
                                         }
-                                        if (w.zoneSeconds.size == 5) {
-                                            StackedBar(w.zoneSeconds.mapIndexed { i, s -> s.toFloat() to Palette.zones[i] }, Modifier.fillMaxWidth().padding(top = 6.dp))
-                                        }
+                                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
                                     }
-                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
                                 }
                             }
                         }
