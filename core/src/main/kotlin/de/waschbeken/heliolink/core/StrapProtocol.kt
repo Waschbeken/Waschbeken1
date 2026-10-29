@@ -419,7 +419,9 @@ class StrapProtocol(
                 }
                 val stored = f.valid && process(f, data)
                 if (!stored) syncOk = false
-                sendFetchAck(keepOnStrap = !stored)
+                // Always keep the data on the strap: HelioLink remembers itself how far it got, and
+                // "Verlauf neu laden" can fetch everything again, e.g. after a fix in a parser.
+                sendFetchAck(keepOnStrap = true)
             }
             0x03 -> {
                 if (!f.skipped && f.valid && !f.probe && needsAnotherRound(f)) {
@@ -538,10 +540,19 @@ class StrapProtocol(
                     emit(StrapEvent.Log("Hauttemperatur: unbekanntes Format (${data.size} Bytes)"))
                     return false
                 }
-                val raw = (0 until data.size / 8).map { n -> data.u16(n * 8).toShort().toInt() }
-                val samples = raw.mapIndexedNotNull { n, v -> TemperatureCodec.centiCelsius(v)?.let { ValueSample(startSec + n * 60L, it) } }
-                if (raw.isNotEmpty() && samples.isEmpty()) {
-                    emit(StrapEvent.Log("Hauttemperatur: ${raw.size} Werte ohne gültige Temperatur, z. B. ${raw.take(5)} – ${data.copyOf(minOf(16, data.size)).toHex()}"))
+                // The temperature is at the start of each record; some firmware puts it at byte 2 instead.
+                val first = (0 until data.size / 8).map { n -> data.u16(n * 8).toShort().toInt() }
+                val second = (0 until data.size / 8).map { n -> data.u16(n * 8 + 2).toShort().toInt() }
+                val samples = first.indices.mapNotNull { n ->
+                    (TemperatureCodec.centiCelsius(first[n]) ?: TemperatureCodec.centiCelsius(second[n]))?.let { ValueSample(startSec + n * 60L, it) }
+                }
+                if (first.isNotEmpty() && samples.size < first.size / 2) {
+                    emit(
+                        StrapEvent.Log(
+                            "Hauttemperatur: nur ${samples.size} von ${first.size} Werten gültig, z. B. ${first.take(4)} / ${second.take(4)} – " +
+                                data.copyOf(minOf(24, data.size)).toHex(),
+                        ),
+                    )
                 }
                 if (samples.isNotEmpty()) emit(StrapEvent.TemperatureData(samples))
                 end = startSec + data.size / 8 * 60L

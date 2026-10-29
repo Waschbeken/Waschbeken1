@@ -139,8 +139,10 @@ data class Readiness(val score: Int, val parts: List<Pair<String, Int>>) {
             restingHr: Int?,
             restingBaseline: Double?,
         ): Readiness? {
+            // Without a night there is nothing to recover from: no score from the pulse alone.
+            if (sleepScore == null) return null
             val parts = ArrayList<Pair<String, Int>>()
-            if (sleepScore != null) parts += "Schlaf" to sleepScore.coerceIn(0, 100)
+            parts += "Schlaf" to sleepScore.coerceIn(0, 100)
             if (hrv != null && hrvBaseline != null && hrvBaseline > 0) {
                 // +-25 % around the baseline maps to 25..100
                 val ratio = hrv / hrvBaseline

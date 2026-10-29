@@ -125,44 +125,46 @@ fun BodyScreen(nav: NavHostController) {
     var reload by remember { mutableIntStateOf(0) }
     val data by de.waschbeken.heliolink.ui.cachedDbValue("body", state.dataVersion, reload) { load(it) }
     Scaffold(topBar = { TopAppBar(title = { Text("Körper") }) }) { padding ->
-        LazyColumn(
-            Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            val d = data
-            if (d == null) {
-                item { Text("Lade …") }
-                return@LazyColumn
-            }
-            item { FeelingCard(d) { reload++ } }
-            item { CheckPanel(d.check) }
-            item { Panel { Text("Helfer", style = MaterialTheme.typography.titleMedium); HelperRow(nav) } }
-            item {
-                Panel {
-                    Text("Herz & Atmung", style = MaterialTheme.typography.titleMedium)
-                    LinkRow(
-                        "HRV-Status",
-                        d.hrv?.let { "${it.status.label} · 7 Tage Ø ${it.weekAverage.roundToInt()} ms (üblich ${it.low.roundToInt()}–${it.high.roundToInt()})" }
-                            ?: "Erscheint nach etwa zwei Wochen mit Nacht-HRV",
-                    ) { nav.navigate(Routes.metric("hrv")) }
-                    LinkRow(
-                        "Herzrhythmus",
-                        when {
-                            d.rhythmChecked == 0 -> "Wird geprüft, wenn der Puls live läuft und du ruhig bist"
-                            d.rhythmIrregular == 0 -> "Regelmäßig · ${d.rhythmChecked} Abschnitte in 30 Tagen geprüft"
-                            else -> "${d.rhythmIrregular} von ${d.rhythmChecked} Abschnitten unregelmäßig (30 Tage)"
-                        },
-                    ) { nav.navigate(Routes.metric("heart")) }
-                    LinkRow(
-                        "Sauerstoff letzte Nacht",
-                        d.odi?.let { o ->
-                            if (o.validTime > 0) "${o.drops} Abfälle laut Strap" + (o.score?.let { " · Bewertung $it" } ?: "") else "Vom Strap nicht auswertbar"
-                        } ?: "Noch keine Auswertung vom Strap",
-                    ) { nav.navigateToTab(Routes.SLEEP) }
+        de.waschbeken.heliolink.ui.SyncRefreshBox(Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                val d = data
+                if (d == null) {
+                    item { Text("Lade …") }
+                    return@LazyColumn
                 }
+                item { FeelingCard(d) { reload++ } }
+                item { CheckPanel(d.check) }
+                item { Panel { Text("Helfer", style = MaterialTheme.typography.titleMedium); HelperRow(nav) } }
+                item {
+                    Panel {
+                        Text("Herz & Atmung", style = MaterialTheme.typography.titleMedium)
+                        LinkRow(
+                            "HRV-Status",
+                            d.hrv?.let { "${it.status.label} · 7 Tage Ø ${it.weekAverage.roundToInt()} ms (üblich ${it.low.roundToInt()}–${it.high.roundToInt()})" }
+                                ?: "Erscheint nach etwa zwei Wochen mit Nacht-HRV",
+                        ) { nav.navigate(Routes.metric("hrv")) }
+                        LinkRow(
+                            "Herzrhythmus",
+                            when {
+                                d.rhythmChecked == 0 -> "Wird geprüft, wenn der Puls live läuft und du ruhig bist"
+                                d.rhythmIrregular == 0 -> "Regelmäßig · ${d.rhythmChecked} Abschnitte in 30 Tagen geprüft"
+                                else -> "${d.rhythmIrregular} von ${d.rhythmChecked} Abschnitten unregelmäßig (30 Tage)"
+                            },
+                        ) { nav.navigate(Routes.metric("heart")) }
+                        LinkRow(
+                            "Sauerstoff letzte Nacht",
+                            d.odi?.let { o ->
+                                if (o.validTime > 0) "${o.drops} Abfälle laut Strap" + (o.score?.let { " · Bewertung $it" } ?: "") else "Vom Strap nicht auswertbar"
+                            } ?: "Noch keine Auswertung vom Strap",
+                        ) { nav.navigateToTab(Routes.SLEEP) }
+                    }
+                }
+                item { HistoryPanel(d) }
             }
-            item { HistoryPanel(d) }
         }
     }
 }

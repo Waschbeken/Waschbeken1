@@ -159,45 +159,47 @@ fun SleepScreen(nav: NavHostController) {
             )
         },
     ) { padding ->
-        LazyColumn(
-            Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            item { PeriodSelector(period, { periodName = it.name }) }
-            item { DateNavigator(period, date) { dateEpoch = it.toEpochDay() } }
-            if (period == Period.DAY) {
-                val n = night
-                when {
-                    n == null -> item { Text("Lade …") }
-                    n.night == null -> {
-                        item { NoSleep { nav.navigate(Routes.sleepEdit(date.toEpochDay())) } }
-                        if (n.naps.isNotEmpty()) item { Naps(n.naps) }
-                        item { SleepDiary(date) }
-                    }
-                    else -> {
-                        nightItems(
-                            n, n.night, goal,
-                            onEstimatedInfo = { nav.navigate(Routes.settings("sleep")) },
-                            onEdit = { nav.navigate(Routes.sleepEdit(date.toEpochDay())) },
-                            askCheck = askCheck && date == LocalDate.now() && !n.night.edited,
-                            onConfirm = { app.prefs.sleepCheckedDay = LocalDate.now().toEpochDay() },
-                        )
-                        if (n.naps.isNotEmpty()) item { Naps(n.naps) }
-                        item { SleepDiary(date) }
-                    }
-                }
-            } else {
-                range?.takeIf { it.period == period && it.date == date }?.let { r ->
-                    item {
-                        RangeContent(r, period, goal) { d ->
-                            periodName = Period.DAY.name
-                            dateEpoch = d.toEpochDay()
+        de.waschbeken.heliolink.ui.SyncRefreshBox(Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item { PeriodSelector(period, { periodName = it.name }) }
+                item { DateNavigator(period, date) { dateEpoch = it.toEpochDay() } }
+                if (period == Period.DAY) {
+                    val n = night
+                    when {
+                        n == null -> item { Text("Lade …") }
+                        n.night == null -> {
+                            item { NoSleep { nav.navigate(Routes.sleepEdit(date.toEpochDay())) } }
+                            if (n.naps.isNotEmpty()) item { Naps(n.naps) }
+                            item { SleepDiary(date) }
+                        }
+                        else -> {
+                            nightItems(
+                                n, n.night, goal,
+                                onEstimatedInfo = { nav.navigate(Routes.settings("sleep")) },
+                                onEdit = { nav.navigate(Routes.sleepEdit(date.toEpochDay())) },
+                                askCheck = askCheck && date == LocalDate.now() && !n.night.edited,
+                                onConfirm = { app.prefs.sleepCheckedDay = LocalDate.now().toEpochDay() },
+                            )
+                            if (n.naps.isNotEmpty()) item { Naps(n.naps) }
+                            item { SleepDiary(date) }
                         }
                     }
+                } else {
+                    range?.takeIf { it.period == period && it.date == date }?.let { r ->
+                        item {
+                            RangeContent(r, period, goal) { d ->
+                                periodName = Period.DAY.name
+                                dateEpoch = d.toEpochDay()
+                            }
+                        }
+                    }
+                    item { BedtimePanel(state.dataVersion) }
+                    item { TagEffects(state.dataVersion) }
                 }
-                item { BedtimePanel(state.dataVersion) }
-                item { TagEffects(state.dataVersion) }
             }
         }
     }

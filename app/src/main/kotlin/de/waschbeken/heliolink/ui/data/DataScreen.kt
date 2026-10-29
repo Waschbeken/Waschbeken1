@@ -223,37 +223,39 @@ fun DataScreen(nav: NavHostController) {
                     Tab(selected = pager.currentPage == i, onClick = { scope.launch { pager.animateScrollToPage(i) } }, text = { Text(p.title) })
                 }
             }
-            HorizontalPager(pager, Modifier.weight(1f).fillMaxWidth()) { index ->
-                val page = DataPage.entries[index]
-                val d = data?.takeIf { it.date == date }
-                Column(
-                    Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    if (d == null) {
-                        Text("Lade …", style = MaterialTheme.typography.bodyMedium)
-                    } else {
-                        when (page) {
-                            DataPage.ACTIVITY -> ActivityPage(d)
-                            DataPage.HEART -> HeartPage(d, nav)
-                            DataPage.SLEEP -> SleepPage(d, nav)
-                            DataPage.SLEEP_WEEK -> SleepWeekPage(d) {
-                                dateEpoch = it.toEpochDay()
-                                scope.launch { pager.animateScrollToPage(DataPage.SLEEP.ordinal) }
+            de.waschbeken.heliolink.ui.SyncRefreshBox(Modifier.weight(1f).fillMaxWidth()) {
+                HorizontalPager(pager, Modifier.fillMaxSize()) { index ->
+                    val page = DataPage.entries[index]
+                    val d = data?.takeIf { it.date == date }
+                    Column(
+                        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        if (d == null) {
+                            Text("Lade …", style = MaterialTheme.typography.bodyMedium)
+                        } else {
+                            when (page) {
+                                DataPage.ACTIVITY -> ActivityPage(d)
+                                DataPage.HEART -> HeartPage(d, nav)
+                                DataPage.SLEEP -> SleepPage(d, nav)
+                                DataPage.SLEEP_WEEK -> SleepWeekPage(d) {
+                                    dateEpoch = it.toEpochDay()
+                                    scope.launch { pager.animateScrollToPage(DataPage.SLEEP.ordinal) }
+                                }
+                                DataPage.STEPS -> StepsPage(d)
+                                DataPage.STEPS_WEEK -> StepsWeekPage(d)
+                                DataPage.STRESS -> StressPage(d)
+                                DataPage.SPO2 -> ValuePage(d, d.spo2, "SpO₂", "%", Palette.Spo2, 1.0, minY = 80f, maxY = 100f)
+                                DataPage.HRV -> ValuePage(d, d.hrv, "HRV", "ms", Palette.Hrv, 1.0)
+                                DataPage.TEMPERATURE -> ValuePage(d, d.temperature, "Hauttemperatur", "°C", Palette.Temperature, 0.01, decimals = 1)
+                                DataPage.BREATH -> ValuePage(d, d.breath, "Atemfrequenz", "/min", Palette.Breath, 1.0)
+                                DataPage.PAI -> PaiPage(d)
+                                DataPage.BATTERY -> BatteryPage(d)
                             }
-                            DataPage.STEPS -> StepsPage(d)
-                            DataPage.STEPS_WEEK -> StepsWeekPage(d)
-                            DataPage.STRESS -> StressPage(d)
-                            DataPage.SPO2 -> ValuePage(d, d.spo2, "SpO₂", "%", Palette.Spo2, 1.0, minY = 80f, maxY = 100f)
-                            DataPage.HRV -> ValuePage(d, d.hrv, "HRV", "ms", Palette.Hrv, 1.0)
-                            DataPage.TEMPERATURE -> ValuePage(d, d.temperature, "Hauttemperatur", "°C", Palette.Temperature, 0.01, decimals = 1)
-                            DataPage.BREATH -> ValuePage(d, d.breath, "Atemfrequenz", "/min", Palette.Breath, 1.0)
-                            DataPage.PAI -> PaiPage(d)
-                            DataPage.BATTERY -> BatteryPage(d)
-                        }
-                        page.metric?.let { key ->
-                            OutlinedButton(onClick = { nav.navigate(Routes.metric(key)) }, modifier = Modifier.fillMaxWidth()) {
-                                Text("Wochen, Monate und Jahre ansehen")
+                            page.metric?.let { key ->
+                                OutlinedButton(onClick = { nav.navigate(Routes.metric(key)) }, modifier = Modifier.fillMaxWidth()) {
+                                    Text("Wochen, Monate und Jahre ansehen")
+                                }
                             }
                         }
                     }

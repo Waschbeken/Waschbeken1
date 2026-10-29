@@ -56,9 +56,22 @@ class HomeData(
     val irregularRhythm: List<HealthDb.RhythmRow>,
 ) {
     companion object {
+        /**
+         * The day the start page shows: after midnight it stays on the previous day until you woke
+         * up (a night ending today was found) or until noon, so it does not jump to zero at 00:00.
+         */
+        fun homeDay(db: HealthDb, zone: ZoneId): LocalDate {
+            val now = java.time.LocalDateTime.now()
+            val today = now.toLocalDate()
+            if (now.hour >= 12) return today
+            val night = Queries.night(db, today, zone)
+            val awake = night != null && night.end <= System.currentTimeMillis() / 1000 - 10 * 60
+            return if (awake) today else today.minusDays(1)
+        }
+
         fun load(db: HealthDb, stepGoal: Int): HomeData {
             val zone = ZoneId.systemDefault()
-            val today = LocalDate.now()
+            val today = homeDay(db, zone)
             val (dayStart, dayEnd) = Queries.dayWindow(today, zone)
             val (nightStart, _) = Queries.nightWindow(today, zone)
             val day = db.activity(dayStart, dayEnd)

@@ -268,54 +268,56 @@ fun MetricScreen(nav: NavHostController, key: String) {
     val startRecording = de.waschbeken.heliolink.ui.record.rememberRecordStarter(nav)
 
     Scaffold(topBar = { BackTopBar(metric.title, onBack = { nav.popBackStack() }) }) { padding ->
-        LazyColumn(
-            Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            item { PeriodSelector(period, { periodName = it.name }) }
-            item { DateNavigator(period, date) { dateEpoch = it.toEpochDay() } }
-            // Older data stays visible while the new period loads; only show it when it matches.
-            val d = data?.takeIf { it.period == period && it.date == date }
-            if (d == null) {
-                item { Text("Lade …", style = MaterialTheme.typography.bodyMedium) }
-            } else {
-                item {
-                    when (metric) {
-                        Metric.HEART -> if (d.period == Period.DAY) {
-                            HeartDay(
-                                d, profile,
-                                state.heartRate.takeIf { date == LocalDate.now() && System.currentTimeMillis() - state.heartRateAt < 120_000 },
-                                onRecord = startRecording.takeIf { date == LocalDate.now() },
-                            )
-                        } else HeartRange(d, profile)
-                        Metric.STEPS -> StepsContent(d, profile)
-                        Metric.STRESS -> StressContent(d)
-                        Metric.SPO2 -> ValueContent(d, metric, "%", 1.0, minY = 80f, maxY = 100f)
-                        Metric.HRV -> ValueContent(d, metric, "ms", 1.0)
-                        Metric.TEMPERATURE -> ValueContent(d, metric, "°C", 0.01, decimals = 1)
-                        Metric.RESPIRATION -> ValueContent(d, metric, "/min", 1.0)
-                        Metric.PAI -> PaiContent(d)
-                        Metric.BATTERY -> BatteryContent(d)
+        de.waschbeken.heliolink.ui.SyncRefreshBox(Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item { PeriodSelector(period, { periodName = it.name }) }
+                item { DateNavigator(period, date) { dateEpoch = it.toEpochDay() } }
+                // Older data stays visible while the new period loads; only show it when it matches.
+                val d = data?.takeIf { it.period == period && it.date == date }
+                if (d == null) {
+                    item { Text("Lade …", style = MaterialTheme.typography.bodyMedium) }
+                } else {
+                    item {
+                        when (metric) {
+                            Metric.HEART -> if (d.period == Period.DAY) {
+                                HeartDay(
+                                    d, profile,
+                                    state.heartRate.takeIf { date == LocalDate.now() && System.currentTimeMillis() - state.heartRateAt < 120_000 },
+                                    onRecord = startRecording.takeIf { date == LocalDate.now() },
+                                )
+                            } else HeartRange(d, profile)
+                            Metric.STEPS -> StepsContent(d, profile)
+                            Metric.STRESS -> StressContent(d)
+                            Metric.SPO2 -> ValueContent(d, metric, "%", 1.0, minY = 80f, maxY = 100f)
+                            Metric.HRV -> ValueContent(d, metric, "ms", 1.0)
+                            Metric.TEMPERATURE -> ValueContent(d, metric, "°C", 0.01, decimals = 1)
+                            Metric.RESPIRATION -> ValueContent(d, metric, "/min", 1.0)
+                            Metric.PAI -> PaiContent(d)
+                            Metric.BATTERY -> BatteryContent(d)
+                        }
                     }
                 }
-            }
-            if (metric == Metric.HEART) {
-                item {
-                    Panel {
-                        Text("Wirkung deiner Einträge", style = MaterialTheme.typography.titleMedium)
-                        de.waschbeken.heliolink.ui.events.EntryEffectsList(state.dataVersion)
+                if (metric == Metric.HEART) {
+                    item {
+                        Panel {
+                            Text("Wirkung deiner Einträge", style = MaterialTheme.typography.titleMedium)
+                            de.waschbeken.heliolink.ui.events.EntryEffectsList(state.dataVersion)
+                        }
                     }
+                    item { RhythmPanel(state.dataVersion) }
                 }
-                item { RhythmPanel(state.dataVersion) }
-            }
-            if (metric == Metric.HRV) item { HrvStatusPanel(state.dataVersion) }
-            if (metric == Metric.HRV) item { SdnnPanel(state.dataVersion) }
-            if (metric == Metric.STRESS) item { StressTriggersPanel(state.dataVersion) }
-            item {
-                Panel(color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                    Text("Was bedeutet das?", style = MaterialTheme.typography.titleSmall)
-                    Text(metric.about, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (metric == Metric.HRV) item { HrvStatusPanel(state.dataVersion) }
+                if (metric == Metric.HRV) item { SdnnPanel(state.dataVersion) }
+                if (metric == Metric.STRESS) item { StressTriggersPanel(state.dataVersion) }
+                item {
+                    Panel(color = MaterialTheme.colorScheme.surfaceContainerLow) {
+                        Text("Was bedeutet das?", style = MaterialTheme.typography.titleSmall)
+                        Text(metric.about, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         }

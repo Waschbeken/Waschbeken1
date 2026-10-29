@@ -48,6 +48,10 @@ HelioLink auch die HRV (Typ `0x49`, alle 1–2 Minuten, Tag und Nacht), SpO₂ i
 Bewertung; der Strap hebt nur etwa 6 Nächte auf).
 Das Protokollwissen stammt aus Gadgetbridge und der Strap-Protokollbeschreibung des Projekts Ridge.
 
+**Bedienung:** Auf jeder Übersicht nach unten wischen holt sofort neue Daten vom Strap. Nach Mitternacht
+zeigt „Heute“ noch den Vortag, bis du aufgewacht bist (spätestens bis 12 Uhr) – so steht dort nicht plötzlich
+überall 0. Abgerufene Daten bleiben auf dem Strap; „Verlauf neu laden“ kann sie jederzeit erneut holen.
+
 Im Hintergrund hält ein Dienst die Verbindung, startet nach einem Neustart des Handys von selbst,
 verbindet sich automatisch neu und lädt den Verlauf regelmäßig vom Strap. Stürzt die App ab, zeigt
 sie beim nächsten Start einen Bericht zum Kopieren.

@@ -33,6 +33,12 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.State
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
@@ -449,4 +455,40 @@ fun CollapsibleHeader(title: String, expanded: Boolean, count: Int? = null, summ
             )
         }
     }
+}
+
+
+/**
+ * Pull down to refresh: starts a sync with the strap; the screens reload by themselves when new
+ * data arrived. The indicator stays while that sync runs.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SyncRefreshBox(modifier: Modifier = Modifier, content: @Composable androidx.compose.foundation.layout.BoxScope.() -> Unit) {
+    val context = LocalContext.current
+    val app = context.app
+    val state by app.repo.state.collectAsStateWithLifecycle()
+    var pulled by remember { mutableStateOf(false) }
+    LaunchedEffect(state.syncing) { if (!state.syncing) pulled = false }
+    LaunchedEffect(pulled) {
+        // If no sync starts (e.g. not connected), do not spin forever.
+        if (pulled) {
+            kotlinx.coroutines.delay(2_500)
+            if (!app.repo.state.value.syncing) pulled = false
+        }
+    }
+    androidx.compose.material3.pulltorefresh.PullToRefreshBox(
+        isRefreshing = pulled,
+        onRefresh = {
+            pulled = true
+            if (app.repo.state.value.connected) {
+                app.repo.controller?.syncNow()
+            } else {
+                android.widget.Toast.makeText(context, "Strap nicht verbunden – zeige gespeicherte Daten", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            app.repo.dataChanged()
+        },
+        modifier = modifier,
+        content = content,
+    )
 }

@@ -156,164 +156,166 @@ fun HomeScreen(nav: NavHostController) {
             )
         },
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            if (update is UpdateState.Available || update is UpdateState.KeyChanged) {
-                item {
-                    Card(
-                        onClick = { app.updater.showDialog.value = true },
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
-                    ) {
-                        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.SystemUpdate, contentDescription = null)
-                            Spacer(Modifier.width(12.dp))
-                            Text("Eine neue Version von HelioLink ist da", modifier = Modifier.weight(1f))
-                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
-                        }
-                    }
-                }
-            }
-            if (state.syncing) {
-                item {
-                    Column {
-                        Text(state.syncText ?: "Synchronisiere …", style = MaterialTheme.typography.bodySmall)
-                        LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 4.dp))
-                    }
-                }
-            }
-            if (state.link == LinkState.AUTH_FAILED || state.link == LinkState.DISCONNECTED) {
-                item { ConnectionCard(state) }
-            }
-            state.maxHrSuggestion?.takeIf { it > profile.maxHeartRate }?.let { hr ->
-                item {
-                    Panel(color = MaterialTheme.colorScheme.secondaryContainer) {
-                        Text("Neuer Höchstpuls: $hr bpm", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            "Im Training warst du über deinem eingestellten Maximalpuls (${profile.maxHeartRate}). " +
-                                "Übernimm den Wert, damit Zonen und Kalorien stimmen.",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        Row {
-                            FilledTonalButton(onClick = {
-                                app.prefs.profile = app.prefs.profile.copy(maxHrOverride = hr)
-                                app.repo.update { it.copy(maxHrSuggestion = null) }
-                            }) { Text("Übernehmen") }
-                            TextButton(onClick = { app.repo.update { it.copy(maxHrSuggestion = null) } }) { Text("Nein danke") }
-                        }
-                    }
-                }
-            }
-            val d = data
-            item { HeroCard(state, d, profile.stepGoal) { nav.navigateToTab(Routes.SLEEP) } }
-            d?.bodyCheck?.takeIf { it.level != de.waschbeken.heliolink.core.BodyCheck.Level.NORMAL }?.let { check ->
-                item { BodyCheckCard(check, d.bodyCheckHints) }
-            }
-            d?.irregularRhythm?.takeIf { rows -> rows.isNotEmpty() && rows.last().timestamp > app.prefs.rhythmHintSeen }?.let { rows ->
-                item {
-                    RhythmHintCard(rows, onSeen = { app.prefs.rhythmHintSeen = rows.last().timestamp }) {
-                        nav.navigate(Routes.metric("heart"))
-                    }
-                }
-            }
-            item { de.waschbeken.heliolink.ui.record.RecordingBanner(nav) }
-            item {
-                LiveHeartCard(state, profile.maxHeartRate, d?.resting?.let { profile.zoneRest(it) }, onRecord = startRecording) {
-                    controller?.setLiveHeartRate(it)
-                }
-            }
-            item { de.waschbeken.heliolink.ui.events.QuickEntryCard(state.dataVersion) }
-            if (d != null) {
-                item { SectionHeader("Heute im Überblick") }
-                item { TileGrid(d, state, profile.stepGoal, hidden, order, nav) }
-                item {
-                    Panel(onClick = { nav.navigateToTab(Routes.DATA) }) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Tagesuhr", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                            Text("Alle Daten", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        }
-                        val zone = ZoneId.systemDefault()
-                        val from = d.date.atStartOfDay(zone).toEpochSecond()
-                        if (d.day.isEmpty()) {
-                            Text("Noch keine Daten für heute – nach dem nächsten Abruf erscheinen sie hier.", style = MaterialTheme.typography.bodySmall)
-                        } else {
-                            val stages = remember(d) { (listOfNotNull(d.night) + d.naps).flatMap { it.stages }.associate { (t, st) -> t / 60 * 60 to st } }
-                            val counts = remember(d) {
-                                val c = HashMap<de.waschbeken.heliolink.ui.DayState, Int>()
-                                d.day.forEach { s -> c.merge(de.waschbeken.heliolink.ui.dayState(listOf(s), stages), 1) { a, b -> a + b } }
-                                c
+        de.waschbeken.heliolink.ui.SyncRefreshBox(Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (update is UpdateState.Available || update is UpdateState.KeyChanged) {
+                    item {
+                        Card(
+                            onClick = { app.updater.showDialog.value = true },
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+                        ) {
+                            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.SystemUpdate, contentDescription = null)
+                                Spacer(Modifier.width(12.dp))
+                                Text("Eine neue Version von HelioLink ist da", modifier = Modifier.weight(1f))
+                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
                             }
+                        }
+                    }
+                }
+                if (state.syncing) {
+                    item {
+                        Column {
+                            Text(state.syncText ?: "Synchronisiere …", style = MaterialTheme.typography.bodySmall)
+                            LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 4.dp))
+                        }
+                    }
+                }
+                if (state.link == LinkState.AUTH_FAILED || state.link == LinkState.DISCONNECTED) {
+                    item { ConnectionCard(state) }
+                }
+                state.maxHrSuggestion?.takeIf { it > profile.maxHeartRate }?.let { hr ->
+                    item {
+                        Panel(color = MaterialTheme.colorScheme.secondaryContainer) {
+                            Text("Neuer Höchstpuls: $hr bpm", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                "Im Training warst du über deinem eingestellten Maximalpuls (${profile.maxHeartRate}). " +
+                                    "Übernimm den Wert, damit Zonen und Kalorien stimmen.",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            Row {
+                                FilledTonalButton(onClick = {
+                                    app.prefs.profile = app.prefs.profile.copy(maxHrOverride = hr)
+                                    app.repo.update { it.copy(maxHrSuggestion = null) }
+                                }) { Text("Übernehmen") }
+                                TextButton(onClick = { app.repo.update { it.copy(maxHrSuggestion = null) } }) { Text("Nein danke") }
+                            }
+                        }
+                    }
+                }
+                val d = data
+                item { HeroCard(state, d, profile.stepGoal) { nav.navigateToTab(Routes.SLEEP) } }
+                d?.bodyCheck?.takeIf { it.level != de.waschbeken.heliolink.core.BodyCheck.Level.NORMAL }?.let { check ->
+                    item { BodyCheckCard(check, d.bodyCheckHints) }
+                }
+                d?.irregularRhythm?.takeIf { rows -> rows.isNotEmpty() && rows.last().timestamp > app.prefs.rhythmHintSeen }?.let { rows ->
+                    item {
+                        RhythmHintCard(rows, onSeen = { app.prefs.rhythmHintSeen = rows.last().timestamp }) {
+                            nav.navigate(Routes.metric("heart"))
+                        }
+                    }
+                }
+                item { de.waschbeken.heliolink.ui.record.RecordingBanner(nav) }
+                item {
+                    LiveHeartCard(state, profile.maxHeartRate, d?.resting?.let { profile.zoneRest(it) }, onRecord = startRecording) {
+                        controller?.setLiveHeartRate(it)
+                    }
+                }
+                item { de.waschbeken.heliolink.ui.events.QuickEntryCard(state.dataVersion) }
+                if (d != null) {
+                    item { SectionHeader(if (d.date == java.time.LocalDate.now()) "Heute im Überblick" else "Gestern – bis du aufwachst") }
+                    item { TileGrid(d, state, profile.stepGoal, hidden, order, nav) }
+                    item {
+                        Panel(onClick = { nav.navigateToTab(Routes.DATA) }) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                de.waschbeken.heliolink.ui.DayClock(d.day, stages, from, Modifier.size(150.dp)) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(
-                                            java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")),
-                                            style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold,
+                                Text("Tagesuhr", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                                Text("Alle Daten", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            }
+                            val zone = ZoneId.systemDefault()
+                            val from = d.date.atStartOfDay(zone).toEpochSecond()
+                            if (d.day.isEmpty()) {
+                                Text("Noch keine Daten für heute – nach dem nächsten Abruf erscheinen sie hier.", style = MaterialTheme.typography.bodySmall)
+                            } else {
+                                val stages = remember(d) { (listOfNotNull(d.night) + d.naps).flatMap { it.stages }.associate { (t, st) -> t / 60 * 60 to st } }
+                                val counts = remember(d) {
+                                    val c = HashMap<de.waschbeken.heliolink.ui.DayState, Int>()
+                                    d.day.forEach { s -> c.merge(de.waschbeken.heliolink.ui.dayState(listOf(s), stages), 1) { a, b -> a + b } }
+                                    c
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    de.waschbeken.heliolink.ui.DayClock(d.day, stages, from, Modifier.size(150.dp)) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text(
+                                                java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")),
+                                                style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold,
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.width(16.dp))
+                                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Metric("Aktiv", formatMinutes((counts[de.waschbeken.heliolink.ui.DayState.ACTIVE] ?: 0) + (counts[de.waschbeken.heliolink.ui.DayState.LIGHT] ?: 0)), color = Palette.Steps)
+                                        Metric(
+                                            "Schlaf",
+                                            formatMinutes(listOf(de.waschbeken.heliolink.ui.DayState.SLEEP_LIGHT, de.waschbeken.heliolink.ui.DayState.SLEEP_DEEP, de.waschbeken.heliolink.ui.DayState.SLEEP_REM).sumOf { counts[it] ?: 0 }),
+                                            color = Palette.Sleep,
                                         )
+                                        Metric("Nicht getragen", formatMinutes(counts[de.waschbeken.heliolink.ui.DayState.NOT_WORN] ?: 0))
                                     }
                                 }
-                                Spacer(Modifier.width(16.dp))
-                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Metric("Aktiv", formatMinutes((counts[de.waschbeken.heliolink.ui.DayState.ACTIVE] ?: 0) + (counts[de.waschbeken.heliolink.ui.DayState.LIGHT] ?: 0)), color = Palette.Steps)
-                                    Metric(
-                                        "Schlaf",
-                                        formatMinutes(listOf(de.waschbeken.heliolink.ui.DayState.SLEEP_LIGHT, de.waschbeken.heliolink.ui.DayState.SLEEP_DEEP, de.waschbeken.heliolink.ui.DayState.SLEEP_REM).sumOf { counts[it] ?: 0 }),
-                                        color = Palette.Sleep,
-                                    )
-                                    Metric("Nicht getragen", formatMinutes(counts[de.waschbeken.heliolink.ui.DayState.NOT_WORN] ?: 0))
-                                }
+                                Legend(de.waschbeken.heliolink.ui.clockLegend())
                             }
-                            Legend(de.waschbeken.heliolink.ui.clockLegend())
                         }
                     }
-                }
-                if (d.activities.isNotEmpty() || d.workouts.isNotEmpty()) {
-                    val open = sections.isOpen("home-activities")
-                    val total = d.workouts.size + d.activities.size
-                    item {
-                        CollapsibleHeader(
-                            "Aktivitäten heute", open, count = total,
-                            summary = (d.workouts.map { it.sport } + d.activities.map { it.kind.label }).distinct().joinToString(", "),
-                        ) { sections.toggle("home-activities") }
-                    }
-                    if (open) {
-                        // trainings, recordings and detected activities together, newest first
-                        val rows = d.workouts.map { w -> w.start to w } + d.activities.map { a -> a.start to a }
-                        rows.sortedByDescending { it.first }.forEach { (_, row) ->
-                            item {
-                                when (row) {
-                                    is de.waschbeken.heliolink.data.Workout -> ActivityRow(
-                                        if (row.sport == de.waschbeken.heliolink.service.RECORDING_SPORT) Icons.Default.FiberManualRecord else Icons.Default.Favorite,
-                                        row.sport,
-                                        "${formatDuration(row.end - row.start)} · Ø ${row.avgHr} bpm · ${row.calories} kcal" +
-                                            (de.waschbeken.heliolink.ui.events.notesText(row.tags, row.note)?.let { "\n$it" } ?: ""),
-                                        Instant.ofEpochSecond(row.start),
-                                    ) { nav.navigate(Routes.workout(row.id)) }
-                                    is DetectedActivity -> ActivityRow(
-                                        if (row.kind == DetectedActivity.Kind.RUN) Icons.AutoMirrored.Filled.DirectionsRun else Icons.AutoMirrored.Filled.DirectionsWalk,
-                                        "${row.kind.label} (erkannt)",
-                                        "${formatMinutes(row.minutes)} · ${row.steps.fmt()} Schritte" + (row.avgHeartRate?.let { " · Ø $it bpm" } ?: ""),
-                                        Instant.ofEpochSecond(row.start),
-                                    ) { nav.navigate(Routes.metric("steps")) }
-                                    else -> Unit
+                    if (d.activities.isNotEmpty() || d.workouts.isNotEmpty()) {
+                        val open = sections.isOpen("home-activities")
+                        val total = d.workouts.size + d.activities.size
+                        item {
+                            CollapsibleHeader(
+                                "Aktivitäten heute", open, count = total,
+                                summary = (d.workouts.map { it.sport } + d.activities.map { it.kind.label }).distinct().joinToString(", "),
+                            ) { sections.toggle("home-activities") }
+                        }
+                        if (open) {
+                            // trainings, recordings and detected activities together, newest first
+                            val rows = d.workouts.map { w -> w.start to w } + d.activities.map { a -> a.start to a }
+                            rows.sortedByDescending { it.first }.forEach { (_, row) ->
+                                item {
+                                    when (row) {
+                                        is de.waschbeken.heliolink.data.Workout -> ActivityRow(
+                                            if (row.sport == de.waschbeken.heliolink.service.RECORDING_SPORT) Icons.Default.FiberManualRecord else Icons.Default.Favorite,
+                                            row.sport,
+                                            "${formatDuration(row.end - row.start)} · Ø ${row.avgHr} bpm · ${row.calories} kcal" +
+                                                (de.waschbeken.heliolink.ui.events.notesText(row.tags, row.note)?.let { "\n$it" } ?: ""),
+                                            Instant.ofEpochSecond(row.start),
+                                        ) { nav.navigate(Routes.workout(row.id)) }
+                                        is DetectedActivity -> ActivityRow(
+                                            if (row.kind == DetectedActivity.Kind.RUN) Icons.AutoMirrored.Filled.DirectionsRun else Icons.AutoMirrored.Filled.DirectionsWalk,
+                                            "${row.kind.label} (erkannt)",
+                                            "${formatMinutes(row.minutes)} · ${row.steps.fmt()} Schritte" + (row.avgHeartRate?.let { " · Ø $it bpm" } ?: ""),
+                                            Instant.ofEpochSecond(row.start),
+                                        ) { nav.navigate(Routes.metric("steps")) }
+                                        else -> Unit
+                                    }
                                 }
                             }
                         }
                     }
+                    item { AlarmCard(d) { nav.navigate(Routes.ALARMS) } }
                 }
-                item { AlarmCard(d) { nav.navigate(Routes.ALARMS) } }
-            }
-            item {
-                val last = if (state.lastSync > 0) DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(state.lastSync)) else "nie"
-                Text(
-                    "Zuletzt synchronisiert: $last",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                )
+                item {
+                    val last = if (state.lastSync > 0) DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(state.lastSync)) else "nie"
+                    Text(
+                        "Zuletzt synchronisiert: $last",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    )
+                }
             }
         }
     }
@@ -466,7 +468,8 @@ private fun TileGrid(d: HomeData, state: StrapUiState, stepGoal: Int, hidden: Se
     fun add(tile: Tile, content: @Composable (Modifier) -> Unit) {
         if (tile.name !in hidden) added += tile to content
     }
-    val todaySteps = (state.steps?.toInt() ?: d.week.lastOrNull()?.steps ?: 0)
+    // The strap's live counter only for today; before waking up the page shows the previous day.
+    val todaySteps = (state.steps?.toInt()?.takeIf { d.date == java.time.LocalDate.now() } ?: d.week.lastOrNull()?.steps ?: 0)
     add(Tile.STEPS) { m ->
         StatTile(
             "Schritte", todaySteps.fmt(), m,
