@@ -5,6 +5,9 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import de.waschbeken.heliolink.core.ActivitySample
+import de.waschbeken.heliolink.core.PaiSample
+import de.waschbeken.heliolink.core.StrapAlarm
+import de.waschbeken.heliolink.core.SleepEdit
 import de.waschbeken.heliolink.core.SleepRecord
 import de.waschbeken.heliolink.core.SleepStage
 import de.waschbeken.heliolink.core.StressSample
@@ -23,7 +26,7 @@ data class Workout(
 
 data class HrPoint(val timestamp: Long, val bpm: Int)
 
-class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME, null, 3) {
+class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME, null, 5) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -39,11 +42,247 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         db.execSQL("CREATE INDEX workout_hr_idx ON workout_hr (workout, ts)")
         createV2(db)
         createV3(db)
+        createV4(db)
+        createV5(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) createV2(db)
         if (oldVersion < 3) createV3(db)
+        if (oldVersion < 4) createV4(db)
+        if (oldVersion < 5) createV5(db)
+    }
+
+    /** Version 4: PAI, skin temperature, breathing rate, battery history and alarms. */
+    private fun createV4(db: SQLiteDatabase) {
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS pai (ts INTEGER PRIMARY KEY, today REAL, total REAL, low INTEGER, " +
+                "moderate INTEGER, high INTEGER)"
+        )
+        for (t in listOf(TEMPERATURE, RESPIRATION, BATTERY)) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS $t (ts INTEGER PRIMARY KEY, value INTEGER)")
+        }
+        db.execSQL(
+            "CREATE TABLE IF NOT EXISTS alarm (position INTEGER PRIMARY KEY, enabled INTEGER, smart INTEGER, " +
+                "hour INTEGER, minute INTEGER, repetition INTEGER, label TEXT, pending INTEGER, deleted INTEGER)"
+        )
+    }
+
+    /** The app's settings (sleep tuning is read while building nights). */
+    val prefs: Prefs get() = (context.applicationContext as de.waschbeken.heliolink.HelioApp).prefs
+
+    /** Version 5: sleep corrections by hand. */
+    private fun createV5(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS sleep_edit (night INTEGER PRIMARY KEY, start INTEGER, end INTEGER, ranges TEXT, deleted INTEGER)")
+        db.execSQL("CREATE TABLE IF NOT EXISTS sleep_tag (night INTEGER, tag TEXT, PRIMARY KEY (night, tag))")
+    }
+
+    // ------------------------------------------------------------------ sleep diary
+
+    /** Diary tags per night (epoch day of the morning). */
+    fun sleepTags(fromDay: Long, toDay: Long): Map<Long, Set<String>> {
+        val out = HashMap<Long, MutableSet<String>>()
+        readableDatabase.rawQuery(
+            "SELECT night, tag FROM sleep_tag WHERE night >= ? AND night <= ?",
+            arrayOf(fromDay.toString(), toDay.toString()),
+        ).use { c ->
+            while (c.moveToNext()) out.getOrPut(c.getLong(0)) { HashSet() } += c.getString(1)
+        }
+        return out
+    }
+
+    fun setSleepTag(night: Long, tag: String, on: Boolean) {
+        if (on) {
+            val cv = ContentValues()
+            cv.put("night", night)
+            cv.put("tag", tag)
+            writableDatabase.insertWithOnConflict("sleep_tag", null, cv, SQLiteDatabase.CONFLICT_IGNORE)
+        } else {
+            writableDatabase.delete("sleep_tag", "night = ? AND tag = ?", arrayOf(night.toString(), tag))
+        }
+    }
+
+    // ------------------------------------------------------------------ sleep corrections
+
+    /** Corrections for the nights (epoch days of the mornings) [fromDay]..[toDay]. */
+    fun sleepEdits(fromDay: Long, toDay: Long): Map<Long, SleepEdit> {
+        val out = HashMap<Long, SleepEdit>()
+        readableDatabase.rawQuery(
+            "SELECT night, start, end, ranges, deleted FROM sleep_edit WHERE night >= ? AND night <= ?",
+            arrayOf(fromDay.toString(), toDay.toString()),
+        ).use { c ->
+            while (c.moveToNext()) {
+                out[c.getLong(0)] = SleepEdit(c.getLong(0), c.getLong(1), c.getLong(2), SleepEdit.parseRanges(c.getString(3)), c.getInt(4) == 1)
+            }
+        }
+        return out
+    }
+
+    fun saveSleepEdit(edit: SleepEdit) {
+        val cv = ContentValues()
+        cv.put("night", edit.night)
+        cv.put("start", edit.start)
+        cv.put("end", edit.end)
+        cv.put("ranges", edit.rangesText())
+        cv.put("deleted", if (edit.deleted) 1 else 0)
+        writableDatabase.insertWithOnConflict("sleep_edit", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    fun deleteSleepEdit(night: Long) {
+        writableDatabase.delete("sleep_edit", "night = ?", arrayOf(night.toString()))
+    }
+
+    fun sleepEditCount(): Int = readableDatabase.rawQuery("SELECT COUNT(*) FROM sleep_edit", null).use { if (it.moveToFirst()) it.getInt(0) else 0 }
+
+    fun clearSleepEdits() {
+        writableDatabase.delete("sleep_edit", null, null)
+    }
+
+    // ------------------------------------------------------------------ PAI
+
+    fun insertPai(samples: List<PaiSample>) = transaction { db ->
+        val cv = ContentValues()
+        for (p in samples) {
+            cv.clear()
+            cv.put("ts", p.timestamp)
+            cv.put("today", p.today)
+            cv.put("total", p.total)
+            cv.put("low", p.lowMinutes)
+            cv.put("moderate", p.moderateMinutes)
+            cv.put("high", p.highMinutes)
+            db.insertWithOnConflict("pai", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+        }
+    }
+
+    fun pai(from: Long, to: Long): List<PaiSample> {
+        val out = ArrayList<PaiSample>()
+        readableDatabase.rawQuery(
+            "SELECT ts, today, total, low, moderate, high FROM pai WHERE ts >= ? AND ts < ? ORDER BY ts",
+            arrayOf(from.toString(), to.toString()),
+        ).use { c ->
+            while (c.moveToNext()) out += PaiSample(c.getLong(0), c.getFloat(1), c.getFloat(2), c.getInt(3), c.getInt(4), c.getInt(5))
+        }
+        return out
+    }
+
+    // ------------------------------------------------------------------ alarms
+
+    data class AlarmRow(val alarm: StrapAlarm, val label: String, val pending: Boolean, val deleted: Boolean)
+
+    fun alarms(): List<AlarmRow> {
+        val out = ArrayList<AlarmRow>()
+        readableDatabase.rawQuery(
+            "SELECT position, enabled, smart, hour, minute, repetition, label, pending, deleted FROM alarm ORDER BY hour, minute",
+            null,
+        ).use { c ->
+            while (c.moveToNext()) {
+                out += AlarmRow(
+                    StrapAlarm(c.getInt(0), c.getInt(1) == 1, c.getInt(2) == 1, c.getInt(3), c.getInt(4), c.getInt(5)),
+                    c.getString(6).orEmpty(),
+                    c.getInt(7) == 1,
+                    c.getInt(8) == 1,
+                )
+            }
+        }
+        return out
+    }
+
+    fun saveAlarm(alarm: StrapAlarm, label: String, pending: Boolean, deleted: Boolean = false) {
+        val cv = ContentValues()
+        cv.put("position", alarm.position)
+        cv.put("enabled", if (alarm.enabled) 1 else 0)
+        cv.put("smart", if (alarm.smart) 1 else 0)
+        cv.put("hour", alarm.hour)
+        cv.put("minute", alarm.minute)
+        cv.put("repetition", alarm.repetition)
+        cv.put("label", label)
+        cv.put("pending", if (pending) 1 else 0)
+        cv.put("deleted", if (deleted) 1 else 0)
+        writableDatabase.insertWithOnConflict("alarm", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    fun removeAlarm(position: Int) {
+        writableDatabase.delete("alarm", "position = ?", arrayOf(position.toString()))
+    }
+
+    /** Takes over the strap's alarms; local changes that were not sent yet stay. */
+    fun mergeStrapAlarms(fromStrap: List<StrapAlarm>) = transaction { db ->
+        val local = alarms().associateBy { it.alarm.position }
+        val strapPositions = fromStrap.map { it.position }.toSet()
+        for (a in fromStrap) {
+            val row = local[a.position]
+            if (row != null && row.pending) continue
+            val cv = ContentValues()
+            cv.put("position", a.position)
+            cv.put("enabled", if (a.enabled) 1 else 0)
+            cv.put("smart", if (a.smart) 1 else 0)
+            cv.put("hour", a.hour)
+            cv.put("minute", a.minute)
+            cv.put("repetition", a.repetition)
+            cv.put("label", row?.label.orEmpty())
+            cv.put("pending", 0)
+            cv.put("deleted", 0)
+            db.insertWithOnConflict("alarm", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+        }
+        for ((pos, row) in local) {
+            if (pos !in strapPositions && !row.pending) db.delete("alarm", "position = ?", arrayOf(pos.toString()))
+        }
+    }
+
+    // ------------------------------------------------------------------ backup without closing the database
+
+    /** Copies a consistent snapshot of the database to [out] while writers wait. */
+    fun backupTo(out: java.io.OutputStream) {
+        val db = writableDatabase
+        db.rawQuery("PRAGMA wal_checkpoint(FULL)", null).use { it.moveToFirst() }
+        db.beginTransaction() // blocks other writers while the file is copied
+        try {
+            databaseFile().inputStream().use { it.copyTo(out) }
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    /** Replaces all rows with the ones from the backup database [file]. */
+    fun restoreFrom(file: java.io.File) {
+        val db = writableDatabase
+        db.execSQL("ATTACH DATABASE ? AS bak", arrayOf(file.path))
+        try {
+            db.beginTransaction()
+            try {
+                for (table in ALL_TABLES) {
+                    val exists = db.rawQuery("SELECT name FROM bak.sqlite_master WHERE type='table' AND name=?", arrayOf(table))
+                        .use { it.moveToFirst() }
+                    if (!exists) continue
+                    val cols = columns(db, "main", table).intersect(columns(db, "bak", table).toSet())
+                    db.execSQL("DELETE FROM main.$table")
+                    if (cols.isNotEmpty()) {
+                        val list = cols.joinToString(",")
+                        db.execSQL("INSERT OR REPLACE INTO main.$table ($list) SELECT $list FROM bak.$table")
+                    }
+                }
+                db.setTransactionSuccessful()
+            } finally {
+                db.endTransaction()
+            }
+        } finally {
+            db.execSQL("DETACH DATABASE bak")
+        }
+    }
+
+    private fun columns(db: SQLiteDatabase, schema: String, table: String): List<String> {
+        val out = ArrayList<String>()
+        db.rawQuery("PRAGMA $schema.table_info($table)", null).use { c ->
+            while (c.moveToNext()) out += c.getString(1)
+        }
+        return out
+    }
+
+    fun latestValue(table: String): ValueSample? {
+        require(table in VALUE_TABLES)
+        return readableDatabase.rawQuery("SELECT ts, value FROM $table ORDER BY ts DESC LIMIT 1", null).use { c ->
+            if (c.moveToFirst()) ValueSample(c.getLong(0), c.getInt(1)) else null
+        }
     }
 
     /** Version 3: heart rate values the app records itself (more often than once a minute). */
@@ -79,6 +318,11 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
             Triple("schlaf.csv", "SELECT start, end, score, segments FROM sleep_record WHERE end >= ? ORDER BY start", "zeit,unix_start,unix_ende,score,phasen"),
             Triple("trainings.csv", "SELECT start, end, sport, avg_hr, max_hr, kcal, zones, id FROM workout WHERE end > start AND start >= ? ORDER BY start",
                 "zeit,unix_start,unix_ende,sport,puls_avg,puls_max,kcal,zonen_sekunden,id"),
+            Triple("pai.csv", "SELECT ts, today, total, low, moderate, high FROM pai WHERE ts >= ? ORDER BY ts",
+                "zeit,unix,pai_heute,pai_gesamt,min_leicht,min_mittel,min_hoch"),
+            Triple("hauttemperatur.csv", "SELECT ts, value FROM temperature WHERE ts >= ? ORDER BY ts", "zeit,unix,temperatur_hundertstel_grad"),
+            Triple("atemfrequenz.csv", "SELECT ts, value FROM respiration WHERE ts >= ? ORDER BY ts", "zeit,unix,atemzuege_pro_minute"),
+            Triple("akku.csv", "SELECT ts, value FROM battery WHERE ts >= ? ORDER BY ts", "zeit,unix,akku_prozent"),
             Triple("training_puls.csv", "SELECT ts, bpm, workout FROM workout_hr WHERE ts >= ? ORDER BY ts", "zeit,unix,puls,training_id"),
         )
         val fmt = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
@@ -189,7 +433,14 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         const val SPO2 = "spo2"
         const val RESTING_HR = "resting_hr"
         const val HRV = "hrv"
-        private val VALUE_TABLES = setOf(SPO2, RESTING_HR, HRV)
+        const val TEMPERATURE = "temperature"
+        const val RESPIRATION = "respiration"
+        const val BATTERY = "battery"
+        private val VALUE_TABLES = setOf(SPO2, RESTING_HR, HRV, TEMPERATURE, RESPIRATION, BATTERY)
+        private val ALL_TABLES = listOf(
+            "activity", "stress", "workout", "workout_hr", "sleep_record", SPO2, RESTING_HR, HRV, "hr",
+            "pai", TEMPERATURE, RESPIRATION, BATTERY, "alarm", "sleep_edit", "sleep_tag",
+        )
     }
 
     fun insertActivity(samples: List<ActivitySample>) = transaction { db ->
@@ -333,8 +584,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
 
     /** Deletes all health data and workouts. */
     fun clearAll() = transaction { db ->
-        listOf("activity", "stress", "workout", "workout_hr", "sleep_record", SPO2, RESTING_HR, HRV, "hr")
-            .forEach { db.delete(it, null, null) }
+        ALL_TABLES.filter { it != "alarm" }.forEach { db.delete(it, null, null) }
     }
 
     private inline fun transaction(block: (SQLiteDatabase) -> Unit) {

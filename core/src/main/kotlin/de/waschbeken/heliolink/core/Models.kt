@@ -62,8 +62,21 @@ enum class FetchType(val code: Int?, val label: String) {
     STRESS(0x13, "Stress"),
     SPO2(0x25, "SpO₂"),
     RESTING_HEART_RATE(0x3a, "Ruhepuls"),
+    PAI(0x0d, "PAI"),
+    TEMPERATURE(0x2e, "Hauttemperatur"),
+    RESPIRATION(0x38, "Atemfrequenz"),
     SLEEP(null, "Schlafphasen"),
 }
+
+/** Personal Activity Intelligence as calculated by the strap (one value per day). */
+data class PaiSample(
+    val timestamp: Long,
+    val today: Float,
+    val total: Float,
+    val lowMinutes: Int,
+    val moderateMinutes: Int,
+    val highMinutes: Int,
+)
 
 data class ValueSample(val timestamp: Long, val value: Int)
 
@@ -88,6 +101,15 @@ sealed interface StrapEvent {
     data class Spo2Data(val samples: List<ValueSample>) : StrapEvent
     data class RestingHeartRateData(val samples: List<ValueSample>) : StrapEvent
     data class SleepData(val records: List<SleepRecord>) : StrapEvent
+    data class PaiData(val samples: List<PaiSample>) : StrapEvent
+
+    /** Skin temperature in hundredths of a degree Celsius. */
+    data class TemperatureData(val samples: List<ValueSample>) : StrapEvent
+    data class RespirationData(val samples: List<ValueSample>) : StrapEvent
+    data class Alarms(val alarms: List<StrapAlarm>) : StrapEvent
+
+    /** Progress of the sleep code search: [tried] of [total] codes, with the last answer. */
+    data class SleepProbeProgress(val tried: Int, val total: Int, val code: Int, val detail: String) : StrapEvent
 
     /** Result of [StrapProtocol.probeSleepCode]: the fetch code of the sleep records, or null if none matched. */
     data class SleepCodeProbed(val code: Int?, val offset: Int) : StrapEvent

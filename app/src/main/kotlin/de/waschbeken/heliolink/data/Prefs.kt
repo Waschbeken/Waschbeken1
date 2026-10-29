@@ -74,6 +74,11 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getInt("history_days", 30)
         set(v) = edit { putInt("history_days", v) }
 
+    /** How many candidate codes the sleep code search already tried (it continues after a disconnect). */
+    var sleepProbeTried: Int
+        get() = sp.getInt("sleep_probe_tried", 0)
+        set(v) = edit { putInt("sleep_probe_tried", v) }
+
     /** Fetch code of the strap's sleep records: -1 not searched yet, 0 none found. */
     var sleepCode: Int
         get() = sp.getInt("sleep_code", -1)
@@ -87,6 +92,50 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getLong("last_sync", 0)
         set(v) = edit { putLong("last_sync", v) }
 
+    // --- sleep
+
+    /** Awake periods shorter than this many minutes count as light sleep, 0 = keep all. */
+    var sleepIgnoreAwake: Int
+        get() = sp.getInt("sleep_ignore_awake", 0)
+        set(v) = edit { putInt("sleep_ignore_awake", v) }
+
+    /** Awake gaps up to this many minutes stay inside one night. */
+    var sleepMaxGap: Int
+        get() = sp.getInt("sleep_max_gap", 45)
+        set(v) = edit { putInt("sleep_max_gap", v) }
+
+    /** Shorter sleep is not shown as a night. */
+    var sleepMinMinutes: Int
+        get() = sp.getInt("sleep_min_minutes", 20)
+        set(v) = edit { putInt("sleep_min_minutes", v) }
+
+    /** Always estimate the stages, even when a strap or Gadgetbridge record exists. */
+    var sleepAlwaysEstimate: Boolean
+        get() = sp.getBoolean("sleep_always_estimate", false)
+        set(v) = edit { putBoolean("sleep_always_estimate", v) }
+
+    /** Ask "Stimmt dein Schlaf?" on the sleep page each morning. */
+    var sleepAskCheck: Boolean
+        get() = sp.getBoolean("sleep_ask_check", true)
+        set(v) = edit { putBoolean("sleep_ask_check", v) }
+
+    /** Morning (epoch day) for which the user already confirmed or corrected the night. */
+    var sleepCheckedDay: Long
+        get() = sp.getLong("sleep_checked_day", 0)
+        set(v) = edit { putLong("sleep_checked_day", v) }
+
+    var sleepOnsetDelay: Int
+        get() = sp.getInt("sleep_onset_delay", 0)
+        set(v) = edit { putInt("sleep_onset_delay", v) }
+
+    var sleepWakeEarlier: Int
+        get() = sp.getInt("sleep_wake_earlier", 0)
+        set(v) = edit { putInt("sleep_wake_earlier", v) }
+
+    val sleepTuning get() = de.waschbeken.heliolink.core.SleepTuning(
+        sleepIgnoreAwake, sleepMaxGap, sleepMinMinutes, sleepOnsetDelay, sleepWakeEarlier,
+    )
+
     // --- notifications
 
     /** Battery level at which a warning is shown, 0 = off. */
@@ -97,6 +146,29 @@ class Prefs(context: Context) : SyncCursor {
     var lowBatteryNotified: Boolean
         get() = sp.getBoolean("low_battery_notified", false)
         set(v) = edit { putBoolean("low_battery_notified", v) }
+
+    /** Reminder before bedtime (next alarm minus sleep goal), minutes before; 0 = off. */
+    var bedtimeReminder: Int
+        get() = sp.getInt("bedtime_reminder", 0)
+        set(v) = edit { putInt("bedtime_reminder", v) }
+
+    var bedtimeNotifiedDay: Long
+        get() = sp.getLong("bedtime_notified", 0)
+        set(v) = edit { putLong("bedtime_notified", v) }
+
+    /** Morning summary (sleep and recovery) after the first sync of the day. */
+    var morningSummary: Boolean
+        get() = sp.getBoolean("morning_summary", true)
+        set(v) = edit { putBoolean("morning_summary", v) }
+
+    var morningSummaryDay: Long
+        get() = sp.getLong("morning_summary_day", 0)
+        set(v) = edit { putLong("morning_summary_day", v) }
+
+    /** Highest heart rate the app offered as new maximum, so it does not ask twice. */
+    var suggestedMaxHr: Int
+        get() = sp.getInt("suggested_max_hr", 0)
+        set(v) = edit { putInt("suggested_max_hr", v) }
 
     var notifySyncErrors: Boolean
         get() = sp.getBoolean("notify_sync_errors", false)
@@ -112,6 +184,28 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getBoolean("dynamic_color", false)
         set(v) = edit { putBoolean("dynamic_color", v) }
 
+    var accentColor: Long
+        get() = sp.getLong("accent", 0xFFE5532F)
+        set(v) = edit { putLong("accent", v) }
+
+    var fontScale: Float
+        get() = sp.getFloat("font_scale", 1f)
+        set(v) = edit { putFloat("font_scale", v) }
+
+    /** Dashboard tiles the user hid. */
+    var hiddenTiles: Set<String>
+        get() = sp.getStringSet("hidden_tiles", emptySet()).orEmpty()
+        set(v) = edit { putStringSet("hidden_tiles", v) }
+
+    /** Order of the dashboard tiles (names), tiles not in the list follow in their default order. */
+    var tileOrder: List<String>
+        get() = sp.getString("tile_order", "").orEmpty().split(',').filter { it.isNotBlank() }
+        set(v) = edit { putString("tile_order", v.joinToString(",")) }
+
+    var use24h: Boolean
+        get() = sp.getBoolean("use_24h", true)
+        set(v) = edit { putBoolean("use_24h", v) }
+
     // --- updates
 
     var autoCheckUpdates: Boolean
@@ -125,6 +219,16 @@ class Prefs(context: Context) : SyncCursor {
     var updateRepo: String
         get() = sp.getString("update_repo", null) ?: DEFAULT_UPDATE_REPO
         set(v) = edit { putString("update_repo", v) }
+
+    /** Install updates through Shizuku without Android's confirmation. */
+    var shizukuInstall: Boolean
+        get() = sp.getBoolean("shizuku_install", false)
+        set(v) = edit { putBoolean("shizuku_install", v) }
+
+    /** With Shizuku: install updates in the background while the app is not open. */
+    var autoInstallUpdates: Boolean
+        get() = sp.getBoolean("auto_install", false)
+        set(v) = edit { putBoolean("auto_install", v) }
 
     var lastUpdateCheck: Long
         get() = sp.getLong("last_update_check", 0)

@@ -1,1 +1,3 @@
-# Nothing special: the app uses no reflection based libraries.
+# Shizuku: ShizukuInstaller calls the private Shizuku.newProcess by reflection.
+-keep class rikka.shizuku.** { *; }
+-keep class moe.shizuku.** { *; }

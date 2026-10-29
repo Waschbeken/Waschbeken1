@@ -8,29 +8,45 @@ aber ganz auf einen Strap ohne Display zugeschnitten.
 
 | Bereich | Funktionen |
 |---|---|
-| **Heute** | Verbindungsstatus, Akku, Live-Puls mit Pulszonen und HRV (RMSSD), Schritte mit Tagesziel und Stundenverlauf, Herzfrequenz-Tageskurve mit Ruhepuls, Stress-Verlauf |
-| **Schlaf** | Hypnogramm (Wach/REM/Leicht/Tief), Schlaf-Score, Puls im Schlaf, 7-Nächte-Übersicht |
-| **Training** | Puls-Training mit sekündlicher Messung, 5 Zonen, Kalorien (Keytel-Formel), Verlauf, Export als **TCX** (z. B. Strava) |
-| **Einstellungen** | Nach Kategorien geordnet, jede mit kurzer Beschreibung (siehe unten). „Nach Updates suchen“ sitzt direkt ganz unten |
+| **Heute** | Begrüßung, Erholungswert (aus Schlaf, Ruhepuls, HRV und Stress), Kacheln für Schritte, Schlaf, Ruhepuls, Stress, SpO₂, HRV, PAI, Hauttemperatur, Atemfrequenz und Akku – jede mit Mini-Verlauf, antippen öffnet die Detailansicht. Live-Puls mit Zone, Ziel-Serie in Tagen |
+| **Details** | Jede Messgröße als Tag, Woche oder Monat: Kurven, Balken, Min/Max, Durchschnitt und Vergleich zum eigenen Normalwert |
+| **Schlaf** | Hypnogramm (Wach/REM/Leicht/Tief), Score, Phasen in Minuten und Prozent, Einschlaf- und Aufwachzeit, Wachphasen, Puls/SpO₂/HRV/Atmung/Temperatur in der Nacht. Woche und Monat mit gestapelten Balken, Regelmäßigkeit und Schlafdefizit |
+| **Schlaf korrigieren** | Stift oben rechts oder Hypnogramm antippen: Einschlaf-/Aufwachzeit ändern, Phase eines Abschnitts oder eines Zeitraums ändern, Schlaf selbst eintragen, „Das war kein Schlaf“. Morgens fragt die App „Stimmt deine Nacht?“. Aus deinen Korrekturen schlägt sie eine Kalibrierung für alle Nächte vor |
+| **Schlaf-Tagebuch** | Pro Nacht Sport, Koffein, Alkohol, Stress … markieren; Woche/Monat zeigt, wie sich das auf Score und Schlafdauer auswirkt |
+| **Training** | Training starten mit Sportart, sekündlicher Puls, Zone in Farbe, Kalorien, Zeit in Zonen. Automatisch erkannte Spaziergänge und Läufe, aktive Minuten der Woche, Verlauf mit Detailansicht und **TCX**-Export (Strava, Garmin & Co.) |
+| **Wecker** | Bis zu 10 Vibrationswecker auf dem Strap mit **Smart Wake** (bis 30 min früher im Leichtschlaf), Wochentage, Name, Countdown, Schlafenszeit-Hinweis, Schnellwecker (Powernap, „jetzt + Schlafziel“). Änderungen ohne Verbindung werden später übertragen |
+| **Widget & Kachel** | Puls, Schritte, Schlaf und Akku auf dem Startbildschirm; Schnelleinstellungs-Kachel „Strap finden“ |
+| **Einstellungen** | Getrennt nach **Strap** und **App** (siehe unten). „Nach Updates suchen“ sitzt direkt auf der Übersicht |
 
-Im Hintergrund hält ein Dienst die Verbindung, verbindet sich automatisch neu und lädt den
-Verlauf (Puls, Schritte, Schlaf, Stress minutengenau) regelmäßig vom Strap.
+Im Hintergrund hält ein Dienst die Verbindung, startet nach einem Neustart des Handys von selbst,
+verbindet sich automatisch neu und lädt den Verlauf regelmäßig vom Strap. Stürzt die App ab, zeigt
+sie beim nächsten Start einen Bericht zum Kopieren.
 
 ## Einstellungen
 
+**Strap**
+
 | Kategorie | Inhalt |
 |---|---|
-| **Strap** | Status, Akku, Firmware, „Strap vibrieren lassen“, neu verbinden, Auth-Key, Strap entfernen |
-| **Messungen am Strap** | Puls-Messintervall (Intelligent, jede Minute … 30 min, aus), bei Aktivität häufiger messen, Puls an andere Geräte senden, Pulswarnungen hoch/niedrig, Schlaf mit hoher Genauigkeit, Atmungsqualität, Stress + Entspannungs-Erinnerung, SpO₂ ganztägig + Warnung, sichtbar bleiben wenn verbunden |
-| **Puls-Aufzeichnung** | Puls öfter als einmal pro Minute: jede Sekunde, alle 5/10/30 s (Live-Werte, solange verbunden) |
+| **Gerät & Verbindung** | Status, Akku, Firmware, Seriennummer, „Strap vibrieren lassen“, Live-Puls, Einstellungen neu laden, neu verbinden, Auth-Key, Strap entfernen |
+| **Messungen** | Puls-Messintervall (Intelligent, jede Minute … 30 min, aus), bei Aktivität häufiger messen, Puls an andere Geräte senden, Pulswarnungen hoch/niedrig, Schlaf mit hoher Genauigkeit, Atmungsqualität, Stress + Entspannungs-Erinnerung, SpO₂ ganztägig + Warnung |
 | **Bewegung & Ziele** | Bewegungserinnerung mit Zeitraum und Pause, Schrittziel auf dem Strap, Vibration bei erreichtem Ziel, automatische Trainingserkennung mit Empfindlichkeit |
+| **Wecker** | führt direkt zum Wecker-Tab |
+
+**App**
+
+| Kategorie | Inhalt |
+|---|---|
+| **Darstellung** | Hell/Dunkel/System, Akzentfarbe (9 Farben), Material You, Schriftgröße |
+| **Startseite** | Kacheln auf „Heute“ ein- und ausblenden |
+| **Benachrichtigungen** | Akku-Warnung, Schlafenszeit-Erinnerung (nächster Wecker minus Schlafziel), Morgenbericht, Puls in der Benachrichtigung, Sync-Fehler |
+| **Puls-Aufzeichnung** | Puls öfter als einmal pro Minute: jede Sekunde, alle 5/10/30 s (Live-Werte, solange verbunden) |
+| **Schlaf** | Schlafziel, „Stimmt deine Nacht?“, kurze Wachphasen ignorieren, Wachzeit innerhalb einer Nacht, kürzester Schlaf (Nickerchen), Einschlafen später / Aufwachen früher werten, Phasen immer schätzen, Korrekturen verwalten |
 | **Profil** | Alter, Geschlecht, Gewicht, Größe, Schritt- und Schlafziel |
-| **Training & Zonen** | Max. Puls, Ruhepuls, Zonen nach % HFmax oder Karvonen, Standard-Sportart, Strap vibriert über/unter einer Pulsgrenze |
-| **Synchronisierung** | Automatischer Abruf, Zeitraum beim ersten Abruf, Schlafphasen-Abruf, Verlauf neu laden |
-| **Benachrichtigungen** | Akku-Warnung, Puls in der Benachrichtigung, Sync-Fehler |
-| **Darstellung** | Hell/Dunkel/System, Material You |
-| **App-Updates** | Automatisch prüfen, Vorabversionen, Update-Quelle |
-| **Daten & Sicherung** | Export als Zip mit CSV (speichern oder teilen, Zeitraum wählbar), Sicherung erstellen/wiederherstellen, Gadgetbridge-Import, Protokoll anzeigen/kopieren |
+| **Training & Zonen** | Max. Puls (mit Vorschlag, wenn ein Training höher ging), Ruhepuls, Zonen nach % HFmax oder Karvonen, Standard-Sportart, Strap vibriert über/unter einer Pulsgrenze |
+| **Synchronisierung** | Automatischer Abruf, Zeitraum beim ersten Abruf, Verlauf neu laden, Schlafphasen-Suche mit Stand und Zurücksetzen |
+| **App-Updates** | Automatisch prüfen, Vorabversionen, **Shizuku** (Status, Erlaubnis, Installieren ohne Nachfrage, im Hintergrund installieren), Update-Quelle |
+| **Daten & Sicherung** | Export als Zip mit CSV (speichern oder teilen, Zeitraum wählbar, inkl. `schlaf_naechte.csv` und `schlaf_phasen.csv` mit deinen Korrekturen), Sicherung erstellen/wiederherstellen, Gadgetbridge-Import, Protokoll anzeigen/kopieren |
 
 Strap-Einstellungen werden direkt auf dem Strap gespeichert. Die App prüft danach, ob der Strap sie
 übernommen hat, und zeigt sonst „Vom Strap nicht übernommen“ an.
@@ -59,9 +75,9 @@ installieren → Sicherung wiederherstellen. Es gehen keine Daten verloren.
 
 ### 2. Von Gadgetbridge umziehen
 In Gadgetbridge **Einstellungen → Daten exportieren** (Zip). In HelioLink bei der Einrichtung
-**„Gadgetbridge-Export auswählen“** (oder später *Einstellungen → Daten → Aus Gadgetbridge importieren*).
+**„Gadgetbridge-Export auswählen“** (oder später *Einstellungen → App → Daten & Sicherung → Aus Gadgetbridge importieren*).
 HelioLink übernimmt Auth-Key, MAC-Adresse und den ganzen Verlauf: Puls und Schritte pro Minute,
-Schlafphasen, Stress, SpO₂, Ruhepuls und HRV. Danach in Gadgetbridge den Strap trennen.
+Schlafphasen, Stress, SpO₂, Ruhepuls, HRV, PAI, Hauttemperatur, Atemfrequenz und Wecker. Danach in Gadgetbridge den Strap trennen.
 
 ## Installation
 
@@ -94,9 +110,21 @@ Updates also kein Token.
 
 Der Helio Strap speichert Schlafphasen nicht in den Minutenwerten, sondern als eigenen Datensatz
 pro Nacht (Leicht, Tief, REM, Wach und ein Score). HelioLink liest ihn aus dem Gadgetbridge-Export
-und sucht nach dem ersten Abruf einmalig, unter welchem Code der Strap ihn liefert
-(*Einstellungen → Synchronisierung → Schlafphasen-Abruf suchen*). Findet sie ihn nicht, wird der
-Schlaf aus den Minutenwerten berechnet – dann ohne Phasen.
+und sucht nach dem ersten Abruf, unter welchem Code der Strap ihn liefert – auch über mehrere
+Verbindungen hinweg (*Einstellungen → App → Synchronisierung*). Solange er nicht gefunden ist,
+schätzt die App die Phasen aus Puls, Pulsschwankung und Bewegung. Das Modell wurde an echten Nächten
+des Straps trainiert und trifft die Phase des Straps in rund 70 % der Minuten; geschätzte Nächte sind
+in der Schlafansicht markiert.
+
+## Updates mit Shizuku
+
+Mit [Shizuku](https://shizuku.rikka.app) installiert HelioLink Updates ohne den Android-Dialog:
+
+1. Shizuku installieren und starten (Wireless-Debugging oder Root).
+2. In HelioLink *Einstellungen → App-Updates → Shizuku-Status* antippen und HelioLink erlauben.
+3. „Updates über Shizuku installieren“ einschalten; optional „Im Hintergrund installieren“.
+
+Ist Shizuku nicht bereit, nimmt die App wie gewohnt den Android-Installer.
 
 ## Einrichtung: der Auth-Key
 
@@ -118,12 +146,18 @@ core/   Plattformunabhängiges Zepp-OS-Protokoll in Kotlin (JVM), mit Unit-Tests
         ├─ Chunked       Paketierung, AES-Verschlüsselung, CRC
         ├─ StrapProtocol Anmeldung, Akku, Puls, Schritte, Einstellungen, Verlaufsabruf
         ├─ HealthConfig  Gesundheits-Einstellungen des Straps
-        └─ Analysis      Schlafphasen, Tageswerte, Pulszonen, Kalorien, HRV, TCX
+        ├─ Alarms        Wecker auf dem Strap
+        ├─ SleepRecord   Schlafdatensatz des Straps
+        ├─ SleepStager   Schätzung der Schlafphasen (Entscheidungsbaum)
+        ├─ Insights      Tageswerte, Erholung, Aktivitätserkennung, Akkuprognose
+        └─ Analysis      Schlaf, Pulszonen, Kalorien, HRV, TCX
 app/    Android-App (Jetpack Compose)
         ├─ ble/          GATT-Verbindung mit Warteschlange und Wiederverbindung
         ├─ service/      Vordergrunddienst, Sync, Training-Aufzeichnung
-        ├─ data/         SQLite-Datenbank, Einstellungen
-        └─ ui/           Heute, Schlaf, Training, Strap, Einrichtung
+        ├─ data/         SQLite-Datenbank, Einstellungen, Sicherung, Import
+        ├─ update/       Updates aus GitHub-Releases, Shizuku
+        ├─ widget/       Startbildschirm-Widget
+        └─ ui/           Heute, Details, Schlaf, Training, Wecker, Einstellungen
 ```
 
 Die Protokoll-Tests laufen ohne Android-SDK: `./gradlew :core:test`. Sie simulieren einen

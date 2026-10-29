@@ -1,0 +1,445 @@
+package de.waschbeken.heliolink.ui.sleep
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavHostController
+import de.waschbeken.heliolink.app
+import de.waschbeken.heliolink.core.ActivitySample
+import de.waschbeken.heliolink.core.SleepSession
+import de.waschbeken.heliolink.core.SleepStage
+import de.waschbeken.heliolink.core.ValueSample
+import de.waschbeken.heliolink.data.HealthDb
+import de.waschbeken.heliolink.data.Queries
+import de.waschbeken.heliolink.ui.DateNavigator
+import de.waschbeken.heliolink.ui.German
+import de.waschbeken.heliolink.ui.Hypnogram
+import de.waschbeken.heliolink.ui.LineChart
+import de.waschbeken.heliolink.ui.Palette
+import de.waschbeken.heliolink.ui.Panel
+import de.waschbeken.heliolink.ui.Period
+import de.waschbeken.heliolink.ui.PeriodSelector
+import de.waschbeken.heliolink.ui.ProgressRing
+import de.waschbeken.heliolink.ui.Routes
+import de.waschbeken.heliolink.ui.SectionHeader
+import de.waschbeken.heliolink.ui.Series
+import de.waschbeken.heliolink.ui.StackedBar
+import de.waschbeken.heliolink.ui.StackedBarChart
+import de.waschbeken.heliolink.ui.StatTile
+import de.waschbeken.heliolink.ui.dbValue
+import de.waschbeken.heliolink.ui.formatHours
+import de.waschbeken.heliolink.ui.formatMinutes
+import de.waschbeken.heliolink.ui.scoreColor
+import de.waschbeken.heliolink.ui.stageName
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import kotlin.math.abs
+import kotlin.math.roundToInt
+
+private class NightData(
+    val night: SleepSession?,
+    val samples: List<ActivitySample>,
+    val spo2: List<ValueSample>,
+    val hrv: List<ValueSample>,
+    val breath: List<ValueSample>,
+    val temperature: List<ValueSample>,
+    val tempBaseline: Double?,
+)
+
+private class RangeData(val nights: Map<LocalDate, SleepSession>, val from: LocalDate, val to: LocalDate)
+
+private fun loadNight(db: HealthDb, date: LocalDate): NightData {
+    val zone = ZoneId.systemDefault()
+    val (start, end) = Queries.nightWindow(date, zone)
+    val night = Queries.night(db, date, zone)
+    val s = night?.start ?: start
+    val e = night?.end ?: end
+    val temps = db.values(HealthDb.TEMPERATURE, start - 21 * 86400, start)
+    val baseline = temps.filter { Instant.ofEpochSecond(it.timestamp).atZone(zone).hour in 0..5 }.map { it.value / 100.0 }
+        .takeIf { it.size > 60 }?.average()
+    return NightData(
+        night = night,
+        samples = db.activity(s, e),
+        spo2 = db.values(HealthDb.SPO2, s, e),
+        hrv = db.values(HealthDb.HRV, s, e),
+        breath = db.values(HealthDb.RESPIRATION, s, e),
+        temperature = db.values(HealthDb.TEMPERATURE, s, e),
+        tempBaseline = baseline,
+    )
+}
+
+private val time = DateTimeFormatter.ofPattern("HH:mm")
+
+private fun clock(epoch: Long) = Instant.ofEpochSecond(epoch).atZone(ZoneId.systemDefault()).format(time)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SleepScreen(nav: NavHostController) {
+    val app = LocalContext.current.app
+    val state by app.repo.state.collectAsStateWithLifecycle()
+    var periodName by rememberSaveable { mutableStateOf(Period.DAY.name) }
+    var dateEpoch by rememberSaveable { mutableStateOf(LocalDate.now().toEpochDay()) }
+    val period = Period.valueOf(periodName)
+    val date = LocalDate.ofEpochDay(dateEpoch)
+    val goal = app.prefs.profile.sleepGoalMinutes
+    val night by dbValue(date, state.dataVersion, period) { if (period == Period.DAY) loadNight(it, date) else null }
+    val range by dbValue(date, state.dataVersion, period) {
+        val (from, to) = period.range(date)
+        RangeData(Queries.nights(it, from, minOf(to, LocalDate.now()), ZoneId.systemDefault()), from, to)
+    }
+
+    val askCheck = app.prefs.sleepAskCheck && app.prefs.sleepCheckedDay != LocalDate.now().toEpochDay()
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Schlaf") },
+                actions = {
+                    if (period == Period.DAY) {
+                        IconButton(onClick = { nav.navigate(Routes.sleepEdit(date.toEpochDay())) }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Schlaf bearbeiten")
+                        }
+                    }
+                    IconButton(onClick = { nav.navigate(Routes.settings("sleep")) }) {
+                        Icon(Icons.Default.Tune, contentDescription = "Schlaf-Einstellungen")
+                    }
+                },
+            )
+        },
+    ) { padding ->
+        LazyColumn(
+            Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            item { PeriodSelector(period, { periodName = it.name }) }
+            item { DateNavigator(period, date) { dateEpoch = it.toEpochDay() } }
+            if (period == Period.DAY) {
+                val n = night
+                when {
+                    n == null -> item { Text("Lade …") }
+                    n.night == null -> {
+                        item { NoSleep { nav.navigate(Routes.sleepEdit(date.toEpochDay())) } }
+                        item { SleepDiary(date) }
+                    }
+                    else -> {
+                        nightItems(
+                            n, n.night, goal,
+                            onEstimatedInfo = { nav.navigate(Routes.settings("sleep")) },
+                            onEdit = { nav.navigate(Routes.sleepEdit(date.toEpochDay())) },
+                            askCheck = askCheck && date == LocalDate.now() && !n.night.edited,
+                            onConfirm = { app.prefs.sleepCheckedDay = LocalDate.now().toEpochDay() },
+                        )
+                        item { SleepDiary(date) }
+                    }
+                }
+            } else {
+                range?.let { r ->
+                    item {
+                        RangeContent(r, period, goal) { d ->
+                            periodName = Period.DAY.name
+                            dateEpoch = d.toEpochDay()
+                        }
+                    }
+                }
+                item { TagEffects(state.dataVersion) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NoSleep(onAdd: () -> Unit) {
+    Panel {
+        Text("Für diese Nacht liegen keine Schlafdaten vor.", style = MaterialTheme.typography.bodyMedium)
+        Text(
+            "Trage den Strap nachts und synchronisiere morgens. Tipp: Unter Einstellungen → Messungen " +
+                "„Schlaf mit hoher Genauigkeit“ einschalten.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        OutlinedButton(onClick = onAdd) { Text("Schlaf selbst eintragen") }
+    }
+}
+
+private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(
+    d: NightData,
+    n: SleepSession,
+    goal: Int,
+    onEstimatedInfo: () -> Unit,
+    onEdit: () -> Unit,
+    askCheck: Boolean,
+    onConfirm: () -> Unit,
+) {
+    item {
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+            Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(92.dp), contentAlignment = Alignment.Center) {
+                    ProgressRing(n.score / 100f, scoreColor(n.score), Modifier.size(92.dp))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("${n.score}", fontSize = 30.sp, fontWeight = FontWeight.Bold)
+                        Text("Score", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+                Spacer(Modifier.width(18.dp))
+                Column {
+                    Text(formatHours(n.asleepMinutes), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+                    Text("geschlafen · ${clock(n.start)} – ${clock(n.end)}", style = MaterialTheme.typography.bodyMedium)
+                    val diff = n.asleepMinutes - goal
+                    Text(
+                        if (diff >= 0) "Ziel erreicht (+${formatMinutes(diff)})" else "${formatMinutes(-diff)} unter deinem Ziel",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
+    }
+    if (askCheck) {
+        item {
+            var answered by remember { mutableStateOf(false) }
+            if (!answered) {
+                Panel(color = MaterialTheme.colorScheme.tertiaryContainer) {
+                    Text("Stimmt deine Nacht?", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "Wenn Einschlafen, Aufwachen oder Wachphasen nicht passen, korrigiere sie – das macht Score und Statistik genauer.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = {
+                            answered = true
+                            onConfirm()
+                        }) { Text("Passt") }
+                        OutlinedButton(onClick = onEdit) { Text("Korrigieren") }
+                    }
+                }
+            }
+        }
+    }
+    if (n.edited) {
+        item {
+            Panel(onClick = onEdit) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(10.dp))
+                    Text("Von dir korrigiert – tippen zum Bearbeiten", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+    if (n.estimated) {
+        item {
+            Panel(color = MaterialTheme.colorScheme.secondaryContainer, onClick = onEstimatedInfo) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Info, contentDescription = null)
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "Phasen geschätzt: Für diese Nacht hat der Strap keine eigenen Schlafphasen geliefert. HelioLink schätzt sie aus Puls " +
+                            "und Bewegung (trifft etwa 7 von 10 Minuten). Tippen für die Schlaf-Einstellungen, oben rechts kannst du die Nacht korrigieren.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
+    }
+    item {
+        Panel(onClick = onEdit) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Schlafphasen", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Text("Tippen zum Korrigieren", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Hypnogram(n.stages)
+        }
+    }
+    item {
+        Panel {
+            val total = n.durationMinutes.coerceAtLeast(1)
+            StackedBar(listOf(SleepStage.DEEP, SleepStage.LIGHT, SleepStage.REM, SleepStage.AWAKE).map { n.minutes(it).toFloat() to Palette.stage(it) }, Modifier.fillMaxWidth().height(12.dp))
+            val hints = mapOf(
+                SleepStage.DEEP to "üblich 13–23 %",
+                SleepStage.LIGHT to "üblich 45–55 %",
+                SleepStage.REM to "üblich 20–25 %",
+                SleepStage.AWAKE to "kurze Wachphasen sind normal",
+            )
+            listOf(SleepStage.DEEP, SleepStage.LIGHT, SleepStage.REM, SleepStage.AWAKE).forEach { s ->
+                val minutes = n.minutes(s)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(10.dp).padding(0.dp)) { StackedBar(listOf(1f to Palette.stage(s)), Modifier.size(10.dp)) }
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(stageName(s), style = MaterialTheme.typography.bodyMedium)
+                        Text(hints.getValue(s), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text("${formatMinutes(minutes)} · ${minutes * 100 / total} %", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        }
+    }
+    item {
+        val wakeUps = n.stages.zipWithNext().count { (a, b) -> a.second != SleepStage.AWAKE && b.second == SleepStage.AWAKE }
+        val onset = n.stages.indexOfFirst { it.second != SleepStage.AWAKE }.coerceAtLeast(0)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile("Eingeschlafen", clock(n.start + onset * 60L), Modifier.weight(1f))
+            StatTile("Aufgewacht", clock(n.end), Modifier.weight(1f))
+            StatTile("Wachphasen", "$wakeUps", Modifier.weight(1f))
+        }
+    }
+    item { SectionHeader("Während der Nacht") }
+    item {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile("Puls Ø / min", "${n.avgHeartRate ?: "–"} / ${n.minHeartRate ?: "–"}", Modifier.weight(1f), tint = Palette.Heart)
+            StatTile("HRV", d.hrv.map { it.value }.takeIf { it.isNotEmpty() }?.average()?.roundToInt()?.let { "$it ms" } ?: "–", Modifier.weight(1f))
+        }
+    }
+    item {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile(
+                "SpO₂ Ø / min",
+                d.spo2.map { it.value }.takeIf { it.isNotEmpty() }?.let { "${it.average().roundToInt()} / ${it.min()} %" } ?: "–",
+                Modifier.weight(1f),
+            )
+            StatTile("Atemfrequenz", d.breath.map { it.value }.takeIf { it.isNotEmpty() }?.average()?.roundToInt()?.let { "$it /min" } ?: "–", Modifier.weight(1f))
+        }
+    }
+    val tempAvg = d.temperature.map { it.value / 100.0 }.takeIf { it.isNotEmpty() }?.average()
+    if (tempAvg != null) {
+        item {
+            val dev = d.tempBaseline?.let { tempAvg - it }
+            StatTile(
+                "Hauttemperatur", "%.1f °C".format(tempAvg), Modifier.fillMaxWidth(),
+                caption = dev?.let { "%+.1f °C zu deinem Schnitt".format(it) + if (abs(it) >= 0.5) " – auffällig" else "" },
+            )
+        }
+    }
+    if (d.samples.any { it.heartRate > 0 }) {
+        item {
+            Panel {
+                Text("Puls im Schlaf", style = MaterialTheme.typography.titleMedium)
+                LineChart(
+                    listOf(Series(d.samples.filter { it.heartRate > 0 }.map { it.timestamp to it.heartRate.toFloat() }, Palette.Sleep, fill = true)),
+                    n.start, n.end,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RangeContent(r: RangeData, period: Period, goal: Int, onOpen: (LocalDate) -> Unit) {
+    val zone = ZoneId.systemDefault()
+    val days = generateSequence(r.from) { it.plusDays(1) }.takeWhile { !it.isAfter(r.to) }.toList()
+    val nights = r.nights.values.toList()
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Panel {
+            Text("Schlafdauer und Phasen", style = MaterialTheme.typography.titleMedium)
+            StackedBarChart(
+                days.map { d ->
+                    val n = r.nights[d]
+                    if (n == null) emptyList() else listOf(SleepStage.DEEP, SleepStage.LIGHT, SleepStage.REM, SleepStage.AWAKE)
+                        .map { n.minutes(it) / 60f to Palette.stage(it) }
+                },
+                days.map { d -> if (period == Period.WEEK) d.dayOfWeek.getDisplayName(TextStyle.SHORT, German).take(2) else if (d.dayOfMonth % 5 == 0 || d.dayOfMonth == 1) "${d.dayOfMonth}" else "" },
+                goal = goal / 60f,
+                format = { "%.1f h".format(it) },
+            )
+        }
+        if (nights.isEmpty()) {
+            Panel { Text("Keine Nächte in diesem Zeitraum.", style = MaterialTheme.typography.bodyMedium) }
+            return@Column
+        }
+        val avgAsleep = nights.map { it.asleepMinutes }.average().roundToInt()
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile("Ø Schlaf", formatHours(avgAsleep), Modifier.weight(1f), icon = Icons.Default.Bedtime, tint = Palette.Sleep)
+            StatTile("Ø Score", "${nights.map { it.score }.average().roundToInt()}", Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            StatTile("Ø Tiefschlaf", formatMinutes(nights.map { it.minutes(SleepStage.DEEP) }.average().roundToInt()), Modifier.weight(1f), tint = Palette.Deep)
+            StatTile("Ø REM", formatMinutes(nights.map { it.minutes(SleepStage.REM) }.average().roundToInt()), Modifier.weight(1f), tint = Palette.Rem)
+        }
+        // consistency: spread of bedtimes and wake-up times
+        fun minutesOfDay(epoch: Long): Int {
+            val t = Instant.ofEpochSecond(epoch).atZone(zone)
+            val m = t.hour * 60 + t.minute
+            return if (m < 12 * 60) m + 24 * 60 else m // after midnight counts as late evening
+        }
+        val bed = nights.map { minutesOfDay(it.start) }
+        val wake = nights.map { Instant.ofEpochSecond(it.end).atZone(zone).let { t -> t.hour * 60 + t.minute } }
+        fun hm(m: Int) = "%02d:%02d".format((m / 60) % 24, m % 60)
+        fun spread(v: List<Int>) = if (v.size < 2) 0 else kotlin.math.sqrt(v.map { (it - v.average()) * (it - v.average()) }.average()).roundToInt()
+        Panel {
+            Text("Regelmäßigkeit", style = MaterialTheme.typography.titleMedium)
+            Text("Ø ins Bett: ${hm(bed.average().roundToInt())} (± ${spread(bed)} min)", style = MaterialTheme.typography.bodyMedium)
+            Text("Ø aufgestanden: ${hm(wake.average().roundToInt())} (± ${spread(wake)} min)", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                if (spread(bed) <= 30) "Sehr regelmäßig – gut für erholsamen Schlaf." else "Feste Schlafenszeiten verbessern meist Schlafqualität und Erholung.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            val debt = nights.sumOf { (goal - it.asleepMinutes).coerceAtLeast(0) }
+            if (debt > 0) Text("Schlafdefizit zum Ziel: ${formatMinutes(debt)}", style = MaterialTheme.typography.bodyMedium)
+        }
+        Text("Nächte", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        r.nights.entries.sortedByDescending { it.key }.forEach { (d, n) ->
+            Panel(onClick = { onOpen(d) }) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(d.format(java.time.format.DateTimeFormatter.ofPattern("EEE d. MMM", German)), style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "${clock(n.start)} – ${clock(n.end)}" + when {
+                                n.edited -> " · korrigiert"
+                                n.estimated -> " · geschätzt"
+                                else -> ""
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(formatHours(n.asleepMinutes), style = MaterialTheme.typography.titleSmall)
+                        Text("Score ${n.score}", style = MaterialTheme.typography.labelSmall, color = scoreColor(n.score))
+                    }
+                }
+            }
+        }
+    }
+}

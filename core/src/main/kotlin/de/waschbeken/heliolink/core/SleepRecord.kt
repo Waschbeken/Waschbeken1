@@ -62,6 +62,7 @@ object SleepRecordParser {
     }
 
     fun parse(record: ByteArray, offset: Int = 0): SleepRecord? {
+        if (offset < 0) return null
         if (record.size - offset < COUNT_OFFSET + 2) return null
         val buf = ByteBuffer.wrap(record).order(ByteOrder.LITTLE_ENDIAN)
         val updated = buf.getInt(offset).toLong() and 0xffffffffL
@@ -87,14 +88,31 @@ object SleepRecordParser {
     fun parseAll(data: ByteArray, offset: Int = 0): List<SleepRecord> {
         val result = HashMap<Long, SleepRecord>()
         var o = offset
-        while (data.size - o >= RECORD_SIZE) {
-            parse(data.copyOfRange(o, o + RECORD_SIZE))?.let { r ->
+        while (data.size - o >= COUNT_OFFSET + 2) {
+            parse(data.copyOfRange(o, minOf(data.size, o + RECORD_SIZE)))?.let { r ->
                 val known = result[r.day]
                 if (known == null || r.updated >= known.updated) result[r.day] = r
             }
             o += RECORD_SIZE
         }
         return result.values.sortedBy { it.day }
+    }
+
+    /**
+     * Finds where the sleep records start: two recent timestamps (updated ≥ day - 1 day) within the
+     * first bytes. Returns null if the data does not look like sleep records.
+     */
+    fun findOffset(data: ByteArray, nowSeconds: Long): Int? {
+        if (data.size < COUNT_OFFSET + 2) return null
+        val buf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
+        val range = (nowSeconds - 400L * 86400)..(nowSeconds + 2L * 86400)
+        for (offset in 0..8) {
+            if (data.size - offset < COUNT_OFFSET + 2) break
+            val updated = buf.getInt(offset).toLong() and 0xffffffffL
+            val day = buf.getInt(offset + 4).toLong() and 0xffffffffL
+            if (updated in range && day in range && updated >= day - 86400 && parse(data, offset) != null) return offset
+        }
+        return null
     }
 
     /** Whether [data] plausibly starts with sleep records (two recent timestamps) at [offset]. */

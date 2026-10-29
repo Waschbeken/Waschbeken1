@@ -2,6 +2,7 @@ package de.waschbeken.heliolink
 
 import android.app.Application
 import android.content.Context
+import de.waschbeken.heliolink.data.CrashReporter
 import de.waschbeken.heliolink.data.HealthDb
 import de.waschbeken.heliolink.data.Prefs
 import de.waschbeken.heliolink.service.StrapRepository
@@ -20,6 +21,7 @@ class HelioApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        CrashReporter.install(this)
         prefs = Prefs(this)
         db = HealthDb(this)
         repo = StrapRepository(prefs)
@@ -30,8 +32,15 @@ class HelioApp : Application() {
                 prefs.skippedVersion = v
                 prefs.notifiedUpdateVersion = ""
             },
+            useShizuku = { prefs.shizukuInstall },
         )
     }
 }
 
 val Context.app: HelioApp get() = applicationContext as HelioApp
+
+/** Whether an activity of the app is visible (silent updates only happen in the background). */
+object AppVisibility {
+    @Volatile
+    var inForeground = false
+}

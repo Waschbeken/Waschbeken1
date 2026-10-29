@@ -13,6 +13,10 @@ data class SleepSession(
     val minHeartRate: Int?,
     /** Score calculated by the strap, if the night came from a [SleepRecord]. */
     val strapScore: Int? = null,
+    /** Stages estimated by [SleepStager] because the strap delivered none. */
+    val estimated: Boolean = false,
+    /** Corrected by hand (see [SleepEdit]). */
+    val edited: Boolean = false,
 ) {
     fun minutes(stage: SleepStage) = stages.count { it.second == stage }
     val asleepMinutes get() = stages.count { it.second != SleepStage.AWAKE }
@@ -51,12 +55,22 @@ object SleepAnalyzer {
             val asleep = inSession.count { it.isSleep }
             if (asleep >= minMinutes) {
                 val hr = inSession.map { it.heartRate }.filter { it > 0 }
+                // The Helio Strap leaves the stage fields of the minute samples empty: estimate them.
+                val hasStages = inSession.any { it.isSleep && (it.deepSleep and 127 > 0 || it.remSleep and 127 > 0) }
+                val stages = if (hasStages) {
+                    inSession.map { it.timestamp to it.sleepStage }
+                } else {
+                    val filled = fillGaps(inSession)
+                    val byTime = filled.map { it.timestamp }.zip(SleepStager.stages(filled)).toMap()
+                    inSession.map { it.timestamp to byTime.getValue(it.timestamp) }
+                }
                 result += SleepSession(
                     start = first.timestamp,
                     end = last.timestamp + 60,
-                    stages = inSession.map { it.timestamp to it.sleepStage },
+                    stages = stages,
                     avgHeartRate = if (hr.isEmpty()) null else hr.average().roundToInt(),
                     minHeartRate = hr.minOrNull(),
+                    estimated = !hasStages,
                 )
             }
             current = ArrayList()
@@ -75,6 +89,23 @@ object SleepAnalyzer {
         }
         flush()
         return result
+    }
+
+    /** Adds missing minutes (as awake, without heart rate) so the stager sees a continuous night. */
+    private fun fillGaps(samples: List<ActivitySample>): List<ActivitySample> {
+        if (samples.size < 2) return samples
+        val out = ArrayList<ActivitySample>(samples.size)
+        for ((i, s) in samples.withIndex()) {
+            if (i > 0) {
+                var t = samples[i - 1].timestamp + 60
+                while (t < s.timestamp && out.size < samples.size * 2) {
+                    out += ActivitySample(t, 0, 0, 0, 0, 0, 0, 0)
+                    t += 60
+                }
+            }
+            out += s
+        }
+        return out
     }
 
     /** Nights from the strap's own records win; minute based sessions only fill the gaps. */
