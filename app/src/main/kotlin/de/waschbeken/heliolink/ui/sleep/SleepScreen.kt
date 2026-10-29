@@ -316,6 +316,13 @@ private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(
                         if (diff >= 0) "Ziel erreicht (+${formatMinutes(diff)})" else "${formatMinutes(-diff)} unter deinem Ziel",
                         style = MaterialTheme.typography.bodySmall,
                     )
+                    if (n.strapScore == null) {
+                        Text(
+                            n.scoreParts.joinToString(" · ") { (name, points, max) -> "$name $points/$max" },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                        )
+                    }
                 }
             }
         }

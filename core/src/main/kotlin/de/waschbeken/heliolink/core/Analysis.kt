@@ -17,6 +17,8 @@ data class SleepSession(
     val estimated: Boolean = false,
     /** Corrected by hand (see [SleepEdit]). */
     val edited: Boolean = false,
+    /** The user's sleep goal; the estimated score measures the duration against it. */
+    val goalMinutes: Int = 480,
 ) {
     fun minutes(stage: SleepStage) = stages.count { it.second == stage }
     val asleepMinutes get() = stages.count { it.second != SleepStage.AWAKE }
@@ -25,18 +27,32 @@ data class SleepSession(
     /** The strap's own score if known, otherwise [estimatedScore]. */
     val score: Int get() = strapScore ?: estimatedScore
 
-    /** Simple 0-100 score from duration, deep/REM share and interruptions. */
+    /**
+     * 0–100 from duration, deep/REM share and interruptions. The duration counts most: all 55 points
+     * at the sleep goal, none at 3 hours below it – a short night cannot score high just because
+     * its phases look good.
+     */
     val estimatedScore: Int
+        get() = scoreParts.sumOf { it.second }.coerceIn(0, 100)
+
+    /** The parts of [estimatedScore]: (name, points, of maximum), e.g. ("Dauer", 26, 55). */
+    val scoreParts: List<Triple<String, Int, Int>>
         get() {
-            if (asleepMinutes == 0) return 0
-            val durationScore = (asleepMinutes / 480.0).coerceAtMost(1.0) * 50
+            if (asleepMinutes == 0) return emptyList()
+            val short = (goalMinutes - asleepMinutes).coerceAtLeast(0)
+            val durationScore = (1 - short / 180.0).coerceAtLeast(0.0) * 55
             val deepShare = minutes(SleepStage.DEEP).toDouble() / asleepMinutes
             val remShare = minutes(SleepStage.REM).toDouble() / asleepMinutes
-            val deepScore = (deepShare / 0.2).coerceAtMost(1.0) * 20
+            val deepScore = (deepShare / 0.2).coerceAtMost(1.0) * 15
             val remScore = (remShare / 0.2).coerceAtMost(1.0) * 15
             val efficiency = asleepMinutes.toDouble() / durationMinutes.coerceAtLeast(1)
             val efficiencyScore = ((efficiency - 0.75) / 0.2).coerceIn(0.0, 1.0) * 15
-            return (durationScore + deepScore + remScore + efficiencyScore).roundToInt()
+            return listOf(
+                Triple("Dauer", durationScore.roundToInt(), 55),
+                Triple("Tief", deepScore.roundToInt(), 15),
+                Triple("REM", remScore.roundToInt(), 15),
+                Triple("Ruhe", efficiencyScore.roundToInt(), 15),
+            )
         }
 }
 

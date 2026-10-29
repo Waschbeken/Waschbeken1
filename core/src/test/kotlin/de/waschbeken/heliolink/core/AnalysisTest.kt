@@ -45,3 +45,28 @@ class AnalysisTest {
         assertEquals(4, HeartRateZones.zoneOf(180, max))
     }
 }
+
+class SleepScoreTest {
+    private fun night(asleep: Int, deep: Int, rem: Int, awake: Int, goal: Int): SleepSession {
+        val stages = ArrayList<Pair<Long, SleepStage>>()
+        var t = 0L
+        repeat(deep) { stages += t to SleepStage.DEEP; t += 60 }
+        repeat(rem) { stages += t to SleepStage.REM; t += 60 }
+        repeat(asleep - deep - rem) { stages += t to SleepStage.LIGHT; t += 60 }
+        repeat(awake) { stages += t to SleepStage.AWAKE; t += 60 }
+        return SleepSession(0, t, stages, null, null, estimated = true, goalMinutes = goal)
+    }
+
+    @Test
+    fun shortNightCannotScoreHigh() {
+        // 5:56 h with a goal of 7:30 and good-looking phases
+        val s = night(356, 55, 47, 5, 450).score
+        assertTrue(s in 55..68, "score $s")
+    }
+
+    @Test
+    fun fullNightAtGoalScoresHigh() {
+        val s = night(460, 90, 95, 10, 450).score
+        assertTrue(s >= 90, "score $s")
+    }
+}
