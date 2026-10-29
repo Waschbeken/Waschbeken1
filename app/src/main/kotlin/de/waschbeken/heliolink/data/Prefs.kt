@@ -271,6 +271,36 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getBoolean("use_24h", true)
         set(v) = edit { putBoolean("use_24h", v) }
 
+    // --- privacy
+
+    /** Password for HelioLink's backups; null = backups are not encrypted. Never part of a backup itself. */
+    var backupPassword: String?
+        get() = sp.getString(KEY_BACKUP_PASSWORD, null)?.takeIf { it.isNotEmpty() }
+        set(v) = edit { putString(KEY_BACKUP_PASSWORD, v) }
+
+    /** Ask for fingerprint, face or the screen lock PIN when the app opens. */
+    var appLock: Boolean
+        get() = sp.getBoolean("app_lock", false)
+        set(v) = edit { putBoolean("app_lock", v) }
+
+    /** Seconds in the background after which the app locks again. */
+    var appLockDelay: Int
+        get() = sp.getInt("app_lock_delay", 60)
+        set(v) = edit { putInt("app_lock_delay", v) }
+
+    /** The last internet connections of the app ("epoch millis|what"), newest first. */
+    val networkLog: List<Pair<Long, String>>
+        get() = sp.getString("network_log", "").orEmpty().split('\n').mapNotNull { line ->
+            val t = line.substringBefore('|').toLongOrNull() ?: return@mapNotNull null
+            t to line.substringAfter('|')
+        }
+
+    fun logNetwork(what: String) {
+        val lines = listOf("${System.currentTimeMillis()}|${what.replace('\n', ' ')}") +
+            sp.getString("network_log", "").orEmpty().split('\n').filter { it.isNotBlank() }
+        edit { putString("network_log", lines.take(30).joinToString("\n")) }
+    }
+
     // --- updates
 
     var autoCheckUpdates: Boolean
@@ -408,6 +438,7 @@ class Prefs(context: Context) : SyncCursor {
     }
 
     companion object {
+        const val KEY_BACKUP_PASSWORD = "backup_password"
         const val DEFAULT_UPDATE_REPO = "Waschbeken/Waschbeken1"
         val DEFAULT_QUICK_TAGS = listOf("Koffein", "Nikotin", "Alkohol", "Essen", "Medikament", "Sport", "Stress", "Kopfschmerzen", "Müde")
 

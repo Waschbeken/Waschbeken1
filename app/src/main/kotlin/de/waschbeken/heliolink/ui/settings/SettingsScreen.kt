@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
@@ -83,6 +84,7 @@ enum class SettingsCategory(val key: String, val section: SettingsSection, val t
     TRAINING("training", SettingsSection.APP, "Training & Zonen", Icons.Default.FitnessCenter, "Max. Puls, Ruhepuls, Zonen, Pulsgrenzen mit Vibration"),
     SYNC("sync", SettingsSection.APP, "Synchronisierung", Icons.Default.Sync, "Automatischer Abruf, Zeitraum, Schlafphasen, Verlauf neu laden"),
     UPDATES("updates", SettingsSection.APP, "App-Updates", Icons.Default.SystemUpdate, "Automatisch prüfen, Shizuku, Vorabversionen"),
+    PRIVACY("privacy", SettingsSection.APP, "Datenschutz", Icons.Default.Lock, "App-Sperre, verschlüsselte Sicherung, was dein Handy verlässt"),
     DATA("data", SettingsSection.APP, "Daten & Sicherung", Icons.Default.Storage, "Export, Sicherung, Gadgetbridge-Import, Protokoll"),
 }
 
@@ -215,6 +217,7 @@ fun SettingsCategoryScreen(nav: NavHostController, key: String, onForget: () -> 
                 SettingsCategory.TRAINING -> TrainingPage()
                 SettingsCategory.SYNC -> SyncPage(state)
                 SettingsCategory.UPDATES -> UpdatesPage()
+                SettingsCategory.PRIVACY -> PrivacyPage()
                 SettingsCategory.DATA -> DataPage(state)
             }
         }

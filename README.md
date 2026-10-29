@@ -23,6 +23,11 @@ aber ganz auf einen Strap ohne Display zugeschnitten.
 | **Widget & Kachel** | Puls, Schritte, Schlaf und Akku auf dem Startbildschirm; Schnelleinstellungs-Kachel „Strap finden“ |
 | **Einstellungen** | Getrennt nach **Strap** und **App** (siehe unten). „Nach Updates suchen“ sitzt direkt auf der Übersicht |
 
+**Datenschutz:** Gesundheitsdaten verlassen das Handy nie – kein Konto, keine Cloud, keine Analyse. Die
+Android-Cloud-Sicherung ist ausgeschlossen, Sicherungen lassen sich mit Passwort verschlüsseln
+(PBKDF2 + AES-GCM, `core/BackupCrypto.kt`), die App lässt sich sperren. Die einzige Verbindung ins
+Internet ist die Update-Suche bei GitHub; sie lässt sich abschalten.
+
 Im Hintergrund hält ein Dienst die Verbindung, startet nach einem Neustart des Handys von selbst,
 verbindet sich automatisch neu und lädt den Verlauf regelmäßig vom Strap. Stürzt die App ab, zeigt
 sie beim nächsten Start einen Bericht zum Kopieren.
@@ -51,6 +56,7 @@ sie beim nächsten Start einen Bericht zum Kopieren.
 | **Training & Zonen** | Max. Puls (mit Vorschlag, wenn ein Training höher ging), Ruhepuls, Zonen nach % HFmax oder Karvonen, Standard-Sportart, Strap vibriert über/unter einer Pulsgrenze |
 | **Synchronisierung** | Automatischer Abruf, Zeitraum beim ersten Abruf, Verlauf neu laden, Schlafphasen-Suche mit Stand und Zurücksetzen |
 | **App-Updates** | Automatisch prüfen, Vorabversionen, **Shizuku** (Status, Erlaubnis, Installieren ohne Nachfrage, im Hintergrund installieren), Update-Quelle |
+| **Datenschutz** | Was das Handy verlässt (nur die Update-Suche bei GitHub, mit Liste der letzten Verbindungen), App-Sperre mit Fingerabdruck/Gesicht/PIN (sofort oder nach 1–30 min im Hintergrund, leere Vorschau in „Letzte Apps“), Sicherungen mit Passwort verschlüsseln. Die Android-Cloud-Sicherung (Google, Xiaomi) ist für HelioLink ausgeschaltet |
 | **Daten & Sicherung** | Automatische Sicherung (täglich, alle 3 Tage oder wöchentlich und vor jedem Update) nach Downloads/HelioLink oder in einen gewählten Ordner, die letzten 3–30 bleiben; Export als Zip mit CSV (speichern oder teilen, Zeitraum wählbar, inkl. `schlaf_naechte.csv` und `schlaf_phasen.csv` mit deinen Korrekturen), Sicherung erstellen/wiederherstellen, Gadgetbridge-Import, Protokoll anzeigen/kopieren |
 
 Strap-Einstellungen werden direkt auf dem Strap gespeichert. Die App prüft danach, ob der Strap sie
