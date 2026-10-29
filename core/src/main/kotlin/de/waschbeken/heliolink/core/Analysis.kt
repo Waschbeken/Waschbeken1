@@ -183,6 +183,24 @@ object Calories {
 }
 
 /** RMSSD in ms from RR intervals, a common HRV measure. */
+/**
+ * RMSSD of one minute of beat intervals for storing (ms), or null if there are too few clean beats.
+ * Intervals that jump more than 20 % from the previous one are treated as artefacts.
+ */
+fun minuteRmssd(rr: List<Int>): Int? {
+    val plausible = rr.filter { it in 300..2000 }
+    if (plausible.size < 30) return null
+    val diffs = ArrayList<Double>()
+    for (i in 1 until plausible.size) {
+        val a = plausible[i - 1]
+        val b = plausible[i]
+        if (kotlin.math.abs(b - a) <= a * 0.2) diffs += (b - a).toDouble()
+    }
+    if (diffs.size < 20) return null
+    val v = kotlin.math.sqrt(diffs.sumOf { it * it } / diffs.size)
+    return v.roundToInt().takeIf { it in 3..250 }
+}
+
 fun rmssd(rr: List<Int>): Double? {
     val clean = rr.filter { it in 300..2000 }
     if (clean.size < 3) return null

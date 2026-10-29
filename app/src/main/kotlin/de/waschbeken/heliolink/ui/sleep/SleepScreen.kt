@@ -28,6 +28,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -68,6 +69,7 @@ import de.waschbeken.heliolink.ui.StatTile
 import de.waschbeken.heliolink.ui.dbValue
 import de.waschbeken.heliolink.ui.formatHours
 import de.waschbeken.heliolink.ui.formatMinutes
+import de.waschbeken.heliolink.ui.describe
 import de.waschbeken.heliolink.ui.scoreColor
 import de.waschbeken.heliolink.ui.stageName
 import java.time.Instant
@@ -305,12 +307,16 @@ private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(
         }
     }
     item {
-        Panel(onClick = onEdit) {
+        Panel {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Schlafphasen", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                Text("Tippen zum Korrigieren", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = onEdit) { Text("Korrigieren") }
             }
             Hypnogram(n.stages)
+            Text(
+                "Finger halten: Phase mit Beginn, Ende und Dauer · zwei Finger oder Doppeltipp: zoomen",
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
     item {
@@ -403,6 +409,17 @@ private fun RangeContent(r: RangeData, period: Period, goal: Int, onOpen: (Local
                 buckets.map { it.label },
                 goal = goal / 60f,
                 format = { "%.1f h".format(it) },
+                tooltip = { i ->
+                    val b = buckets[i]
+                    val inB = nights.filter { it.date in b }
+                    if (inB.isEmpty()) listOf(b.describe(), "keine Nacht")
+                    else listOf(
+                        b.describe() + if (inB.size > 1) " (Ø ${inB.size} Nächte)" else "",
+                        "Schlaf ${formatMinutes(inB.sumOf { it.asleepMinutes } / inB.size)}",
+                    ) + listOf(SleepStage.DEEP, SleepStage.LIGHT, SleepStage.REM, SleepStage.AWAKE).map { st ->
+                        "${stageName(st)} ${formatMinutes(inB.sumOf { it.minutes(st) } / inB.size)}"
+                    } + if (inB.size == 1) listOf("${clock(inB[0].start)} – ${clock(inB[0].end)} · Score ${inB[0].score}") else emptyList()
+                },
             )
         }
         if (period.long && nights.size >= 2) {

@@ -28,7 +28,8 @@ internal fun RecordingPage(state: StrapUiState) {
         subtitle = if (prefs.continuousHrSeconds > 0) "läuft, solange der Strap verbunden ist" else null,
     ) { prefs.continuousHrSeconds = it }
     SettingsNote(
-        "Achtung Akku: Die Live-Messung hält den Pulssensor dauerhaft an. Der Strap hält dann statt bis zu 10 Tagen " +
+        "Nebenbei berechnet die App jede Minute die HRV aus den Herzschlag-Abständen – so gibt es HRV-Werte auch tagsüber. " +
+            "Achtung Akku: Die Live-Messung hält den Pulssensor dauerhaft an. Der Strap hält dann statt bis zu 10 Tagen " +
             "eher 1–2 Tage durch. Für Sport reicht es meist, im Tab „Training“ zu starten – dort wird immer jede Sekunde gemessen.",
     )
     val today = java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toEpochSecond()

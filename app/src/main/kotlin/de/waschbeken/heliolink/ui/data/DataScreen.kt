@@ -90,7 +90,6 @@ import de.waschbeken.heliolink.ui.record.RecordingBanner
 import de.waschbeken.heliolink.ui.record.rememberRecordStarter
 import de.waschbeken.heliolink.ui.rememberTimeZoom
 import de.waschbeken.heliolink.ui.stressColor
-import de.waschbeken.heliolink.ui.timeZoom
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
@@ -103,7 +102,9 @@ private enum class DataPage(val title: String, val metric: String?) {
     ACTIVITY("Aktivität", "steps"),
     HEART("Puls", "heart"),
     SLEEP("Schlaf", null),
+    SLEEP_WEEK("Schlaf-Woche", null),
     STEPS("Schritte", "steps"),
+    STEPS_WEEK("Schritte-Woche", "steps"),
     STRESS("Stress", "stress"),
     SPO2("SpO₂", "spo2"),
     HRV("HRV", "hrv"),
@@ -131,6 +132,9 @@ private class DayData(
     val pai: List<PaiSample>,
     val workouts: List<Workout>,
     val resting: Int?,
+    /** The 7 days up to [date], for the week pages. */
+    val weekNights: Map<LocalDate, Queries.NightSummary>,
+    val weekTotals: Map<LocalDate, Queries.DayTotals>,
 )
 
 private fun loadDay(db: HealthDb, date: LocalDate): DayData {
@@ -154,6 +158,8 @@ private fun loadDay(db: HealthDb, date: LocalDate): DayData {
         pai = db.pai(from - 6 * 86400, to),
         workouts = db.workouts().filter { it.start < to && it.end > from },
         resting = db.values(HealthDb.RESTING_HR, from - 86400, to).lastOrNull()?.value,
+        weekNights = Queries.nightSummaries(db, date.minusDays(6), date, zone),
+        weekTotals = Queries.dayTotals(db, date.minusDays(6), date, zone, intArrayOf(100, 120, 140, 160, 180)),
     )
 }
 
@@ -209,7 +215,12 @@ fun DataScreen(nav: NavHostController) {
                             DataPage.ACTIVITY -> ActivityPage(d)
                             DataPage.HEART -> HeartPage(d, nav)
                             DataPage.SLEEP -> SleepPage(d, nav)
+                            DataPage.SLEEP_WEEK -> SleepWeekPage(d) {
+                                dateEpoch = it.toEpochDay()
+                                scope.launch { pager.animateScrollToPage(DataPage.SLEEP.ordinal) }
+                            }
                             DataPage.STEPS -> StepsPage(d)
+                            DataPage.STEPS_WEEK -> StepsWeekPage(d)
                             DataPage.STRESS -> StressPage(d)
                             DataPage.SPO2 -> ValuePage(d, d.spo2, "SpO₂", "%", Palette.Spo2, 1.0, minY = 80f, maxY = 100f)
                             DataPage.HRV -> ValuePage(d, d.hrv, "HRV", "ms", Palette.Hrv, 1.0)
@@ -235,7 +246,7 @@ fun DataScreen(nav: NavHostController) {
 private fun ZoomHint(zoom: TimeZoom) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            if (zoom.zoomed) "${clock(zoom.start)} – ${clock(zoom.end)}" else "Zwei Finger oder Doppeltipp zum Zoomen",
+            if (zoom.zoomed) "${clock(zoom.start)} – ${clock(zoom.end)}" else "Finger halten: Werte · zwei Finger oder Doppeltipp: zoomen",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
@@ -323,7 +334,7 @@ private fun HeartPage(d: DayData, nav: NavHostController) {
         val zoom = rememberTimeZoom(d.from, d.to)
         LineChart(
             listOf(Series(d.hr, Palette.Heart, fill = true, width = 2f)), zoom.start, zoom.end,
-            modifier = Modifier.fillMaxWidth().height(240.dp).timeZoom(zoom),
+            modifier = Modifier.fillMaxWidth().height(240.dp), zoom = zoom, unit = "bpm",
             areas = (0..4).map { i -> Triple(lower[i].toFloat(), if (i < 4) lower[i + 1].toFloat() else 260f, Palette.zones[i]) },
             markers = listOf(Triple(minP.first, minP.second, "${minP.second.toInt()}"), Triple(maxP.first, maxP.second, "${maxP.second.toInt()}")),
             strip = minuteStrip(d.activity, d.stages),
@@ -350,8 +361,13 @@ private fun HeartPage(d: DayData, nav: NavHostController) {
 @Composable
 private fun WorkoutList(workouts: List<Workout>, nav: NavHostController) {
     if (workouts.isEmpty()) return
-    Text("Aufzeichnungen und Trainings", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-    workouts.forEach { w ->
+    val sections = de.waschbeken.heliolink.ui.rememberSections()
+    val open = sections.isOpen("data-workouts", default = true)
+    de.waschbeken.heliolink.ui.CollapsibleHeader(
+        "Aufzeichnungen und Trainings", open, count = workouts.size,
+        summary = workouts.joinToString(", ") { "${it.sport} ${clock(it.start)}" },
+    ) { sections.toggle("data-workouts", default = true) }
+    if (open) workouts.sortedByDescending { it.start }.forEach { w ->
         Panel(onClick = { nav.navigate(Routes.workout(w.id)) }) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(if (w.sport == RECORDING_SPORT) Icons.Default.FiberManualRecord else Icons.Default.Favorite, contentDescription = null, tint = Palette.Heart)
@@ -432,7 +448,7 @@ private fun StressPage(d: DayData) {
         val zoom = rememberTimeZoom(d.from, d.to)
         LineChart(
             listOf(Series(d.stress.map { it.timestamp to it.stress.toFloat() }, Palette.Stress, fill = true)), zoom.start, zoom.end,
-            modifier = Modifier.fillMaxWidth().height(200.dp).timeZoom(zoom), minY = 0f, maxY = 100f, gapSeconds = 1800,
+            modifier = Modifier.fillMaxWidth().height(200.dp), zoom = zoom, minY = 0f, maxY = 100f, gapSeconds = 1800,
             areas = listOf(Triple(0f, 40f, stressColor(20)), Triple(40f, 60f, stressColor(50)), Triple(60f, 80f, stressColor(70)), Triple(80f, 100f, stressColor(90))),
         )
         ZoomHint(zoom)
@@ -472,7 +488,7 @@ private fun ValuePage(
         val zoom = rememberTimeZoom(d.from, d.to)
         LineChart(
             listOf(Series(values.map { it.timestamp to (it.value * scale).toFloat() }, color, fill = true)), zoom.start, zoom.end,
-            modifier = Modifier.fillMaxWidth().height(200.dp).timeZoom(zoom), gapSeconds = 3 * 3600, minY = minY, maxY = maxY,
+            modifier = Modifier.fillMaxWidth().height(200.dp), zoom = zoom, unit = unit, gapSeconds = 3 * 3600, minY = minY, maxY = maxY,
             format = { f(it.toDouble()) },
         )
         ZoomHint(zoom)
@@ -518,13 +534,99 @@ private fun BatteryPage(d: DayData) {
         val zoom = rememberTimeZoom(d.from - 2 * 86400, d.to, minSpan = 3600)
         LineChart(
             listOf(Series(d.battery.map { it.timestamp to it.value.toFloat() }, Palette.Battery, fill = true)), zoom.start, zoom.end,
-            modifier = Modifier.fillMaxWidth().height(200.dp).timeZoom(zoom), gapSeconds = 12 * 3600, minY = 0f, maxY = 100f,
+            modifier = Modifier.fillMaxWidth().height(200.dp), zoom = zoom, unit = "%", gapSeconds = 12 * 3600, minY = 0f, maxY = 100f,
         )
     }
     Panel {
         Row {
             Metric("Aktuell", "${d.battery.last().value} %", Modifier.weight(1f), color = Palette.Battery)
             Metric("Reicht noch", BatteryForecast.daysLeft(d.battery)?.let { "%.1f Tage".format(it) } ?: "–", Modifier.weight(1f))
+        }
+    }
+}
+
+private val weekDay = DateTimeFormatter.ofPattern("EEE d. MMM", java.util.Locale.GERMANY)
+
+@Composable
+private fun SleepWeekPage(d: DayData, onOpen: (LocalDate) -> Unit) {
+    val days = (6 downTo 0).map { d.date.minusDays(it.toLong()) }
+    val goal = LocalContext.current.app.prefs.profile.sleepGoalMinutes
+    val nights = days.mapNotNull { d.weekNights[it] }
+    Panel {
+        Text("Schlaf der letzten 7 Nächte", style = MaterialTheme.typography.titleMedium)
+        de.waschbeken.heliolink.ui.StackedBarChart(
+            days.map { day ->
+                val n = d.weekNights[day]
+                if (n == null) emptyList() else listOf(SleepStage.DEEP, SleepStage.LIGHT, SleepStage.REM, SleepStage.AWAKE).map { n.minutes(it) / 60f to Palette.stage(it) }
+            },
+            days.map { it.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.GERMANY).take(2) },
+            modifier = Modifier.fillMaxWidth().height(200.dp),
+            goal = goal / 60f,
+            format = { "%.1f h".format(it) },
+            tooltip = { i ->
+                val n = d.weekNights[days[i]]
+                if (n == null) listOf(days[i].format(weekDay), "keine Nacht")
+                else listOf(
+                    days[i].format(weekDay) + " · Score ${n.score}",
+                    "${clock(n.start)} – ${clock(n.end)}",
+                    "Schlaf ${formatMinutes(n.asleepMinutes)}",
+                    "Tief ${formatMinutes(n.deep)} · REM ${formatMinutes(n.rem)}",
+                    "Leicht ${formatMinutes(n.light)} · Wach ${formatMinutes(n.awake)}",
+                )
+            },
+        )
+        Legend(listOf(SleepStage.DEEP, SleepStage.LIGHT, SleepStage.REM, SleepStage.AWAKE).map { de.waschbeken.heliolink.ui.stageName(it) to Palette.stage(it) })
+    }
+    if (nights.isNotEmpty()) {
+        Panel {
+            Row {
+                Metric("Ø Schlaf", formatMinutes(nights.sumOf { it.asleepMinutes } / nights.size), Modifier.weight(1f), color = Palette.Sleep)
+                Metric("Ø Tief", formatMinutes(nights.sumOf { it.deep } / nights.size), Modifier.weight(1f), color = Palette.Deep)
+                Metric("Ø REM", formatMinutes(nights.sumOf { it.rem } / nights.size), Modifier.weight(1f), color = Palette.Rem)
+                Metric("Ø Score", "${nights.sumOf { it.score } / nights.size}", Modifier.weight(1f))
+            }
+        }
+        val sections = de.waschbeken.heliolink.ui.rememberSections()
+        val open = sections.isOpen("data-week-nights")
+        de.waschbeken.heliolink.ui.CollapsibleHeader("Nächte", open, count = nights.size, summary = "Tippen zum Aufklappen") { sections.toggle("data-week-nights") }
+        if (open) nights.sortedByDescending { it.date }.forEach { n ->
+            Panel(onClick = { onOpen(n.date) }) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(n.date.format(weekDay), style = MaterialTheme.typography.titleSmall)
+                        Text("${clock(n.start)} – ${clock(n.end)} · Tief ${formatMinutes(n.deep)} · REM ${formatMinutes(n.rem)}", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text(formatMinutes(n.asleepMinutes), style = MaterialTheme.typography.titleSmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StepsWeekPage(d: DayData) {
+    val days = (6 downTo 0).map { d.date.minusDays(it.toLong()) }
+    val profile = LocalContext.current.app.prefs.profile
+    val steps = days.map { d.weekTotals[it]?.steps ?: 0 }
+    Panel {
+        Text("Schritte der letzten 7 Tage", style = MaterialTheme.typography.titleMedium)
+        BarChart(
+            steps.map { it.toFloat() }, Palette.Steps,
+            modifier = Modifier.fillMaxWidth().height(200.dp),
+            labels = days.map { it.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.GERMANY).take(2) },
+            goal = profile.stepGoal.toFloat(),
+            tooltip = { i ->
+                val t = d.weekTotals[days[i]]
+                days[i].format(weekDay) + ": ${steps[i].fmt()} Schritte" + (t?.let { " · ${formatMinutes(it.activeMinutes)} aktiv" } ?: "")
+            },
+        )
+    }
+    Panel {
+        Row {
+            Metric("Gesamt", steps.sum().fmt(), Modifier.weight(1f), color = Palette.Steps)
+            Metric("Ø Tag", (steps.sum() / 7).fmt(), Modifier.weight(1f))
+            Metric("Ziel erreicht", "${steps.count { it >= profile.stepGoal }} Tage", Modifier.weight(1f))
+            Metric("Strecke", "%.0f km".format(steps.sum() * profile.heightCm * 0.414 / 100_000), Modifier.weight(1f))
         }
     }
 }

@@ -538,9 +538,10 @@ class StrapProtocol(
                     emit(StrapEvent.Log("Hauttemperatur: unbekanntes Format (${data.size} Bytes)"))
                     return false
                 }
-                val samples = (0 until data.size / 8).mapNotNull { n ->
-                    val v = data.u16(n * 8).toShort().toInt()
-                    if (v in 2000..4500) ValueSample(startSec + n * 60L, v) else null
+                val raw = (0 until data.size / 8).map { n -> data.u16(n * 8).toShort().toInt() }
+                val samples = raw.mapIndexedNotNull { n, v -> TemperatureCodec.centiCelsius(v)?.let { ValueSample(startSec + n * 60L, it) } }
+                if (raw.isNotEmpty() && samples.isEmpty()) {
+                    emit(StrapEvent.Log("Hauttemperatur: ${raw.size} Werte ohne gültige Temperatur, z. B. ${raw.take(5)} – ${data.copyOf(minOf(16, data.size)).toHex()}"))
                 }
                 if (samples.isNotEmpty()) emit(StrapEvent.TemperatureData(samples))
                 end = startSec + data.size / 8 * 60L
@@ -591,4 +592,13 @@ internal object Endpoint {
     const val HEART_RATE = 0x001d
     const val BATTERY = 0x0029
     const val AUTH = 0x0082
+}
+
+/** Skin temperature values of the strap: 1/100 °C or (on some firmware) 1/10 °C; 0 and nonsense are dropped. */
+object TemperatureCodec {
+    fun centiCelsius(raw: Int): Int? = when (raw) {
+        in 2000..4500 -> raw
+        in 200..450 -> raw * 10
+        else -> null
+    }
 }
