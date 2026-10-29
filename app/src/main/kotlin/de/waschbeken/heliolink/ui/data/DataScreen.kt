@@ -102,7 +102,9 @@ private enum class DataPage(val title: String, val metric: String?) {
     ACTIVITY("Aktivität", "steps"),
     HEART("Puls", "heart"),
     SLEEP("Schlaf", null),
+    SLEEP_WEEK("Schlaf-Woche", null),
     STEPS("Schritte", "steps"),
+    STEPS_WEEK("Schritte-Woche", "steps"),
     STRESS("Stress", "stress"),
     SPO2("SpO₂", "spo2"),
     HRV("HRV", "hrv"),
@@ -130,6 +132,9 @@ private class DayData(
     val pai: List<PaiSample>,
     val workouts: List<Workout>,
     val resting: Int?,
+    /** The 7 days up to [date], for the week pages. */
+    val weekNights: Map<LocalDate, Queries.NightSummary>,
+    val weekTotals: Map<LocalDate, Queries.DayTotals>,
 )
 
 private fun loadDay(db: HealthDb, date: LocalDate): DayData {
@@ -153,6 +158,8 @@ private fun loadDay(db: HealthDb, date: LocalDate): DayData {
         pai = db.pai(from - 6 * 86400, to),
         workouts = db.workouts().filter { it.start < to && it.end > from },
         resting = db.values(HealthDb.RESTING_HR, from - 86400, to).lastOrNull()?.value,
+        weekNights = Queries.nightSummaries(db, date.minusDays(6), date, zone),
+        weekTotals = Queries.dayTotals(db, date.minusDays(6), date, zone, intArrayOf(100, 120, 140, 160, 180)),
     )
 }
 
@@ -208,7 +215,12 @@ fun DataScreen(nav: NavHostController) {
                             DataPage.ACTIVITY -> ActivityPage(d)
                             DataPage.HEART -> HeartPage(d, nav)
                             DataPage.SLEEP -> SleepPage(d, nav)
+                            DataPage.SLEEP_WEEK -> SleepWeekPage(d) {
+                                dateEpoch = it.toEpochDay()
+                                scope.launch { pager.animateScrollToPage(DataPage.SLEEP.ordinal) }
+                            }
                             DataPage.STEPS -> StepsPage(d)
+                            DataPage.STEPS_WEEK -> StepsWeekPage(d)
                             DataPage.STRESS -> StressPage(d)
                             DataPage.SPO2 -> ValuePage(d, d.spo2, "SpO₂", "%", Palette.Spo2, 1.0, minY = 80f, maxY = 100f)
                             DataPage.HRV -> ValuePage(d, d.hrv, "HRV", "ms", Palette.Hrv, 1.0)
@@ -529,6 +541,92 @@ private fun BatteryPage(d: DayData) {
         Row {
             Metric("Aktuell", "${d.battery.last().value} %", Modifier.weight(1f), color = Palette.Battery)
             Metric("Reicht noch", BatteryForecast.daysLeft(d.battery)?.let { "%.1f Tage".format(it) } ?: "–", Modifier.weight(1f))
+        }
+    }
+}
+
+private val weekDay = DateTimeFormatter.ofPattern("EEE d. MMM", java.util.Locale.GERMANY)
+
+@Composable
+private fun SleepWeekPage(d: DayData, onOpen: (LocalDate) -> Unit) {
+    val days = (6 downTo 0).map { d.date.minusDays(it.toLong()) }
+    val goal = LocalContext.current.app.prefs.profile.sleepGoalMinutes
+    val nights = days.mapNotNull { d.weekNights[it] }
+    Panel {
+        Text("Schlaf der letzten 7 Nächte", style = MaterialTheme.typography.titleMedium)
+        de.waschbeken.heliolink.ui.StackedBarChart(
+            days.map { day ->
+                val n = d.weekNights[day]
+                if (n == null) emptyList() else listOf(SleepStage.DEEP, SleepStage.LIGHT, SleepStage.REM, SleepStage.AWAKE).map { n.minutes(it) / 60f to Palette.stage(it) }
+            },
+            days.map { it.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.GERMANY).take(2) },
+            modifier = Modifier.fillMaxWidth().height(200.dp),
+            goal = goal / 60f,
+            format = { "%.1f h".format(it) },
+            tooltip = { i ->
+                val n = d.weekNights[days[i]]
+                if (n == null) listOf(days[i].format(weekDay), "keine Nacht")
+                else listOf(
+                    days[i].format(weekDay) + " · Score ${n.score}",
+                    "${clock(n.start)} – ${clock(n.end)}",
+                    "Schlaf ${formatMinutes(n.asleepMinutes)}",
+                    "Tief ${formatMinutes(n.deep)} · REM ${formatMinutes(n.rem)}",
+                    "Leicht ${formatMinutes(n.light)} · Wach ${formatMinutes(n.awake)}",
+                )
+            },
+        )
+        Legend(listOf(SleepStage.DEEP, SleepStage.LIGHT, SleepStage.REM, SleepStage.AWAKE).map { de.waschbeken.heliolink.ui.stageName(it) to Palette.stage(it) })
+    }
+    if (nights.isNotEmpty()) {
+        Panel {
+            Row {
+                Metric("Ø Schlaf", formatMinutes(nights.sumOf { it.asleepMinutes } / nights.size), Modifier.weight(1f), color = Palette.Sleep)
+                Metric("Ø Tief", formatMinutes(nights.sumOf { it.deep } / nights.size), Modifier.weight(1f), color = Palette.Deep)
+                Metric("Ø REM", formatMinutes(nights.sumOf { it.rem } / nights.size), Modifier.weight(1f), color = Palette.Rem)
+                Metric("Ø Score", "${nights.sumOf { it.score } / nights.size}", Modifier.weight(1f))
+            }
+        }
+        val sections = de.waschbeken.heliolink.ui.rememberSections()
+        val open = sections.isOpen("data-week-nights")
+        de.waschbeken.heliolink.ui.CollapsibleHeader("Nächte", open, count = nights.size, summary = "Tippen zum Aufklappen") { sections.toggle("data-week-nights") }
+        if (open) nights.sortedByDescending { it.date }.forEach { n ->
+            Panel(onClick = { onOpen(n.date) }) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(n.date.format(weekDay), style = MaterialTheme.typography.titleSmall)
+                        Text("${clock(n.start)} – ${clock(n.end)} · Tief ${formatMinutes(n.deep)} · REM ${formatMinutes(n.rem)}", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text(formatMinutes(n.asleepMinutes), style = MaterialTheme.typography.titleSmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StepsWeekPage(d: DayData) {
+    val days = (6 downTo 0).map { d.date.minusDays(it.toLong()) }
+    val profile = LocalContext.current.app.prefs.profile
+    val steps = days.map { d.weekTotals[it]?.steps ?: 0 }
+    Panel {
+        Text("Schritte der letzten 7 Tage", style = MaterialTheme.typography.titleMedium)
+        BarChart(
+            steps.map { it.toFloat() }, Palette.Steps,
+            modifier = Modifier.fillMaxWidth().height(200.dp),
+            labels = days.map { it.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.GERMANY).take(2) },
+            goal = profile.stepGoal.toFloat(),
+            tooltip = { i ->
+                val t = d.weekTotals[days[i]]
+                days[i].format(weekDay) + ": ${steps[i].fmt()} Schritte" + (t?.let { " · ${formatMinutes(it.activeMinutes)} aktiv" } ?: "")
+            },
+        )
+    }
+    Panel {
+        Row {
+            Metric("Gesamt", steps.sum().fmt(), Modifier.weight(1f), color = Palette.Steps)
+            Metric("Ø Tag", (steps.sum() / 7).fmt(), Modifier.weight(1f))
+            Metric("Ziel erreicht", "${steps.count { it >= profile.stepGoal }} Tage", Modifier.weight(1f))
+            Metric("Strecke", "%.0f km".format(steps.sum() * profile.heightCm * 0.414 / 100_000), Modifier.weight(1f))
         }
     }
 }
