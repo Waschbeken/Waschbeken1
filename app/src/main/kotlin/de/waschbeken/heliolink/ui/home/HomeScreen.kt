@@ -255,7 +255,7 @@ fun HomeScreen(nav: NavHostController) {
                                     Metric("Nicht getragen", formatMinutes(counts[de.waschbeken.heliolink.ui.DayState.NOT_WORN] ?: 0))
                                 }
                             }
-                            Legend(de.waschbeken.heliolink.ui.dayStateLegend())
+                            Legend(de.waschbeken.heliolink.ui.clockLegend())
                         }
                     }
                 }

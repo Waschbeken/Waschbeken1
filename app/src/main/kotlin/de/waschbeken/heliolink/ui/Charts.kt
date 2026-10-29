@@ -139,14 +139,19 @@ fun rememberTimeZoom(from: Long, to: Long, minSpan: Long = 600): TimeZoom = reme
 fun Modifier.timeZoom(z: TimeZoom): Modifier = this
     .pointerInput(z) {
         awaitEachGesture {
-            awaitFirstDown(requireUnconsumed = false)
+            val first = awaitFirstDown(requireUnconsumed = false)
             var horizontal = false
             var decided = false
             var total = Offset.Zero
             do {
                 val event = awaitPointerEvent()
                 val pressed = event.changes.count { it.pressed }
-                if (pressed >= 2) {
+                val held = event.changes.first().uptimeMillis - first.uptimeMillis >= viewConfiguration.longPressTimeoutMillis
+                if (event.changes.any { it.isConsumed } || (pressed == 1 && !decided && held)) {
+                    // the finger was held to inspect values: the chart stays where it is
+                    decided = true
+                    horizontal = false
+                } else if (pressed >= 2) {
                     val zoom = event.calculateZoom()
                     val centroid = event.calculateCentroid(useCurrent = true)
                     if (zoom != 1f && centroid != Offset.Unspecified) z.zoom(zoom, (centroid.x / size.width).coerceIn(0f, 1f))
@@ -984,6 +989,62 @@ fun dayStateLegend(): List<Pair<String, Color>> = listOf(
  * The day as a 24-hour clock (midnight at the top) like Gadgetbridge's dashboard: activity, sleep and
  * the time the strap was not worn as colored ring, the current time as a dot. [center] is drawn inside.
  */
+/** The day clock only knows four things, so it stays readable: sleep, active, calm (worn) and not worn. */
+enum class ClockState(val label: String) { NONE("Keine Daten"), NOT_WORN("Nicht getragen"), CALM("Ruhig"), ACTIVE("Aktiv"), SLEEP("Schlaf") }
+
+private fun clockState(s: DayState) = when (s) {
+    DayState.NO_DATA -> ClockState.NONE
+    DayState.NOT_WORN -> ClockState.NOT_WORN
+    DayState.IDLE -> ClockState.CALM
+    DayState.LIGHT, DayState.ACTIVE -> ClockState.ACTIVE
+    DayState.AWAKE, DayState.SLEEP_LIGHT, DayState.SLEEP_DEEP, DayState.SLEEP_REM -> ClockState.SLEEP
+}
+
+/** 144 parts of 10 minutes; parts shorter than half an hour are merged into their neighbour. */
+fun clockSegments(samples: List<ActivitySample>, stages: Map<Long, SleepStage>, dayStart: Long): Array<ClockState> {
+    val counts = Array(144) { IntArray(ClockState.entries.size) }
+    for (s in samples) {
+        if (s.timestamp < dayStart || s.timestamp >= dayStart + 86400) continue
+        counts[((s.timestamp - dayStart) / 600).toInt()][clockState(dayState(listOf(s), stages)).ordinal]++
+    }
+    val seg = Array(144) { i ->
+        val c = counts[i]
+        if (c.sum() == 0) ClockState.NONE else ClockState.entries.maxBy { c[it.ordinal] * 10 + it.ordinal }
+    }
+    repeat(2) {
+        var i = 0
+        while (i < seg.size) {
+            var j = i
+            while (j + 1 < seg.size && seg[j + 1] == seg[i]) j++
+            if (j - i + 1 < 3 && seg[i] != ClockState.NONE) {
+                val target = listOfNotNull(seg.getOrNull(i - 1), seg.getOrNull(j + 1)).firstOrNull { it != ClockState.NONE }
+                if (target != null) for (k in i..j) seg[k] = target
+            }
+            i = j + 1
+        }
+    }
+    return seg
+}
+
+@Composable
+fun clockColor(s: ClockState): Color = when (s) {
+    ClockState.NONE -> Color.Transparent
+    ClockState.NOT_WORN -> MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
+    ClockState.CALM -> Palette.Steps.copy(alpha = 0.3f)
+    ClockState.ACTIVE -> Palette.Steps
+    ClockState.SLEEP -> Palette.Sleep
+}
+
+/** Legend for [DayClock]. */
+@Composable
+fun clockLegend(): List<Pair<String, Color>> =
+    listOf(ClockState.SLEEP, ClockState.ACTIVE, ClockState.CALM, ClockState.NOT_WORN).map { it.label to clockColor(it) }
+
+/**
+ * The day as a 24-hour clock (midnight at the top) like Gadgetbridge's dashboard: sleep, activity and
+ * the time the strap was not worn as a few large colored parts, the current time as a dot. Hold a
+ * finger on it to see a part with start, end and length. [center] is drawn inside.
+ */
 @Composable
 fun DayClock(
     samples: List<ActivitySample>,
@@ -992,54 +1053,57 @@ fun DayClock(
     modifier: Modifier = Modifier.size(180.dp),
     center: @Composable () -> Unit = {},
 ) {
-    val colors = stateColors()
+    val colors = ClockState.entries.associateWith { clockColor(it) }
     val track = MaterialTheme.colorScheme.surfaceContainerHigh
     val tick = MaterialTheme.colorScheme.onSurfaceVariant
     val now = MaterialTheme.colorScheme.onSurface
     val m = rememberTextMeasurer()
-    val segments = remember(samples, stages, dayStart) {
-        val byBucket = samples.filter { it.timestamp >= dayStart && it.timestamp < dayStart + 86400 }.groupBy { ((it.timestamp - dayStart) / 300).toInt() }
-        Array(288) { i -> dayState(byBucket[i].orEmpty(), stages) }
-    }
+    val segments = remember(samples, stages, dayStart) { clockSegments(samples, stages, dayStart) }
     val inspect = rememberInspect()
     var boxSize by remember { mutableStateOf(IntSize.Zero) }
-    // the touched run of equal 5-minute segments: (first, last, state)
+    // the touched run of equal parts: (first, last, state)
     val run = inspect.position?.let { p ->
         val angle = (Math.toDegrees(kotlin.math.atan2((p.y - boxSize.height / 2f).toDouble(), (p.x - boxSize.width / 2f).toDouble())) + 90 + 360) % 360
-        val i = (angle / 360 * 288).toInt().coerceIn(0, 287)
+        val i = (angle / 360 * segments.size).toInt().coerceIn(0, segments.lastIndex)
         val st = segments[i]
         var a = i
         var b = i
         while (a > 0 && segments[a - 1] == st) a--
-        while (b < 287 && segments[b + 1] == st) b++
+        while (b < segments.lastIndex && segments[b + 1] == st) b++
         Triple(a, b, st)
     }
     Box(modifier.onSizeChanged { boxSize = it }.holdToInspect(inspect), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
-            val stroke = size.minDimension * 0.11f
+            val stroke = size.minDimension * 0.14f
             val inset = stroke / 2 + 4.dp.toPx()
             val arcSize = Size(size.minDimension - inset * 2, size.minDimension - inset * 2)
             val topLeft = Offset((size.width - arcSize.width) / 2, (size.height - arcSize.height) / 2)
             drawArc(track, 0f, 360f, false, topLeft, arcSize, style = Stroke(stroke))
-            val sweep = 360f / 288
-            segments.forEachIndexed { i, st ->
-                if (st == DayState.NO_DATA) return@forEachIndexed
-                val inRun = run != null && i in run.first..run.second
-                drawArc(
-                    colors.getValue(st).let { if (run != null && !inRun) it.copy(alpha = it.alpha * 0.35f) else it },
-                    -90f + i * sweep, sweep + 0.4f, false, topLeft, arcSize, style = Stroke(if (inRun) stroke * 1.35f else stroke),
-                )
+            val sweep = 360f / segments.size
+            // one arc per run of equal parts, with a small gap between runs
+            var i = 0
+            while (i < segments.size) {
+                var j = i
+                while (j + 1 < segments.size && segments[j + 1] == segments[i]) j++
+                val st = segments[i]
+                if (st != ClockState.NONE) {
+                    val inRun = run != null && i >= run.first && j <= run.second
+                    val color = colors.getValue(st).let { if (run != null && !inRun) it.copy(alpha = it.alpha * 0.35f) else it }
+                    val gap = if (j - i >= 1) 0.8f else 0f
+                    drawArc(color, -90f + i * sweep + gap / 2, (j - i + 1) * sweep - gap, false, topLeft, arcSize, style = Stroke(if (inRun) stroke * 1.25f else stroke))
+                }
+                i = j + 1
             }
             val c = Offset(size.width / 2, size.height / 2)
             val rInner = arcSize.width / 2 - stroke / 2 - 4.dp.toPx()
-            for (h in 0 until 24) {
+            for (h in 0 until 24 step 3) {
                 val a = Math.toRadians((-90 + h * 15).toDouble())
                 val len = if (h % 6 == 0) 6.dp.toPx() else 3.dp.toPx()
                 val p1 = Offset(c.x + (rInner * kotlin.math.cos(a)).toFloat(), c.y + (rInner * kotlin.math.sin(a)).toFloat())
                 val p2 = Offset(c.x + ((rInner - len) * kotlin.math.cos(a)).toFloat(), c.y + ((rInner - len) * kotlin.math.sin(a)).toFloat())
-                drawLine(tick.copy(alpha = 0.6f), p1, p2, 1.5f)
+                drawLine(tick.copy(alpha = 0.6f), p1, p2, 2f)
                 if (h % 6 == 0 && run == null) {
-                    val layout = m.measure("$h", TextStyle(color = tick, fontSize = 10.sp))
+                    val layout = m.measure("$h", TextStyle(color = tick, fontSize = 11.sp))
                     val rl = rInner - len - 9.dp.toPx()
                     val lp = Offset(c.x + (rl * kotlin.math.cos(a)).toFloat() - layout.size.width / 2, c.y + (rl * kotlin.math.sin(a)).toFloat() - layout.size.height / 2)
                     drawText(layout, topLeft = lp)
@@ -1050,8 +1114,8 @@ fun DayClock(
                 val a = Math.toRadians(-90 + (nowSec - dayStart) / 86400.0 * 360)
                 val r = arcSize.width / 2
                 val p = Offset(c.x + (r * kotlin.math.cos(a)).toFloat(), c.y + (r * kotlin.math.sin(a)).toFloat())
-                drawCircle(now, radius = stroke * 0.45f, center = p)
-                drawCircle(track, radius = stroke * 0.25f, center = p)
+                drawCircle(now, radius = stroke * 0.42f, center = p)
+                drawCircle(track, radius = stroke * 0.22f, center = p)
             }
         }
         if (run == null) {
@@ -1059,9 +1123,9 @@ fun DayClock(
         } else {
             val (a, b, st) = run
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(dayStateName(st), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                Text("${timeText(dayStart + a * 300L, 86400)}–${timeText(dayStart + (b + 1) * 300L, 86400)}", style = MaterialTheme.typography.labelSmall)
-                Text(spanText((b + 1 - a) * 300L), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                Text(st.label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Text("${timeText(dayStart + a * 600L, 86400)}–${timeText(dayStart + (b + 1) * 600L, 86400)}", style = MaterialTheme.typography.labelSmall)
+                Text(spanText((b + 1 - a) * 600L), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
             }
         }
     }

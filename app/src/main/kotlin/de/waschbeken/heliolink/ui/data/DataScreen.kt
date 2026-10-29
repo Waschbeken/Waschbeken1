@@ -285,7 +285,7 @@ private fun ActivityPage(d: DayData) {
                 Metric("Nicht getragen", formatMinutes(counts[DayState.NOT_WORN] ?: 0))
             }
         }
-        Legend(dayStateLegend())
+        Legend(de.waschbeken.heliolink.ui.clockLegend())
     }
     Panel {
         Text("Tagesverlauf", style = MaterialTheme.typography.titleMedium)
