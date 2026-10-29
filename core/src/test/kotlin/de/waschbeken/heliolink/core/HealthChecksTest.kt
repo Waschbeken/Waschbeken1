@@ -30,6 +30,8 @@ class BodyCheckTest {
         val res = BodyCheck.check(normalNights() + NightVitals(today, 56.5, 58.0, 34.05, 14.6))!!
         assertEquals(BodyCheck.Level.NORMAL, res.level)
         assertTrue(res.signals.isEmpty())
+        assertEquals(4, res.all.size)
+        assertTrue(res.all.none { it.flagged })
     }
 
     @Test

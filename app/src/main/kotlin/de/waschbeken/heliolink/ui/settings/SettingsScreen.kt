@@ -102,7 +102,7 @@ fun SettingsScreen(nav: NavHostController) {
     prefsTick()
 
     fun open(c: SettingsCategory) {
-        if (c == SettingsCategory.ALARMS) nav.navigateToTab(Routes.ALARMS) else nav.navigate(Routes.settings(c.key))
+        if (c == SettingsCategory.ALARMS) nav.navigate(Routes.ALARMS) else nav.navigate(Routes.settings(c.key))
     }
 
     Scaffold(topBar = { TopAppBar(title = { Text("Einstellungen") }) }) { padding ->
