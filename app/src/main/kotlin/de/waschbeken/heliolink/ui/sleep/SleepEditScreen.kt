@@ -174,6 +174,10 @@ fun SleepEditScreen(nav: NavHostController, day: Long) {
                         TimeBox("Eingeschlafen", clockOf(start), Modifier.weight(1f)) { editStart = true }
                         TimeBox("Aufgewacht", clockOf(end), Modifier.weight(1f)) { editEnd = true }
                     }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Nudge(Modifier.weight(1f)) { start += it * 60L }
+                        Nudge(Modifier.weight(1f)) { end += it * 60L }
+                    }
                     if (end <= start) Text("Aufwachen muss nach dem Einschlafen liegen.", color = MaterialTheme.colorScheme.error)
                     b.detected?.let { d ->
                         if (d.start / 60 != start / 60 || d.end / 60 != end / 60) {
@@ -271,6 +275,21 @@ fun SleepEditScreen(nav: NavHostController, day: Long) {
             onConfirm = { save(SleepEdit(day, start, end, deleted = true)) },
             onDismiss = { confirmDelete = false },
         )
+    }
+}
+
+/** Small buttons that move a time by a few minutes. */
+@Composable
+private fun Nudge(modifier: Modifier, onMove: (Int) -> Unit) {
+    Row(modifier, horizontalArrangement = Arrangement.SpaceBetween) {
+        listOf(-15, -5, 5, 15).forEach { m ->
+            Text(
+                if (m > 0) "+$m" else "−${-m}",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable { onMove(m) }.padding(horizontal = 4.dp, vertical = 8.dp),
+            )
+        }
     }
 }
 

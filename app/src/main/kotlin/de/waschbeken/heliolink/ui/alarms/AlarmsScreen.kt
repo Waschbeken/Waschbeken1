@@ -363,6 +363,11 @@ fun AlarmEditScreen(nav: NavHostController, position: Int) {
                     save(app, StrapAlarm(slot, true, smart, time.hour, time.minute, repetition), label.trim())
                     nav.popBackStack()
                 }, modifier = Modifier.fillMaxWidth()) { Text("Speichern") }
+                TextButton(
+                    onClick = { app.repo.controller?.findStrap() },
+                    enabled = app.repo.state.value.connected,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Vibration testen") }
                 if (existing != null) {
                     TextButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth()) {
                         Text("Wecker löschen", color = MaterialTheme.colorScheme.error)
