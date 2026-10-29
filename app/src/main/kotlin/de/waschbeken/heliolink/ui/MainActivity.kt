@@ -106,6 +106,9 @@ class MainActivity : ComponentActivity() {
     private var permissionGranted by mutableStateOf(false)
     private var crashReport by mutableStateOf<String?>(null)
 
+    /** Screen a notification asked to open (see [EXTRA_ROUTE]). */
+    private var pendingRoute by mutableStateOf<String?>(null)
+
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         permissionGranted = hasBluetoothPermission()
         if (configured && permissionGranted) StrapService.start(this)
@@ -131,11 +134,15 @@ class MainActivity : ComponentActivity() {
                 UpdateDialog(app.updater)
                 crashReport?.let { report -> CrashDialog(report) { crashReport = null } }
                 if (configured) {
-                    AppContent(onForget = {
-                        app.repo.controller?.shutdown()
-                        app.prefs.forgetDevice()
-                        configured = false
-                    })
+                    AppContent(
+                        pendingRoute = pendingRoute,
+                        onRouteShown = { pendingRoute = null },
+                        onForget = {
+                            app.repo.controller?.shutdown()
+                            app.prefs.forgetDevice()
+                            configured = false
+                        },
+                    )
                 } else {
                     SetupScreen(
                         hasPermission = permissionGranted,
@@ -166,6 +173,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
+        intent?.getStringExtra(EXTRA_ROUTE)?.let {
+            pendingRoute = it
+            intent.removeExtra(EXTRA_ROUTE) // not again after a rotation
+        }
         if (intent?.getBooleanExtra(EXTRA_SHOW_UPDATE, false) == true) {
             val s = app.updater.state.value
             if (s is UpdateState.Available || s is UpdateState.Ready) app.updater.showDialog.value = true else app.updater.check()
@@ -206,6 +217,11 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_SHOW_UPDATE = "show_update"
+        const val EXTRA_ROUTE = "route"
+
+        /** Opens the app on [route] (one of [Routes]). */
+        fun openIntent(context: android.content.Context, route: String): Intent =
+            Intent(context, MainActivity::class.java).putExtra(EXTRA_ROUTE, route).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
     }
 }
 
@@ -243,8 +259,13 @@ private fun CrashDialog(report: String, onClose: () -> Unit) {
 }
 
 @Composable
-private fun AppContent(onForget: () -> Unit) {
+private fun AppContent(pendingRoute: String?, onRouteShown: () -> Unit, onForget: () -> Unit) {
     val nav = rememberNavController()
+    LaunchedEffect(pendingRoute) {
+        val route = pendingRoute ?: return@LaunchedEffect
+        if (tabs.any { it.route == route }) nav.navigateToTab(route) else nav.navigate(route)
+        onRouteShown()
+    }
     val backStack by nav.currentBackStackEntryAsState()
     val current = backStack?.destination?.route
     val showBar = tabs.any { it.route == current }

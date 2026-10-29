@@ -601,12 +601,56 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 "Wecker um %02d:%02d – für %s Schlaf ab %02d:%02d ins Bett.".format(
                     next.hour, next.minute, de.waschbeken.heliolink.ui.formatMinutes(prefs.profile.sleepGoalMinutes), bedtime.hour, bedtime.minute,
                 ),
+                de.waschbeken.heliolink.ui.MainActivity.openIntent(this, de.waschbeken.heliolink.ui.Routes.ALARMS),
             )
         }
     }
 
+    /** Monday morning: last week compared with the week before. */
+    private fun weeklySummary() {
+        val today = LocalDate.now()
+        if (!prefs.weeklySummary || today.dayOfWeek != java.time.DayOfWeek.MONDAY || prefs.weeklySummaryDay == today.toEpochDay()) return
+        if (LocalTime.now().hour < 6) return
+        prefs.weeklySummaryDay = today.toEpochDay()
+        val zone = ZoneId.systemDefault()
+        val nights = de.waschbeken.heliolink.data.Queries.nights(db, today.minusDays(14), today.minusDays(1), zone)
+        val last = nights.filterKeys { it >= today.minusDays(7) }.values
+        val before = nights.filterKeys { it < today.minusDays(7) }.values
+        val days = de.waschbeken.heliolink.core.Aggregates.days(
+            db.activity(today.minusDays(14).atStartOfDay(zone).toEpochSecond(), today.atStartOfDay(zone).toEpochSecond()),
+            today.minusDays(14), today.minusDays(1), zone,
+        )
+        val stepsLast = days.filter { it.date >= today.minusDays(7) }.map { it.steps }.average().takeIf { !it.isNaN() }?.toInt()
+        val stepsBefore = days.filter { it.date < today.minusDays(7) }.map { it.steps }.average().takeIf { !it.isNaN() }?.toInt()
+        if (last.isEmpty() && (stepsLast ?: 0) == 0) return
+        fun trend(now: Int, was: Int?, unit: String) = if (was == null || was == 0) "" else {
+            val d = now - was
+            if (d >= 0) " (+$d$unit)" else " ($d$unit)"
+        }
+        val text = buildString {
+            if (last.isNotEmpty()) {
+                val sleep = last.map { it.asleepMinutes }.average().toInt()
+                val score = last.map { it.score }.average().toInt()
+                append("Ø ${de.waschbeken.heliolink.ui.formatMinutes(sleep)} Schlaf")
+                append(trend(sleep, before.map { it.asleepMinutes }.average().takeIf { !it.isNaN() }?.toInt(), " min"))
+                append(" · Score $score")
+                append(trend(score, before.map { it.score }.average().takeIf { !it.isNaN() }?.toInt(), ""))
+            }
+            if (stepsLast != null && stepsLast > 0) {
+                if (isNotEmpty()) append(" · ")
+                append("Ø ${"%,d".format(java.util.Locale.GERMANY, stepsLast)} Schritte")
+                append(trend(stepsLast, stepsBefore, ""))
+            }
+        }
+        Notifications.show(
+            this, Notifications.ID_WEEKLY, Notifications.CHANNEL_HEALTH, "Deine Woche", text,
+            de.waschbeken.heliolink.ui.MainActivity.openIntent(this, de.waschbeken.heliolink.ui.Routes.SLEEP),
+        )
+    }
+
     /** Morning summary after the first successful sync of the day. */
     private fun afterSync() {
+        weeklySummary()
         val today = LocalDate.now()
         if (!prefs.morningSummary || prefs.morningSummaryDay == today.toEpochDay() || LocalTime.now().hour < 5) return
         val zone = ZoneId.systemDefault()
@@ -621,7 +665,10 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             }
             night.minHeartRate?.let { append(" · Puls min. $it") }
         }
-        Notifications.show(this, Notifications.ID_MORNING, Notifications.CHANNEL_HEALTH, "Guten Morgen! Deine Nacht", text)
+        Notifications.show(
+            this, Notifications.ID_MORNING, Notifications.CHANNEL_HEALTH, "Guten Morgen! Deine Nacht", "$text · Tippen zum Ansehen oder Korrigieren",
+            de.waschbeken.heliolink.ui.MainActivity.openIntent(this, de.waschbeken.heliolink.ui.Routes.SLEEP),
+        )
     }
 
     /** Offers a higher maximum heart rate when a workout went above it. */

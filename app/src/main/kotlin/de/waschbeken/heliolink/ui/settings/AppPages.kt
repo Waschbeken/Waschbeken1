@@ -223,6 +223,11 @@ internal fun NotificationsPage() {
         subtitle = "nächster Wecker minus Schlafziel",
     ) { prefs.bedtimeReminder = it }
     SwitchSetting(
+        "Wochenbericht",
+        "Montagmorgens: Schlaf, Score und Schritte im Vergleich zur Vorwoche",
+        prefs.weeklySummary,
+    ) { prefs.weeklySummary = it }
+    SwitchSetting(
         "Morgenbericht",
         "Nach dem ersten Abruf am Morgen: Schlafdauer, Phasen und Erholung",
         prefs.morningSummary,

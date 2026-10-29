@@ -10,7 +10,7 @@ aber ganz auf einen Strap ohne Display zugeschnitten.
 |---|---|
 | **Heute** | Begrüßung, Erholungswert (aus Schlaf, Ruhepuls, HRV und Stress), Kacheln für Schritte, Schlaf, Ruhepuls, Stress, SpO₂, HRV, PAI, Hauttemperatur, Atemfrequenz und Akku – jede mit Mini-Verlauf, antippen öffnet die Detailansicht. Live-Puls mit Zone, Ziel-Serie in Tagen |
 | **Details** | Jede Messgröße als Tag, Woche oder Monat: Kurven, Balken, Min/Max, Durchschnitt und Vergleich zum eigenen Normalwert |
-| **Schlaf** | Hypnogramm (Wach/REM/Leicht/Tief), Score, Phasen in Minuten und Prozent, Einschlaf- und Aufwachzeit, Wachphasen, Puls/SpO₂/HRV/Atmung/Temperatur in der Nacht. Woche und Monat mit gestapelten Balken, Regelmäßigkeit und Schlafdefizit |
+| **Schlaf** | Hypnogramm (Wach/REM/Leicht/Tief), Score, Phasen in Minuten und Prozent, Einschlaf- und Aufwachzeit, Wachphasen, Puls/SpO₂/HRV/Atmung/Temperatur in der Nacht. Nickerchen am Tag. Woche und Monat mit gestapelten Balken, Regelmäßigkeit, Schlafdefizit und Liste der Nächte |
 | **Schlaf korrigieren** | Stift oben rechts oder Hypnogramm antippen: Einschlaf-/Aufwachzeit ändern, Phase eines Abschnitts oder eines Zeitraums ändern, Schlaf selbst eintragen, „Das war kein Schlaf“. Morgens fragt die App „Stimmt deine Nacht?“. Aus deinen Korrekturen schlägt sie eine Kalibrierung für alle Nächte vor |
 | **Schlaf-Tagebuch** | Pro Nacht Sport, Koffein, Alkohol, Stress … markieren; Woche/Monat zeigt, wie sich das auf Score und Schlafdauer auswirkt |
 | **Training** | Training starten mit Sportart, sekündlicher Puls, Zone in Farbe, Kalorien, Zeit in Zonen. Automatisch erkannte Spaziergänge und Läufe, aktive Minuten der Woche, Verlauf mit Detailansicht und **TCX**-Export (Strava, Garmin & Co.) |
@@ -39,7 +39,7 @@ sie beim nächsten Start einen Bericht zum Kopieren.
 |---|---|
 | **Darstellung** | Hell/Dunkel/System, Akzentfarbe (9 Farben), Material You, Schriftgröße |
 | **Startseite** | Kacheln auf „Heute“ ein- und ausblenden |
-| **Benachrichtigungen** | Akku-Warnung, Schlafenszeit-Erinnerung (nächster Wecker minus Schlafziel), Morgenbericht, Puls in der Benachrichtigung, Sync-Fehler |
+| **Benachrichtigungen** | Akku-Warnung, Schlafenszeit-Erinnerung (nächster Wecker minus Schlafziel), Morgenbericht, Wochenbericht am Montag, Puls in der Benachrichtigung, Sync-Fehler – ein Tipp öffnet die passende Seite |
 | **Puls-Aufzeichnung** | Puls öfter als einmal pro Minute: jede Sekunde, alle 5/10/30 s (Live-Werte, solange verbunden) |
 | **Schlaf** | Schlafziel, „Stimmt deine Nacht?“, kurze Wachphasen ignorieren, Wachzeit innerhalb einer Nacht, kürzester Schlaf (Nickerchen), Einschlafen später / Aufwachen früher werten, Phasen immer schätzen, Korrekturen verwalten |
 | **Profil** | Alter, Geschlecht, Gewicht, Größe, Schritt- und Schlafziel |
