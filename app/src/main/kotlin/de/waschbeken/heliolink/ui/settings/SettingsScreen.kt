@@ -17,6 +17,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
@@ -65,14 +68,17 @@ import java.util.Date
 
 /** One page of the settings. Each knows its title, icon and a one-line summary for the main list. */
 enum class SettingsCategory(val title: String, val icon: ImageVector, val summary: String) {
-    STRAP("Strap", Icons.Default.Bluetooth, "Verbindung, Akku, Auth-Key, Strap vibrieren"),
-    MEASUREMENTS("Messungen", Icons.Default.MonitorHeart, "Pulsintervall, Puls-Broadcast, Schlaf, Stress, Warnungen"),
-    PROFILE("Profil & Zonen", Icons.Default.Person, "Alter, Gewicht, max. Puls, Schrittziel"),
-    SYNC("Synchronisierung", Icons.Default.Sync, "Automatischer Abruf, Verlauf neu laden"),
-    NOTIFICATIONS("Benachrichtigungen", Icons.Default.Notifications, "Akku-Warnung, Sync-Fehler"),
+    STRAP("Strap", Icons.Default.Bluetooth, "Verbindung, Akku, Firmware, Auth-Key, vibrieren lassen"),
+    MEASUREMENTS("Messungen am Strap", Icons.Default.MonitorHeart, "Pulsintervall, Puls-Broadcast, Schlaf, Stress, SpO₂, Warnungen"),
+    RECORDING("Puls-Aufzeichnung", Icons.Default.Timer, "Öfter als jede Minute: jede Sekunde bis alle 30 Sekunden"),
+    MOVEMENT("Bewegung & Ziele", Icons.Default.DirectionsWalk, "Bewegungserinnerung mit Zeiten, Schrittziel, Trainingserkennung"),
+    PROFILE("Profil", Icons.Default.Person, "Alter, Gewicht, Größe, Schlafziel"),
+    TRAINING("Training & Zonen", Icons.Default.FitnessCenter, "Max. Puls, Ruhepuls, Zonen, Pulsgrenzen mit Vibration"),
+    SYNC("Synchronisierung", Icons.Default.Sync, "Automatischer Abruf, Zeitraum, Schlafphasen, Verlauf neu laden"),
+    NOTIFICATIONS("Benachrichtigungen", Icons.Default.Notifications, "Akku-Warnung, Live-Puls, Sync-Fehler"),
     APPEARANCE("Darstellung", Icons.Default.Palette, "Hell, dunkel, Material You"),
     UPDATES("App-Updates", Icons.Default.SystemUpdate, "Automatisch prüfen, Vorabversionen, Quelle"),
-    DATA("Daten", Icons.Default.Storage, "Export, Protokoll, Daten löschen"),
+    DATA("Daten & Sicherung", Icons.Default.Storage, "Export, Sicherung, Gadgetbridge-Import, Protokoll"),
 }
 
 @Composable
@@ -93,7 +99,10 @@ fun SettingsScreen(state: StrapUiState, onForget: () -> Unit) {
                 when (category) {
                     SettingsCategory.STRAP -> StrapPage(state, onForget)
                     SettingsCategory.MEASUREMENTS -> MeasurementsPage(state)
-                    SettingsCategory.PROFILE -> ProfilePage()
+                    SettingsCategory.RECORDING -> RecordingPage(state)
+                    SettingsCategory.MOVEMENT -> MovementPage(state)
+                    SettingsCategory.PROFILE -> ProfilePage(state)
+                    SettingsCategory.TRAINING -> TrainingPage()
                     SettingsCategory.SYNC -> SyncPage(state)
                     SettingsCategory.NOTIFICATIONS -> NotificationsPage()
                     SettingsCategory.APPEARANCE -> AppearancePage()
@@ -132,13 +141,17 @@ private fun SettingsHome(open: (SettingsCategory) -> Unit) {
                     is UpdateState.Available -> "Version ${u.info.version} verfügbar – tippen zum Installieren"
                     is UpdateState.Downloading -> "Lade herunter … ${(u.progress.coerceAtLeast(0f) * 100).toInt()} %"
                     is UpdateState.Ready -> "Bereit zum Installieren"
+                    is UpdateState.KeyChanged -> "Version ${u.info.version}: einmalige Neuinstallation nötig – tippen"
                     is UpdateState.Failed -> u.message
                     else -> "Installiert: ${updater.currentVersion}" +
                         if (prefs.lastUpdateCheck > 0) " · geprüft ${formatDate(prefs.lastUpdateCheck)}" else ""
                 },
                 onClick = {
-                    if (update is UpdateState.Available || update is UpdateState.Ready) updater.showDialog.value = true
-                    else updater.check()
+                    if (update is UpdateState.Available || update is UpdateState.Ready || update is UpdateState.KeyChanged) {
+                        updater.showDialog.value = true
+                    } else {
+                        updater.check()
+                    }
                 },
             )
         }
@@ -153,11 +166,11 @@ private fun SettingsHome(open: (SettingsCategory) -> Unit) {
     }
 }
 
-private fun formatDate(millis: Long): String = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(millis))
+internal fun formatDate(millis: Long): String = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(millis))
 
 /** Re-reads settings whenever any preference changes. */
 @Composable
-private fun prefsTick(): Int {
+internal fun prefsTick(): Int {
     val tick by LocalContext.current.app.prefs.changes.collectAsState()
     return tick
 }
@@ -218,134 +231,6 @@ private fun StrapPage(state: StrapUiState, onForget: () -> Unit) {
             onDismiss = { confirmForget = false },
         )
     }
-}
-
-// --------------------------------------------------------------------------- Messungen
-
-private data class SwitchInfo(val setting: HealthSetting, val title: String, val description: String)
-
-private val heartSwitches = listOf(
-    SwitchInfo(
-        HealthSetting.HEART_RATE_BROADCAST, "Puls an andere Geräte senden",
-        "Der Strap wird zum Brustgurt: Laufband, Radcomputer, Zwift, Strava & Co. empfangen den Puls direkt. Braucht mehr Akku.",
-    ),
-    SwitchInfo(HealthSetting.HEART_RATE_ACTIVITY_MONITORING, "Bei Aktivität häufiger messen", "Erkennt Bewegung und misst dann öfter"),
-)
-
-private val sleepSwitches = listOf(
-    SwitchInfo(HealthSetting.SLEEP_HIGH_ACCURACY, "Schlaf mit hoher Genauigkeit", "Nutzt den Pulssensor für REM- und Tiefschlaf. Empfohlen."),
-    SwitchInfo(HealthSetting.SLEEP_BREATHING_QUALITY, "Atmungsqualität im Schlaf", "Zusätzliche Messung in der Nacht"),
-)
-
-private val otherSwitches = listOf(
-    SwitchInfo(HealthSetting.STRESS_MONITORING, "Stress automatisch messen", "Aus der Herzfrequenzvariabilität"),
-    SwitchInfo(HealthSetting.STRESS_RELAXATION_REMINDER, "Entspannungs-Erinnerung", "Vibriert bei hohem Stress"),
-    SwitchInfo(HealthSetting.SPO2_ALL_DAY, "SpO₂ ganztägig", "Blutsauerstoff regelmäßig messen"),
-    SwitchInfo(HealthSetting.INACTIVITY_WARNINGS, "Bewegungserinnerung", "Vibriert nach längerem Sitzen"),
-)
-
-private fun intervalLabel(v: Int) = when {
-    v == 0 -> "Aus"
-    v < 0 -> "Intelligent"
-    v == 1 -> "Jede Minute"
-    else -> "Alle $v Minuten"
-}
-
-@Composable
-private fun MeasurementsPage(state: StrapUiState) {
-    val controller = LocalContext.current.app.repo.controller
-    val settings = state.settings
-    if (settings == null) {
-        SettingsNote(
-            if (state.connected) "Lade Einstellungen vom Strap …"
-            else "Die Einstellungen werden direkt auf dem Strap gespeichert. Verbinde den Strap, um sie zu ändern.",
-        )
-        return
-    }
-    val enabled = state.connected
-    fun apply(s: HealthSetting, v: Int) {
-        controller?.applySettings(mapOf(s to v))
-    }
-
-    SettingsHeader("Herzfrequenz")
-    settings.values[HealthSetting.HEART_RATE_INTERVAL]?.let { current ->
-        val options = settings.options[HealthSetting.HEART_RATE_INTERVAL]?.takeIf { it.isNotEmpty() } ?: listOf(0, 1, 5, 10, 30)
-        ChoiceSetting(
-            "Puls rund um die Uhr",
-            options.map { it to intervalLabel(it) },
-            current,
-            subtitle = "Kürzer = genauer, länger = mehr Akku",
-            enabled = enabled,
-        ) { apply(HealthSetting.HEART_RATE_INTERVAL, it) }
-    }
-    Switches(heartSwitches, settings, enabled, ::apply)
-    AlertChoice("Warnung bei hohem Puls", HealthSetting.HEART_RATE_HIGH_ALERT, settings, enabled, "bpm", ::apply)
-    AlertChoice("Warnung bei niedrigem Puls", HealthSetting.HEART_RATE_LOW_ALERT, settings, enabled, "bpm", ::apply)
-
-    SettingsHeader("Schlaf")
-    Switches(sleepSwitches, settings, enabled, ::apply)
-
-    SettingsHeader("Stress & mehr")
-    Switches(otherSwitches, settings, enabled, ::apply)
-    AlertChoice("Warnung bei niedrigem SpO₂", HealthSetting.SPO2_LOW_ALERT, settings, enabled, "%", ::apply)
-    SettingsNote("Nur Einstellungen, die dein Strap meldet, werden angezeigt. Änderungen übernimmt der Strap sofort.")
-}
-
-@Composable
-private fun Switches(list: List<SwitchInfo>, settings: HealthConfig, enabled: Boolean, apply: (HealthSetting, Int) -> Unit) {
-    for (info in list) {
-        val value = settings.bool(info.setting) ?: continue
-        SwitchSetting(info.title, info.description, value, enabled) { apply(info.setting, if (it) 1 else 0) }
-    }
-}
-
-@Composable
-private fun AlertChoice(
-    title: String,
-    setting: HealthSetting,
-    settings: HealthConfig,
-    enabled: Boolean,
-    unit: String,
-    apply: (HealthSetting, Int) -> Unit,
-) {
-    val current = settings.values[setting]?.let { it and 0xff } ?: return
-    val options = settings.options[setting]?.map { it and 0xff }?.takeIf { it.isNotEmpty() } ?: return
-    ChoiceSetting(title, options.map { it to if (it == 0) "Aus" else "$it $unit" }, current, enabled = enabled) { apply(setting, it) }
-}
-
-// --------------------------------------------------------------------------- Profil
-
-@Composable
-private fun ProfilePage() {
-    val prefs = LocalContext.current.app.prefs
-    prefsTick()
-    val p = prefs.profile
-
-    SettingsHeader("Körper")
-    IntSetting("Alter", p.age, 5..110, "Jahre") { prefs.profile = prefs.profile.copy(age = it) }
-    ChoiceSetting("Geschlecht", listOf(true to "männlich", false to "weiblich"), p.male, subtitle = "für die Kalorienformel") {
-        prefs.profile = prefs.profile.copy(male = it)
-    }
-    IntSetting("Gewicht", p.weightKg, 20..300, "kg") { prefs.profile = prefs.profile.copy(weightKg = it) }
-    IntSetting("Größe", p.heightCm, 80..250, "cm") { prefs.profile = prefs.profile.copy(heightCm = it) }
-
-    SettingsHeader("Puls & Ziele")
-    IntSetting(
-        "Maximaler Puls",
-        p.maxHrOverride,
-        0..230,
-        display = if (p.maxHrOverride > 0) "${p.maxHrOverride} bpm" else "Automatisch (${HeartRateZones.maxHeartRate(p.age)} bpm)",
-        subtitle = "0 = aus dem Alter berechnen",
-    ) { prefs.profile = prefs.profile.copy(maxHrOverride = if (it in 1..99) 0 else it) }
-    IntSetting("Schrittziel", p.stepGoal, 500..100_000, "Schritte") { prefs.profile = prefs.profile.copy(stepGoal = it) }
-
-    SettingsHeader("Deine Pulszonen")
-    (0..4).forEach { z ->
-        val from = HeartRateZones.lowerBpm(z, p.maxHeartRate)
-        val to = if (z < 4) HeartRateZones.lowerBpm(z + 1, p.maxHeartRate) - 1 else p.maxHeartRate
-        SettingRow("Zone ${z + 1} · ${HeartRateZones.names[z]}", "$from – $to bpm")
-    }
-    SettingsNote("Die Werte bleiben auf dem Handy und werden für Zonen und Kalorien verwendet.")
 }
 
 // --------------------------------------------------------------------------- Sync
@@ -425,6 +310,11 @@ private fun NotificationsPage() {
         subtitle = "damit der Strap nachts nicht leer ist",
     ) { prefs.lowBatteryAlert = it }
     SwitchSetting("Sync-Fehler melden", "Benachrichtigung, wenn der Abruf abbricht", prefs.notifySyncErrors) { prefs.notifySyncErrors = it }
+    SwitchSetting(
+        "Puls in der Benachrichtigung",
+        "Zeigt den aktuellen Puls in der Dauer-Benachrichtigung, solange er gemessen wird",
+        prefs.notificationShowsHr,
+    ) { prefs.notificationShowsHr = it }
 
     SettingsHeader("System")
     SettingRow("Android-Benachrichtigungen", "Töne, Wichtigkeit und Kanäle in den Systemeinstellungen") {
@@ -497,75 +387,3 @@ private fun UpdatesPage() {
     }
 }
 
-// --------------------------------------------------------------------------- Daten
-
-@Composable
-private fun DataPage(state: StrapUiState) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var showLog by remember { mutableStateOf(false) }
-    var confirmDelete by remember { mutableStateOf(false) }
-
-    val importGadgetbridge = de.waschbeken.heliolink.ui.rememberGadgetbridgeImport {
-        context.app.repo.controller?.reconnect()
-    }
-    SettingsHeader("Import")
-    SettingRow("Aus Gadgetbridge importieren", "Zip aus „Daten exportieren“: Verlauf, Schlafphasen, SpO₂, Auth-Key") {
-        importGadgetbridge()
-    }
-
-    SettingsHeader("Export")
-    SettingRow("Aktivitätsdaten als CSV", "Minutenwerte: Schritte, Puls, Schlaf – z. B. für Excel") {
-        scope.launch { shareCsv(context) }
-    }
-    SettingsNote("Trainings exportierst du einzeln im Tab „Training“ als TCX.")
-
-    SettingsHeader("Fehlersuche")
-    SettingRow("Protokoll anzeigen", "${state.log.size} Einträge der Verbindung") { showLog = true }
-
-    SettingsHeader("Zurücksetzen")
-    SettingRow("Alle Gesundheitsdaten löschen", "Puls, Schlaf, Stress und Trainings auf diesem Handy") { confirmDelete = true }
-
-    if (showLog) {
-        AlertDialog(
-            onDismissRequest = { showLog = false },
-            title = { Text("Protokoll") },
-            text = {
-                Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
-                    if (state.log.isEmpty()) Text("Noch keine Einträge")
-                    state.log.forEach {
-                        Text(it, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { showLog = false }) { Text("Schließen") } },
-        )
-    }
-    if (confirmDelete) {
-        ConfirmDialog(
-            "Alle Daten löschen?",
-            "Alle gespeicherten Gesundheitsdaten und Trainings werden von diesem Handy gelöscht. Das lässt sich nicht rückgängig machen. Die Daten auf dem Strap werden beim nächsten Abruf nicht erneut geladen.",
-            "Löschen",
-            onConfirm = {
-                scope.launch {
-                    withContext(Dispatchers.IO) { context.app.db.clearAll() }
-                    context.app.repo.dataChanged()
-                }
-            },
-            onDismiss = { confirmDelete = false },
-        )
-    }
-}
-
-private suspend fun shareCsv(context: Context) {
-    val file = withContext(Dispatchers.IO) {
-        val dir = File(context.cacheDir, "exports").apply { mkdirs() }
-        File(dir, "helio-aktivitaet.csv").apply { writeText(context.app.db.exportActivityCsv()) }
-    }
-    val uri = FileProvider.getUriForFile(context, context.packageName + ".files", file)
-    val intent = Intent(Intent.ACTION_SEND)
-        .setType("text/csv")
-        .putExtra(Intent.EXTRA_STREAM, uri)
-        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    context.startActivity(Intent.createChooser(intent, "Daten exportieren"))
-}

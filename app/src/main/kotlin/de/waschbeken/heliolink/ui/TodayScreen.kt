@@ -62,6 +62,7 @@ fun TodayScreen(state: StrapUiState, openSleep: () -> Unit) {
     val spo2 by dbValue(date, state.dataVersion) { it.values(HealthDb.SPO2, nightStart, dayEnd) }
     val resting by dbValue(date, state.dataVersion) { it.values(HealthDb.RESTING_HR, dayStart - 86400, dayEnd) }
     val hrv by dbValue(date, state.dataVersion) { it.values(HealthDb.HRV, nightStart, dayEnd) }
+    val appHr by dbValue(date, state.dataVersion, state.heartRateAt / 60_000) { it.hr(dayStart, dayEnd) }
 
     Column(
         Modifier
@@ -145,7 +146,7 @@ fun TodayScreen(state: StrapUiState, openSleep: () -> Unit) {
         }
 
         SectionCard("Herzfrequenz") {
-            if (summary.avgHeartRate == null) {
+            if (summary.avgHeartRate == null && appHr.isNullOrEmpty()) {
                 Text("Noch keine Pulswerte für diesen Tag", style = MaterialTheme.typography.bodyMedium)
             } else {
                 Row(Modifier.fillMaxWidth()) {
@@ -153,12 +154,19 @@ fun TodayScreen(state: StrapUiState, openSleep: () -> Unit) {
                     Metric("Durchschnitt", "${summary.avgHeartRate}", Modifier.weight(1f))
                     Metric("Min / Max", "${summary.minHeartRate}/${summary.maxHeartRate}", Modifier.weight(1f))
                 }
-                TimeLineChart(
-                    day.filter { it.heartRate > 0 }.map { it.timestamp to it.heartRate },
-                    dayStart,
-                    dayEnd,
-                    Palette.Coral,
-                )
+                val recorded = appHr.orEmpty()
+                // Where the app recorded more often than once a minute, those values replace the minute values.
+                val recordedMinutes = recorded.map { it.timestamp / 60 }.toHashSet()
+                val points = (day.filter { it.heartRate > 0 && it.timestamp / 60 !in recordedMinutes }.map { it.timestamp to it.heartRate } +
+                    recorded.map { it.timestamp to it.bpm }).sortedBy { it.first }
+                TimeLineChart(points, dayStart, dayEnd, Palette.Coral)
+                if (recorded.isNotEmpty()) {
+                    Text(
+                        "${recorded.size} zusätzliche Werte aus der Puls-Aufzeichnung der App",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
 
@@ -257,7 +265,14 @@ private fun LiveHeartCard(state: StrapUiState, maxHr: Int, onToggle: (Boolean) -
         state.hrv?.takeIf { fresh }?.let {
             Text("HRV (RMSSD): ${it.toInt()} ms", style = MaterialTheme.typography.bodySmall)
         }
-        if (!state.liveHeartRate && !fresh) {
+        if (state.recordingHr) {
+            Text(
+                "Puls-Aufzeichnung läuft (Einstellungen → Puls-Aufzeichnung)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (!state.liveHeartRate && !fresh && !state.recordingHr) {
             Text(
                 "Schalte die Live-Messung ein, um den Puls in Echtzeit zu sehen.",
                 style = MaterialTheme.typography.bodySmall,

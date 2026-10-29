@@ -21,13 +21,19 @@ Verlauf (Puls, Schritte, Schlaf, Stress minutengenau) regelmäßig vom Strap.
 | Kategorie | Inhalt |
 |---|---|
 | **Strap** | Status, Akku, Firmware, „Strap vibrieren lassen“, neu verbinden, Auth-Key, Strap entfernen |
-| **Messungen** | Puls rund um die Uhr (Intervall), Puls an andere Geräte senden (Laufband, Radcomputer, Zwift), Schlaf mit hoher Genauigkeit, Stress, SpO₂, Puls- und SpO₂-Warnungen – wird direkt auf dem Strap gespeichert |
-| **Profil & Zonen** | Alter, Geschlecht, Gewicht, Größe, max. Puls, Schrittziel, Übersicht deiner 5 Pulszonen |
-| **Synchronisierung** | Automatischer Abruf (Intervall), Zeitraum beim ersten Abruf, jetzt synchronisieren, Verlauf neu laden |
-| **Benachrichtigungen** | Akku-Warnung, Sync-Fehler melden, Android-Benachrichtigungseinstellungen |
+| **Messungen am Strap** | Puls-Messintervall (Intelligent, jede Minute … 30 min, aus), bei Aktivität häufiger messen, Puls an andere Geräte senden, Pulswarnungen hoch/niedrig, Schlaf mit hoher Genauigkeit, Atmungsqualität, Stress + Entspannungs-Erinnerung, SpO₂ ganztägig + Warnung, sichtbar bleiben wenn verbunden |
+| **Puls-Aufzeichnung** | Puls öfter als einmal pro Minute: jede Sekunde, alle 5/10/30 s (Live-Werte, solange verbunden) |
+| **Bewegung & Ziele** | Bewegungserinnerung mit Zeitraum und Pause, Schrittziel auf dem Strap, Vibration bei erreichtem Ziel, automatische Trainingserkennung mit Empfindlichkeit |
+| **Profil** | Alter, Geschlecht, Gewicht, Größe, Schritt- und Schlafziel |
+| **Training & Zonen** | Max. Puls, Ruhepuls, Zonen nach % HFmax oder Karvonen, Standard-Sportart, Strap vibriert über/unter einer Pulsgrenze |
+| **Synchronisierung** | Automatischer Abruf, Zeitraum beim ersten Abruf, Schlafphasen-Abruf, Verlauf neu laden |
+| **Benachrichtigungen** | Akku-Warnung, Puls in der Benachrichtigung, Sync-Fehler |
 | **Darstellung** | Hell/Dunkel/System, Material You |
 | **App-Updates** | Automatisch prüfen, Vorabversionen, Update-Quelle |
-| **Daten** | CSV-Export, Verbindungsprotokoll, alle Daten löschen |
+| **Daten & Sicherung** | Export als Zip mit CSV (speichern oder teilen, Zeitraum wählbar), Sicherung erstellen/wiederherstellen, Gadgetbridge-Import, Protokoll anzeigen/kopieren |
+
+Strap-Einstellungen werden direkt auf dem Strap gespeichert. Die App prüft danach, ob der Strap sie
+übernommen hat, und zeigt sonst „Vom Strap nicht übernommen“ an.
 
 ## Einrichtung auf GitHub (einmalig)
 
@@ -46,8 +52,10 @@ Danach baut „Build“ automatisch die erste Version **1.0.0** und veröffentli
 > Den Schlüssel nie neu erzeugen oder das Passwort ändern. Sonst lassen sich neue Versionen nicht mehr
 > über die installierte App installieren (dann App einmal deinstallieren und neu installieren).
 
-APKs aus *Artifacts*, die vor dem Einrichten gebaut wurden, sind mit einem Test-Schlüssel signiert.
-Wer so eine Version installiert hat, deinstalliert sie einmal und installiert dann `heliolink-1.0.0.apk`.
+Bis der Schlüssel eingerichtet ist, werden Updates mit dem Test-Schlüssel signiert (so wie 1.0.0),
+damit die installierte App sie annimmt. Das erste Update mit dem neuen Schlüssel erkennt die App selbst
+und führt durch den einmaligen Wechsel: Sicherung speichern → neue Version speichern → deinstallieren →
+installieren → Sicherung wiederherstellen. Es gehen keine Daten verloren.
 
 ### 2. Von Gadgetbridge umziehen
 In Gadgetbridge **Einstellungen → Daten exportieren** (Zip). In HelioLink bei der Einrichtung

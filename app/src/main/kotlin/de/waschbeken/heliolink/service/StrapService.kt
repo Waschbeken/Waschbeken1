@@ -74,6 +74,13 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
 
     private var lastWorkoutSecond = 0L
     private var workoutHrSum = 0L
+    private var lastRecordedSecond = 0L
+    private var lastVibration = 0L
+    private var lastHrNotification = 0L
+
+    /** Strap settings sent and the values we expect back. */
+    private val pendingValues = HashMap<HealthSetting, Int>()
+    private val pendingLists = HashMap<HealthSetting, List<Int>>()
 
     private val hrKeepAlive = object : Runnable {
         override fun run() {
@@ -105,6 +112,17 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         handler = Handler(thread.looper)
         createChannel()
         repo.controller = this
+        // React to settings that change the heart rate streaming (continuous recording).
+        scope.launch {
+            var last = prefs.continuousHrSeconds
+            prefs.changes.collect {
+                val now = prefs.continuousHrSeconds
+                if (now != last) {
+                    last = now
+                    handler.post { updateHeartRateStreaming() }
+                }
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -201,11 +219,49 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         }
     }
 
-    override fun applySettings(changes: Map<HealthSetting, Int>) {
+    override fun applySettings(values: Map<HealthSetting, Int>, lists: Map<HealthSetting, List<Int>>) {
         handler.post {
             val p = connection?.protocol ?: return@post
-            p.changeHealthSettings(changes)
-            handler.postDelayed({ connection?.protocol?.requestHealthSettings() }, 1_500)
+            pendingValues.putAll(values)
+            pendingLists.putAll(lists)
+            val keys = values.keys + lists.keys
+            repo.update { s ->
+                s.copy(
+                    pendingSettings = s.pendingSettings + keys,
+                    rejectedSettings = s.rejectedSettings - keys,
+                    // Show the new value right away, the strap's answer corrects it if needed.
+                    settings = s.settings?.let { c -> c.copy(values = c.values + values, lists = c.lists + lists) },
+                )
+            }
+            p.changeHealthSettings(values, lists)
+            handler.removeCallbacks(verifySettings)
+            handler.postDelayed(verifySettings, 1_500)
+        }
+    }
+
+    private val verifySettings = Runnable { connection?.protocol?.requestHealthSettings() }
+
+    /** Compares what the strap reports with the changes we sent. */
+    private fun checkPendingSettings(update: de.waschbeken.heliolink.core.HealthConfig) {
+        if (pendingValues.isEmpty() && pendingLists.isEmpty()) return
+        val accepted = HashSet<HealthSetting>()
+        val rejected = HashSet<HealthSetting>()
+        for ((setting, wanted) in pendingValues.toMap()) {
+            val actual = update.values[setting] ?: continue
+            pendingValues.remove(setting)
+            if (actual == wanted || (actual and 0xff) == (wanted and 0xff)) accepted += setting else rejected += setting
+        }
+        for ((setting, wanted) in pendingLists.toMap()) {
+            val actual = update.lists[setting] ?: continue
+            pendingLists.remove(setting)
+            if (actual.sorted() == wanted.sorted()) accepted += setting else rejected += setting
+        }
+        if (rejected.isNotEmpty()) repo.log("Vom Strap nicht übernommen: ${rejected.joinToString()}")
+        repo.update {
+            it.copy(
+                pendingSettings = it.pendingSettings - accepted - rejected,
+                rejectedSettings = it.rejectedSettings - accepted + rejected,
+            )
         }
     }
 
@@ -216,6 +272,8 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             val id = db.startWorkout(sport, start)
             lastWorkoutSecond = 0
             workoutHrSum = 0
+            lastVibration = 0
+            prefs.defaultSport = sport
             repo.update { it.copy(workout = LiveWorkout(id, sport, start)) }
             updateHeartRateStreaming()
             updateNotification()
@@ -257,7 +315,9 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
 
     private fun updateHeartRateStreaming() {
         val c = connection ?: return
-        val wanted = (liveRequested || repo.state.value.workout != null) && c.state == LinkState.READY
+        val wanted = (liveRequested || repo.state.value.workout != null || prefs.continuousHrSeconds > 0) &&
+            c.state == LinkState.READY
+        repo.update { it.copy(recordingHr = prefs.continuousHrSeconds > 0 && c.state == LinkState.READY) }
         if (wanted && !hrStreaming) {
             hrStreaming = true
             c.protocol.setRealtimeHeartRate(HeartRateMode.START)
@@ -302,8 +362,13 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             }
             is StrapEvent.HeartRate -> onHeartRate(event)
             is StrapEvent.SleepState -> repo.update { it.copy(asleep = event.asleep) }
-            is StrapEvent.HealthSettings -> repo.update { it.copy(settings = event.settings) }
-            is StrapEvent.ConfigAck -> repo.log("Einstellung übernommen (Status ${event.status})")
+            is StrapEvent.HealthSettings -> {
+                repo.update { it.copy(settings = it.settings?.merge(event.settings) ?: event.settings) }
+                checkPendingSettings(event.settings)
+            }
+            is StrapEvent.ConfigAck -> repo.log(
+                if (event.status == 1) "Strap hat die Einstellung bestätigt" else "Strap antwortet auf Einstellung mit Status ${event.status}"
+            )
             is StrapEvent.FindAcknowledged -> repo.log("Strap vibriert")
             is StrapEvent.FindStoppedOnStrap -> repo.log("Suche am Strap beendet")
             is StrapEvent.SyncProgress -> repo.update {
@@ -369,7 +434,18 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         val hrv = rmssd(rrBuffer)
         repo.update { it.copy(heartRate = event.bpm, heartRateAt = now, hrv = hrv ?: it.hrv) }
 
+        val interval = prefs.continuousHrSeconds
+        if (interval > 0 && now / 1000 - lastRecordedSecond >= interval) {
+            lastRecordedSecond = now / 1000
+            db.insertHr(lastRecordedSecond, event.bpm)
+        }
+        if (prefs.notificationShowsHr && now - lastHrNotification > 10_000) {
+            lastHrNotification = now
+            updateNotification()
+        }
+
         val w = repo.state.value.workout ?: return
+        checkWorkoutLimits(event.bpm, now / 1000 - w.start)
         val second = now / 1000
         if (second == lastWorkoutSecond) return
         val elapsed = if (lastWorkoutSecond == 0L) 1 else (second - lastWorkoutSecond).coerceIn(1, 10).toInt()
@@ -377,7 +453,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         db.addWorkoutHr(w.id, second, event.bpm)
 
         val profile = prefs.profile
-        val zone = HeartRateZones.zoneOf(event.bpm, profile.maxHeartRate)
+        val zone = HeartRateZones.zoneOf(event.bpm, profile.maxHeartRate, profile.zoneRest(strapRestingHr()))
         val zones = w.zoneSeconds.toMutableList()
         if (zone >= 0) zones[zone] += elapsed
         workoutHrSum += event.bpm
@@ -395,6 +471,31 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             )
         }
         if (samples % 15 == 0) updateNotification()
+    }
+
+    private var cachedResting: Pair<Long, Int?>? = null
+
+    /** The strap's latest resting heart rate, looked up at most every 10 minutes. */
+    private fun strapRestingHr(): Int? {
+        val now = System.currentTimeMillis()
+        cachedResting?.let { (at, value) -> if (now - at < 600_000) return value }
+        val value = db.values(HealthDb.RESTING_HR, now / 1000 - 14 * 86400, now / 1000 + 60).lastOrNull()?.value
+        cachedResting = now to value
+        return value
+    }
+
+    /** Lets the strap vibrate when the heart rate leaves the limits set for workouts. */
+    private fun checkWorkoutLimits(bpm: Int, elapsedSeconds: Long) {
+        val upper = prefs.workoutHrUpper
+        val lower = prefs.workoutHrLower
+        val outside = (upper > 0 && bpm > upper) || (lower > 0 && elapsedSeconds > 180 && bpm < lower)
+        val now = System.currentTimeMillis()
+        if (!outside || now - lastVibration < 45_000) return
+        lastVibration = now
+        val p = connection?.protocol ?: return
+        repo.log(if (upper > 0 && bpm > upper) "Puls $bpm über $upper – Strap vibriert" else "Puls $bpm unter $lower – Strap vibriert")
+        p.findStrap(true)
+        handler.postDelayed({ connection?.protocol?.findStrap(false) }, 1_500)
     }
 
     // ------------------------------------------------------------------ notification
@@ -459,6 +560,10 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         val parts = ArrayList<String>()
         s.battery?.let { parts += "Akku $it %" + if (s.charging) " ⚡" else "" }
         s.workout?.let { parts += "Training läuft · Ø ${it.avgHr} bpm" }
+        if (prefs.notificationShowsHr && s.heartRate != null && System.currentTimeMillis() - s.heartRateAt < 30_000) {
+            parts += "♥ ${s.heartRate} bpm"
+        }
+        if (s.recordingHr) parts += "Puls-Aufzeichnung an"
         val open = PendingIntent.getActivity(
             this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )

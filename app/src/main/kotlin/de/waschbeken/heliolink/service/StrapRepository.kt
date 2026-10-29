@@ -34,6 +34,12 @@ data class StrapUiState(
     val liveHeartRate: Boolean = false,
     val asleep: Boolean? = null,
     val settings: HealthConfig? = null,
+    /** Strap settings sent but not yet confirmed. */
+    val pendingSettings: Set<HealthSetting> = emptySet(),
+    /** Strap settings the strap did not take over. */
+    val rejectedSettings: Set<HealthSetting> = emptySet(),
+    /** Heart rate values the app recorded today (continuous recording). */
+    val recordingHr: Boolean = false,
     val syncing: Boolean = false,
     val syncText: String? = null,
     val lastSync: Long = 0,
@@ -53,7 +59,7 @@ interface StrapController {
     fun setLiveHeartRate(enabled: Boolean)
     fun findStrap()
     fun refresh()
-    fun applySettings(changes: Map<HealthSetting, Int>)
+    fun applySettings(values: Map<HealthSetting, Int>, lists: Map<HealthSetting, List<Int>> = emptyMap())
     fun startWorkout(sport: String)
     fun stopWorkout()
     fun reconnect()

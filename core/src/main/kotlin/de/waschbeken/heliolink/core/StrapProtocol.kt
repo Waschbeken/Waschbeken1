@@ -75,11 +75,14 @@ class StrapProtocol(
 
     fun findStrap(start: Boolean) = sendChunked(Endpoint.FIND_DEVICE, byteArrayOf(if (start) 0x03 else 0x06))
 
-    fun requestHealthSettings() = sendChunked(HealthConfigCodec.ENDPOINT, HealthConfigCodec.request())
+    fun requestHealthSettings() = HealthConfigCodec.requests().forEach { sendChunked(HealthConfigCodec.ENDPOINT, it) }
 
-    fun changeHealthSettings(changes: Map<HealthSetting, Int>) {
-        if (changes.isEmpty()) return
-        sendChunked(HealthConfigCodec.ENDPOINT, HealthConfigCodec.set(changes))
+    /** Group versions reported by the strap, needed to encode some values. */
+    private val configVersions = HashMap<ConfigGroup, Int>()
+
+    fun changeHealthSettings(values: Map<HealthSetting, Int>, lists: Map<HealthSetting, List<Int>> = emptyMap()) {
+        if (values.isEmpty() && lists.isEmpty()) return
+        HealthConfigCodec.set(values, lists, configVersions).forEach { sendChunked(HealthConfigCodec.ENDPOINT, it) }
     }
 
     fun syncTime() = write(GattWrite(WriteTarget.CURRENT_TIME, TimeCodec.currentTime(clock())))
@@ -225,7 +228,10 @@ class StrapProtocol(
 
     private fun handleConfig(payload: ByteArray) {
         when (payload.u8(0)) {
-            HealthConfigCodec.CMD_RESPONSE -> HealthConfigCodec.parse(payload)?.let { emit(StrapEvent.HealthSettings(it)) }
+            HealthConfigCodec.CMD_RESPONSE -> HealthConfigCodec.parse(payload)?.let {
+                configVersions.putAll(it.versions)
+                emit(StrapEvent.HealthSettings(it))
+            }
             HealthConfigCodec.CMD_ACK -> emit(StrapEvent.ConfigAck(if (payload.size > 1) payload.u8(1) else -1))
         }
     }

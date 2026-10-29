@@ -46,14 +46,13 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "APP_VERSION_NAME=$VERSION" >> "$GITHUB_ENV"
 
-      # Releases must carry the permanent key, otherwise the app cannot update itself.
+      # Releases should carry the permanent key; before it is set up they use the test key.
       - name: Signatur prüfen
         env:
           SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
         run: |
           if [ -z "$SIGNING_PASSWORD" ] || [ ! -f signing/release.p12 ]; then
-            echo "::error::Signatur fehlt. Einmalig: Secret SIGNING_PASSWORD anlegen und den Workflow 'Signatur einrichten' starten (siehe README)."
-            exit 1
+            echo "::warning::Signatur noch nicht eingerichtet – das Release wird mit dem Test-Schlüssel signiert (siehe README)."
           fi
 
       - uses: actions/setup-java@v4

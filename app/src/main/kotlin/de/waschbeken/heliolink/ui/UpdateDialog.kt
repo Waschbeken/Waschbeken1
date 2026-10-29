@@ -15,6 +15,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import de.waschbeken.heliolink.app
+import de.waschbeken.heliolink.data.Backup
 import androidx.compose.ui.unit.dp
 import de.waschbeken.heliolink.update.AppUpdater
 import de.waschbeken.heliolink.update.UpdateState
@@ -24,11 +27,21 @@ fun UpdateDialog(updater: AppUpdater) {
     val show by updater.showDialog.collectAsState()
     val state by updater.state.collectAsState()
     if (!show) return
+    val context = LocalContext.current
+    val app = context.app
     val info = when (val s = state) {
         is UpdateState.Available -> s.info
         is UpdateState.Downloading -> s.info
         is UpdateState.Ready -> s.info
+        is UpdateState.KeyChanged -> s.info
         else -> null
+    }
+    val saveBackup = rememberSaveFile("application/zip", "Sicherung gespeichert") { uri ->
+        app.repo.controller?.shutdown()
+        Backup(context, app.prefs, app.db).createBackup(uri)
+    }
+    val saveApk = rememberSaveFile("application/vnd.android.package-archive", "Neue Version gespeichert") { uri ->
+        (app.updater.state.value as? UpdateState.KeyChanged)?.let { app.updater.manager.saveApk(it.apk, uri) }
     }
     AlertDialog(
         onDismissRequest = { updater.dismiss(skipVersion = false) },
@@ -45,6 +58,26 @@ fun UpdateDialog(updater: AppUpdater) {
                         }
                     }
                     is UpdateState.Failed -> Text(s.message)
+                    is UpdateState.KeyChanged -> {
+                        Text(
+                            "Diese Version ist mit dem neuen, passwortgeschützten Schlüssel signiert. Android lässt sie " +
+                                "deshalb einmalig nicht über die installierte App installieren. So geht's ohne Datenverlust:",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            "1. Sicherung speichern (Daten, Einstellungen, Auth-Key)\n" +
+                                "2. Neue Version speichern, z. B. in Downloads\n" +
+                                "3. HelioLink deinstallieren\n" +
+                                "4. Die gespeicherte APK im Dateimanager öffnen und installieren\n" +
+                                "5. In der neuen App: Einstellungen → Daten → Sicherung wiederherstellen",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Column {
+                            TextButton(onClick = { saveBackup("heliolink-sicherung-${Backup.fileDate()}.zip") }) { Text("1. Sicherung speichern") }
+                            TextButton(onClick = { saveApk("heliolink-${s.info.version}.apk") }) { Text("2. Neue Version speichern") }
+                            TextButton(onClick = { app.updater.manager.uninstall() }) { Text("3. HelioLink deinstallieren") }
+                        }
+                    }
                     else -> {
                         Text(
                             "Installiert ist ${updater.currentVersion}. Deine Daten und die Verbindung zum Strap bleiben erhalten.",
@@ -65,6 +98,7 @@ fun UpdateDialog(updater: AppUpdater) {
                 is UpdateState.Available -> TextButton(onClick = { updater.download(s.info) }) { Text("Installieren") }
                 is UpdateState.Ready -> TextButton(onClick = { updater.install(s.apk) }) { Text("Installieren") }
                 is UpdateState.Downloading -> Unit
+                is UpdateState.KeyChanged -> TextButton(onClick = { updater.dismiss(skipVersion = false) }) { Text("Später") }
                 else -> TextButton(onClick = { updater.dismiss(skipVersion = false) }) { Text("OK") }
             }
         },

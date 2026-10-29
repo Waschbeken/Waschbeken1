@@ -119,20 +119,24 @@ object DayAnalyzer {
     }
 }
 
-/** Heart rate zones as percentage of the maximum heart rate. */
+/**
+ * Heart rate zones as percentage of the maximum heart rate, or – when a resting heart rate is
+ * given – of the heart rate reserve (Karvonen: rest + pct * (max - rest)).
+ */
 object HeartRateZones {
     val names = listOf("Erholung", "Fettverbrennung", "Aerob", "Anaerob", "Maximal")
     private val lowerBounds = listOf(0.5, 0.6, 0.7, 0.8, 0.9)
 
     fun maxHeartRate(age: Int) = (208 - 0.7 * age).roundToInt() // Tanaka
 
-    /** 0..4 for the zones, -1 below zone 1. */
-    fun zoneOf(bpm: Int, maxHr: Int): Int {
-        val pct = bpm.toDouble() / maxHr
-        return lowerBounds.indexOfLast { pct >= it }
+    fun lowerBpm(zone: Int, maxHr: Int, restHr: Int? = null): Int {
+        val rest = restHr ?: 0
+        return (rest + lowerBounds[zone] * (maxHr - rest)).roundToInt()
     }
 
-    fun lowerBpm(zone: Int, maxHr: Int) = (lowerBounds[zone] * maxHr).roundToInt()
+    /** 0..4 for the zones, -1 below zone 1. */
+    fun zoneOf(bpm: Int, maxHr: Int, restHr: Int? = null): Int =
+        (4 downTo 0).firstOrNull { bpm >= lowerBpm(it, maxHr, restHr) } ?: -1
 }
 
 object Calories {
