@@ -719,10 +719,34 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         )
     }
 
+    /** Once a day: a clear warning when last night's values together point to an illness coming up. */
+    private fun bodyCheckWarning() {
+        val today = LocalDate.now()
+        if (!prefs.bodyCheckNotify || prefs.bodyCheckDay == today.toEpochDay() || LocalTime.now().hour < 5) return
+        val zone = ZoneId.systemDefault()
+        val night = de.waschbeken.heliolink.data.Queries.night(db, today, zone) ?: return
+        if (night.end > System.currentTimeMillis() / 1000 - 15 * 60) return // probably still in bed
+        val result = de.waschbeken.heliolink.core.BodyCheck.check(de.waschbeken.heliolink.data.Queries.nightVitals(db, today.minusDays(36), today, zone))
+        prefs.bodyCheckDay = today.toEpochDay()
+        if (result == null || result.date != today || result.level != de.waschbeken.heliolink.core.BodyCheck.Level.ALERT) return
+        Notifications.show(
+            this, Notifications.ID_BODY_CHECK, Notifications.CHANNEL_HEALTH,
+            "Dein Körper arbeitet mehr als sonst",
+            result.signals.joinToString(" · ") { "${it.vital.label} ${it.text}" } +
+                ". Das sieht oft so aus, bevor man krank wird – gönn dir heute Ruhe. Keine Diagnose.",
+            de.waschbeken.heliolink.ui.MainActivity.openIntent(this, de.waschbeken.heliolink.ui.Routes.HOME),
+        )
+    }
+
     /** Morning summary after the first successful sync of the day. */
     private fun afterSync() {
         de.waschbeken.heliolink.data.AutoBackup.runIfDueInBackground(this)
         weeklySummary()
+        try {
+            bodyCheckWarning()
+        } catch (e: Exception) {
+            de.waschbeken.heliolink.data.CrashReporter.nonFatal(this, e)
+        }
         val today = LocalDate.now()
         if (!prefs.morningSummary || prefs.morningSummaryDay == today.toEpochDay() || LocalTime.now().hour < 5) return
         val zone = ZoneId.systemDefault()

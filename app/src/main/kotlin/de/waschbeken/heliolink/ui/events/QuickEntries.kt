@@ -37,9 +37,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import de.waschbeken.heliolink.app
+import de.waschbeken.heliolink.core.EntryEffects
 import de.waschbeken.heliolink.data.Prefs
 import de.waschbeken.heliolink.ui.CollapsibleHeader
 import de.waschbeken.heliolink.ui.Panel
@@ -147,8 +149,9 @@ fun QuickEntryCard(dataVersion: Int) {
                 leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
             )
         }
+        de.waschbeken.heliolink.ui.home.SubstancesSection(dataVersion + reload)
         val list = events.orEmpty()
-        if (list.isNotEmpty()) {
+        if (buttonsOpen && list.isNotEmpty()) {
             val open = sections.isOpen("home-events")
             CollapsibleHeader(
                 "Heute eingetragen", open, count = list.size,
@@ -169,6 +172,15 @@ fun QuickEntryCard(dataVersion: Int) {
                     }) { Icon(Icons.Default.Close, contentDescription = "Löschen") }
                 }
             }
+        }
+
+        if (buttonsOpen) {
+            val effectsOpen = sections.isOpen("home-effects")
+            CollapsibleHeader(
+                "Wirkung auf den Puls", effectsOpen,
+                summary = "Was Koffein, Nikotin & Co. mit deinem Ruhepuls machen",
+            ) { sections.toggle("home-effects") }
+            if (effectsOpen) EntryEffectsList(dataVersion)
         }
     }
 
@@ -235,6 +247,58 @@ private fun EditButtonsDialog(prefs: Prefs, onDismiss: () -> Unit) {
         confirmButton = { TextButton(onClick = { prefs.quickTags = tags; onDismiss() }) { Text("Speichern") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
     )
+}
+
+/**
+ * The resting heart rate in the two hours after each kind of quick entry, compared with the same
+ * time on days without it (see [EntryEffects]). Loads the last 60 days when shown.
+ */
+@Composable
+fun EntryEffectsList(dataVersion: Int) {
+    val effects by dbValue(dataVersion) { db ->
+        val now = System.currentTimeMillis() / 1000
+        val from = now - 60 * 86_400L
+        val events = db.events(from, now).map { it.timestamp to it.tag }
+        if (events.isEmpty()) emptyList() else EntryEffects.compute(events, db.activity(from - 14 * 86_400L, now))
+    }
+    val list = effects
+    when {
+        list == null -> Text("Rechne …", style = MaterialTheme.typography.bodySmall)
+        list.isEmpty() -> Text(
+            "Noch zu wenig Einträge. Ab drei Einträgen derselben Sache (z. B. 3× Koffein) mit Pulswerten danach erscheint hier, " +
+                "wie sich dein Ruhepuls verändert.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        else -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            list.forEach { e ->
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(e.tag, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                        Text(
+                            (if (e.firstHour >= 0) "+" else "−") + "%.0f bpm".format(kotlin.math.abs(e.firstHour)),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = when {
+                                e.firstHour >= 4 -> MaterialTheme.colorScheme.error
+                                e.firstHour <= -3 -> Color(0xFF30A46C)
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                        )
+                    }
+                    Text(
+                        EntryEffects.describe(e) + " · ${e.count}× verglichen",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+            Text(
+                "Verglichen wird mit derselben Uhrzeit an Tagen ohne den Eintrag; nur ruhige Minuten zählen (Strap getragen, wach, kaum Schritte).",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 /** What you are doing or took during a recording, plus a note; saved right away. */

@@ -4,6 +4,8 @@ import de.waschbeken.heliolink.core.ActivityDetector
 import de.waschbeken.heliolink.core.ActivitySample
 import de.waschbeken.heliolink.core.Aggregates
 import de.waschbeken.heliolink.core.BatteryForecast
+import de.waschbeken.heliolink.core.BodyCheck
+import de.waschbeken.heliolink.core.HrvStatus
 import de.waschbeken.heliolink.core.DayStats
 import de.waschbeken.heliolink.core.DetectedActivity
 import de.waschbeken.heliolink.core.PaiSample
@@ -43,6 +45,11 @@ class HomeData(
     val nextAlarmLabel: String,
     val readiness: Readiness?,
     val hrPoints: List<Pair<Long, Float>>,
+    /** Early warning from last night's values, null without enough history. */
+    val bodyCheck: BodyCheck.Result?,
+    /** Entries of yesterday that can explain unusual night values (alcohol, sport …). */
+    val bodyCheckHints: List<String>,
+    val hrvStatus: HrvStatus.Result?,
 ) {
     companion object {
         fun load(db: HealthDb, stepGoal: Int): HomeData {
@@ -77,6 +84,14 @@ class HomeData(
             val next = nextAlarm(alarms.map { it.alarm })
             val nextLabel = alarms.firstOrNull { next != null && it.alarm.hour == next.hour && it.alarm.minute == next.minute }?.label.orEmpty()
 
+            val vitals = Queries.nightVitals(db, today.minusDays(36), today, zone)
+            val bodyCheck = BodyCheck.check(vitals)?.takeIf { it.date == today }
+            val hints = if (bodyCheck == null || bodyCheck.level == BodyCheck.Level.NORMAL) emptyList() else {
+                (Queries.eventsForNight(db, today, zone).map { it.tag } + db.sleepTags(today.toEpochDay(), today.toEpochDay())[today.toEpochDay()].orEmpty())
+                    .filter { t -> BODY_CHECK_HINTS.any { t.contains(it, ignoreCase = true) } }.distinct()
+            }
+            val hrvStatus = HrvStatus.status(Queries.hrvDaily(db, today.minusDays(60), today, zone), today)
+
             return HomeData(
                 date = today,
                 day = day,
@@ -100,7 +115,13 @@ class HomeData(
                 nextAlarmLabel = nextLabel,
                 readiness = Readiness.calculate(night?.score, hrvNight, hrvBaseline, resting, restingBaseline),
                 hrPoints = Queries.heartRatePoints(db, dayStart, dayEnd, day),
+                bodyCheck = bodyCheck,
+                bodyCheckHints = hints,
+                hrvStatus = hrvStatus,
             )
         }
+
+        /** Entries that change night values without being ill. */
+        val BODY_CHECK_HINTS = listOf("Alkohol", "Sport", "Stress", "Spät gegessen", "Essen", "Koffein", "Nikotin", "Spät ins Bett", "Krank", "Medikament")
     }
 }

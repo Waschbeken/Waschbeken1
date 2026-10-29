@@ -166,22 +166,41 @@ data class Readiness(val score: Int, val parts: List<Pair<String, Int>>) {
 
 object BatteryForecast {
     /**
-     * Days until empty from the battery levels (epoch seconds, %) since the last charge, or null if it
-     * cannot be estimated (charging or too little data).
+     * Days until empty from the battery levels (epoch seconds, %), or null if it cannot be estimated.
+     * Uses the drain since the last charge; right after charging, when that is still too short to
+     * tell, the average drain of the earlier charges fills in.
      */
     fun daysLeft(levels: List<ValueSample>): Double? {
         if (levels.size < 2) return null
         val sorted = levels.sortedBy { it.timestamp }
-        // Only the part after the last increase (charging).
+        // Split at every increase (charging).
+        val segments = ArrayList<List<ValueSample>>()
         var start = 0
-        for (i in 1 until sorted.size) if (sorted[i].value > sorted[i - 1].value + 1) start = i
-        val part = sorted.subList(start, sorted.size)
-        if (part.size < 2) return null
-        val hours = (part.last().timestamp - part.first().timestamp) / 3600.0
-        val used = part.first().value - part.last().value
-        if (hours < 6 || used <= 0) return null
-        val perHour = used / hours
-        return part.last().value / perHour / 24
+        for (i in 1 until sorted.size) {
+            if (sorted[i].value > sorted[i - 1].value + 1) {
+                segments += sorted.subList(start, i)
+                start = i
+            }
+        }
+        segments += sorted.subList(start, sorted.size)
+        fun hours(seg: List<ValueSample>) = (seg.last().timestamp - seg.first().timestamp) / 3600.0
+        fun used(seg: List<ValueSample>) = seg.first().value - seg.last().value
+        val current = segments.last()
+        val currentRate = if (current.size >= 2 && hours(current) >= 6 && used(current) > 0) used(current) / hours(current) else null
+        val past = segments.dropLast(1).filter { it.size >= 2 && hours(it) >= 12 && used(it) > 0 }
+        val pastHours = past.sumOf { hours(it) }
+        val pastRate = if (pastHours > 0) past.sumOf { used(it).toDouble() } / pastHours else null
+        val perHour = when {
+            currentRate != null && pastRate != null && hours(current) < 24 -> {
+                // Still a short stretch: lean on the history, more on the current drain the longer it gets.
+                val w = hours(current) / 24
+                currentRate * w + pastRate * (1 - w)
+            }
+            currentRate != null -> currentRate
+            pastRate != null -> pastRate
+            else -> return null
+        }
+        return current.last().value / perHour / 24
     }
 }
 

@@ -295,6 +295,15 @@ fun MetricScreen(nav: NavHostController, key: String) {
                     }
                 }
             }
+            if (metric == Metric.HEART) {
+                item {
+                    Panel {
+                        Text("Wirkung deiner Einträge", style = MaterialTheme.typography.titleMedium)
+                        de.waschbeken.heliolink.ui.events.EntryEffectsList(state.dataVersion)
+                    }
+                }
+            }
+            if (metric == Metric.HRV) item { HrvStatusPanel(state.dataVersion) }
             item {
                 Panel(color = MaterialTheme.colorScheme.surfaceContainerLow) {
                     Text("Was bedeutet das?", style = MaterialTheme.typography.titleSmall)
@@ -302,6 +311,46 @@ fun MetricScreen(nav: NavHostController, key: String) {
                 }
             }
         }
+    }
+}
+
+/** HRV status: 7-night average against the usual range, with the course of the last six weeks. */
+@Composable
+private fun HrvStatusPanel(dataVersion: Int) {
+    val result by dbValue(dataVersion) { db ->
+        val today = LocalDate.now()
+        de.waschbeken.heliolink.core.HrvStatus.status(Queries.hrvDaily(db, today.minusDays(60), today, ZoneId.systemDefault()), today)
+    }
+    Panel {
+        Text("HRV-Status", style = MaterialTheme.typography.titleMedium)
+        val r = result
+        if (r == null) {
+            Text(
+                "Braucht HRV-Werte aus mindestens 14 Nächten oder Morgenmessungen, davon 3 in der letzten Woche. Der Strap gibt " +
+                    "seine Nacht-HRV nicht heraus – sie kommt aus dem Gadgetbridge-Import oder aus Messungen mit Live-Puls am Morgen.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            return@Panel
+        }
+        Text(r.status.label, style = MaterialTheme.typography.headlineSmall, color = Palette.Hrv)
+        Text(
+            "Schnitt der letzten 7 Tage ${r.weekAverage.toInt()} ms · dein üblicher Bereich ${r.low.toInt()}–${r.high.toInt()} ms",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        val zone = ZoneId.systemDefault()
+        val points = r.series.map { (d, v) -> d.atTime(12, 0).atZone(zone).toEpochSecond() to v.toFloat() }
+        if (points.size >= 2) {
+            LineChart(
+                listOf(Series(points, Palette.Hrv, width = 2.5f)),
+                points.first().first, points.last().first,
+                gapSeconds = 3 * 86_400L,
+                areas = listOf(Triple(r.low.toFloat(), r.high.toFloat(), Palette.Hrv.copy(alpha = 0.15f))),
+                unit = "ms",
+            )
+            Text("Linie: Schnitt der jeweils letzten 7 Tage · Fläche: dein üblicher Bereich", style = MaterialTheme.typography.labelSmall)
+        }
+        Text(r.status.text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

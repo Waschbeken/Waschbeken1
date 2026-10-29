@@ -1,6 +1,8 @@
 package de.waschbeken.heliolink.data
 
 import de.waschbeken.heliolink.core.ActivitySample
+import de.waschbeken.heliolink.core.BodyCheck
+import de.waschbeken.heliolink.core.NightVitals
 import de.waschbeken.heliolink.core.SleepAnalyzer
 import de.waschbeken.heliolink.core.SleepEditor
 import de.waschbeken.heliolink.core.SleepSession
@@ -194,6 +196,59 @@ object Queries {
         return generateSequence(from) { it.plusDays(1) }.takeWhile { !it.isAfter(to) }.map { d ->
             byDay[d]?.map { it.value }?.average()?.let { (it * scale).toFloat() }
         }.toList()
+    }
+
+    /**
+     * Night values for the body check, one entry per morning from [from] to [to]: the strap's resting
+     * heart rate of the day and HRV, skin temperature and breathing during the night.
+     */
+    fun nightVitals(db: HealthDb, from: LocalDate, to: LocalDate, zone: ZoneId): List<NightVitals> {
+        val start = nightWindow(from, zone).first
+        val end = nightWindow(to, zone).second
+        val nights = nights(db, from, to, zone)
+        val resting = db.values(HealthDb.RESTING_HR, start, end)
+            .groupBy { Instant.ofEpochSecond(it.timestamp).atZone(zone).toLocalDate() }
+        val hrv = db.values(HealthDb.HRV, start, end)
+        val temp = db.values(HealthDb.TEMPERATURE, start, end)
+        val breath = db.values(HealthDb.RESPIRATION, start, end)
+        val out = ArrayList<NightVitals>()
+        var d = from
+        while (!d.isAfter(to)) {
+            val night = nights[d]
+            val v = NightVitals(
+                date = d,
+                restingHr = resting[d]?.lastOrNull()?.value?.takeIf { it in 30..120 }?.toDouble(),
+                hrv = hrvOfDay(hrv, night, d, zone),
+                temperature = during(temp, night).map { it.value / 100.0 }.filter { it in 25.0..42.0 }
+                    .takeIf { it.size >= 3 }?.let { BodyCheck.median(it) },
+                breath = during(breath, night).map { it.value.toDouble() }.filter { it in 5.0..40.0 }.takeIf { it.isNotEmpty() }?.average(),
+            )
+            if (v.restingHr != null || v.hrv != null || v.temperature != null || v.breath != null) out += v
+            d = d.plusDays(1)
+        }
+        return out
+    }
+
+    /**
+     * HRV of the night ending on [date]; without night values the morning measurement (04–11 h)
+     * stands in, because the strap does not hand out its night HRV.
+     */
+    private fun hrvOfDay(hrv: List<ValueSample>, night: SleepSession?, date: LocalDate, zone: ZoneId): Double? {
+        during(hrv, night).map { it.value.toDouble() }.filter { it in 5.0..250.0 }.takeIf { it.size >= 3 }?.let { return it.average() }
+        val from = date.atTime(4, 0).atZone(zone).toEpochSecond()
+        val to = date.atTime(11, 0).atZone(zone).toEpochSecond()
+        return hrv.filter { it.timestamp in from until to }.map { it.value.toDouble() }.filter { it in 5.0..250.0 }
+            .takeIf { it.isNotEmpty() }?.average()
+    }
+
+    /** HRV per morning (23:00 the evening before until 11:00), for the HRV status. */
+    fun hrvDaily(db: HealthDb, from: LocalDate, to: LocalDate, zone: ZoneId): Map<LocalDate, Double> {
+        val values = db.values(HealthDb.HRV, from.minusDays(1).atTime(23, 0).atZone(zone).toEpochSecond(), to.atTime(11, 0).atZone(zone).toEpochSecond())
+        // shifted by an hour, so 23:00–11:00 becomes 00:00–12:00 of the morning's date
+        return values.filter { it.value in 5..250 }.mapNotNull { v ->
+            val t = Instant.ofEpochSecond(v.timestamp + 3600).atZone(zone)
+            if (t.hour < 12) t.toLocalDate() to v.value.toDouble() else null
+        }.groupBy({ it.first }, { it.second }).mapValues { it.value.average() }
     }
 
     /** Values during a sleep session. */
