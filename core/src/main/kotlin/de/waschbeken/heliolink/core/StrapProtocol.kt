@@ -623,7 +623,11 @@ class StrapProtocol(
             }
         }
         lastProcessedEnd = (end ?: startSec) * 1000
-        if (end != null) cursor?.set(f.type, end * 1000)
+        if (end != null) {
+            cursor?.set(f.type, end * 1000)
+            val local = java.time.Instant.ofEpochSecond(end).atZone(java.time.ZoneId.systemDefault())
+            emit(StrapEvent.Log("${f.type.label}: Daten bis ${local.format(java.time.format.DateTimeFormatter.ofPattern("dd.MM. HH:mm"))}"))
+        }
         return true
     }
 
@@ -636,9 +640,12 @@ class StrapProtocol(
     companion object {
         private const val PROBE_MAX_BYTES = 300_000L
 
-        /** Fetch codes that are not used by any data type we know, tried when looking for sleep records. */
+        /** Where the Helio Strap keeps its sleep records (594 byte sessions with stages and naps). */
+        const val SLEEP_CODE = 0x48
+
+        /** Fetch codes that are not used by any data type we know, tried when looking for sleep records; 0x48 first. */
         val SLEEP_CODE_CANDIDATES: List<Int> =
-            ((0x27..0x50) + (0x14..0x24) + (0x08..0x0c) + (0x0e..0x11) + listOf(0x03, 0x04))
+            (listOf(SLEEP_CODE) + (0x27..0x50) + (0x14..0x24) + (0x08..0x0c) + (0x0e..0x11) + listOf(0x03, 0x04)).distinct()
                 .filter { it !in setOf(0x2c, 0x2e, 0x38, 0x3a, 0x3d, 0x49, 0x4a, 0x4e) }
     }
 }

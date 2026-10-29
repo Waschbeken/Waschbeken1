@@ -185,6 +185,12 @@ internal fun SyncPage(state: StrapUiState) {
         enabled = state.connected && !state.syncing,
     ) { confirmReload = true }
 
+    SettingsHeader("Datenstand")
+    SettingsNote("Bis wann HelioLink die Daten vom Strap hat. Liegt etwas weit zurück, obwohl gerade synchronisiert wurde, hat der Strap die neueren Werte noch nicht herausgegeben – im Protokoll steht pro Abruf „Daten bis …“.")
+    de.waschbeken.heliolink.core.FetchType.entries.forEach { type ->
+        prefs.get(type)?.let { SettingRow(type.label, "bis ${formatDate(it)}") }
+    }
+
     SettingsHeader("Schlafphasen")
     SettingsNote(
         "Der Helio Strap speichert Schlafphasen in einem eigenen Datensatz, den Zepp nicht dokumentiert. HelioLink sucht " +
@@ -194,8 +200,7 @@ internal fun SyncPage(state: StrapUiState) {
     SettingRow(
         "Schlafphasen vom Strap",
         when (prefs.sleepCode) {
-            -1 -> if (prefs.sleepProbeTried > 0) "Suche läuft – ${prefs.sleepProbeTried} Kandidaten geprüft" else "Noch nicht gesucht – passiert nach dem ersten Abruf"
-            0 -> "Nicht gefunden – Schätzung aktiv. Tippen, um erneut zu suchen"
+            -1, 0 -> "Code 0x48 (bekannt aus Gadgetbridge) wird abgerufen – tippen, um selbst zu suchen"
             else -> "Aktiv (Code 0x%02x) – tippen, um neu zu suchen".format(prefs.sleepCode)
         },
         enabled = state.connected && !state.syncing,

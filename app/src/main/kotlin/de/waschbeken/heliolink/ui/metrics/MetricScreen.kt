@@ -264,7 +264,7 @@ fun MetricScreen(nav: NavHostController, key: String) {
     val period = Period.valueOf(periodName)
     val date = LocalDate.ofEpochDay(dateEpoch)
     val profile = app.prefs.profile.also { tick }
-    val data by dbValue(metric, period, date, state.dataVersion, tick) { load(it, metric, period, date, profile) }
+    val data by de.waschbeken.heliolink.ui.cachedDbValue("metric-${metric.key}-$period-$date", state.dataVersion, tick) { load(it, metric, period, date, profile) }
     val startRecording = de.waschbeken.heliolink.ui.record.rememberRecordStarter(nav)
 
     Scaffold(topBar = { BackTopBar(metric.title, onBack = { nav.popBackStack() }) }) { padding ->

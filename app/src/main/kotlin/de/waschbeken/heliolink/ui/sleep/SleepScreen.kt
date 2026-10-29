@@ -132,8 +132,8 @@ fun SleepScreen(nav: NavHostController) {
     val period = Period.valueOf(periodName)
     val date = LocalDate.ofEpochDay(dateEpoch)
     val goal = app.prefs.profile.sleepGoalMinutes
-    val night by dbValue(date, state.dataVersion, period) { if (period == Period.DAY) loadNight(it, date) else null }
-    val range by dbValue(date, state.dataVersion, period) {
+    val night by de.waschbeken.heliolink.ui.cachedDbValue("sleep-night-$date-$period", state.dataVersion) { if (period == Period.DAY) loadNight(it, date) else null }
+    val range by de.waschbeken.heliolink.ui.cachedDbValue("sleep-range-$date-$period", state.dataVersion) {
         val (from, to) = period.range(date)
         RangeData(Queries.nightSummaries(it, from, minOf(to, LocalDate.now()), ZoneId.systemDefault()), period, date)
     }

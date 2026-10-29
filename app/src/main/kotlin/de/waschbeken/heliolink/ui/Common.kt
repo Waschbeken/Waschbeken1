@@ -84,6 +84,24 @@ fun <T> dbValue(vararg keys: Any?, load: (HealthDb) -> T): State<T?> {
     }
 }
 
+/** Last results of [cachedDbValue], so a screen shows its data at once when you come back to it. */
+private val screenCache = HashMap<String, Any?>()
+
+/**
+ * Like [dbValue], but starts with the last result stored under [cacheKey] instead of nothing: going
+ * back to a screen shows the previous values right away while the new ones load in the background.
+ */
+@Composable
+fun <T> cachedDbValue(cacheKey: String, vararg keys: Any?, load: (HealthDb) -> T): State<T?> {
+    val db = LocalContext.current.app.db
+    @Suppress("UNCHECKED_CAST")
+    return produceState(screenCache[cacheKey] as T?, cacheKey, *keys) {
+        val loaded = withContext(Dispatchers.IO) { load(db) }
+        screenCache[cacheKey] = loaded
+        value = loaded
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BackTopBar(title: String, onBack: () -> Unit, subtitle: String? = null, actions: @Composable () -> Unit = {}) {

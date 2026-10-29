@@ -199,7 +199,7 @@ fun DataScreen(nav: NavHostController) {
     val pager = rememberPagerState(initialPage = savedPage) { DataPage.entries.size }
     LaunchedEffect(pager.currentPage) { savedPage = pager.currentPage }
     val scope = rememberCoroutineScope()
-    val data by dbValue(date, state.dataVersion) { loadDay(it, date) }
+    val data by de.waschbeken.heliolink.ui.cachedDbValue("data-$date", state.dataVersion) { loadDay(it, date) }
 
     Scaffold(
         topBar = {

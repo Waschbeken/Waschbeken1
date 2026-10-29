@@ -129,7 +129,7 @@ fun HomeScreen(nav: NavHostController) {
     val profile = remember(tick) { app.prefs.profile }
     val hidden = remember(tick) { app.prefs.hiddenTiles }
     val order = remember(tick) { app.prefs.tileOrder }
-    val data by dbValue(state.dataVersion, tick, state.heartRateAt / 300_000) { HomeData.load(it, profile.stepGoal) }
+    val data by de.waschbeken.heliolink.ui.cachedDbValue("home", state.dataVersion, tick, state.heartRateAt / 300_000) { HomeData.load(it, profile.stepGoal) }
     val controller = app.repo.controller
     val startRecording = de.waschbeken.heliolink.ui.record.rememberRecordStarter(nav)
     val sections = de.waschbeken.heliolink.ui.rememberSections()

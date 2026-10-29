@@ -114,7 +114,7 @@ fun SubstancesSection(dataVersion: Int) {
             now = System.currentTimeMillis() / 1000
         }
     }
-    val data by dbValue(dataVersion, now / 900) { db ->
+    val data by de.waschbeken.heliolink.ui.cachedDbValue("substances", dataVersion, now / 900) { db ->
         val zone = ZoneId.systemDefault()
         val t = System.currentTimeMillis() / 1000
         val intakes = db.events(t - 36 * 3600, t + 60).mapNotNull { e ->
