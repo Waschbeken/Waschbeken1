@@ -1,6 +1,7 @@
 package de.waschbeken.heliolink.data
 
 import android.content.ContentValues
+import de.waschbeken.heliolink.core.RhythmCheck
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
@@ -25,11 +26,13 @@ data class Workout(
     /** What the user did or took (recordings), e.g. "Sitzen", "Koffein". */
     val tags: List<String> = emptyList(),
     val note: String = "",
+    /** Heart rate drop in the first minute after the end (bpm), null if not measured. */
+    val hrr: Int? = null,
 )
 
 data class HrPoint(val timestamp: Long, val bpm: Int)
 
-class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME, null, 6) {
+class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME, null, 7) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -48,6 +51,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         createV4(db)
         createV5(db)
         createV6(db)
+        createV7(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -56,6 +60,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         if (oldVersion < 4) createV4(db)
         if (oldVersion < 5) createV5(db)
         if (oldVersion < 6) createV6(db)
+        if (oldVersion < 7) createV7(db)
     }
 
     /** Version 4: PAI, skin temperature, breathing rate, battery history and alarms. */
@@ -88,6 +93,34 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         db.execSQL("ALTER TABLE workout ADD COLUMN note TEXT")
         db.execSQL("CREATE TABLE IF NOT EXISTS event (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER, tag TEXT, note TEXT)")
         db.execSQL("CREATE INDEX IF NOT EXISTS event_ts ON event (ts)")
+    }
+
+    /** Version 7: heart rhythm checks from the beat intervals while the pulse is streamed, heart rate recovery after workouts. */
+    private fun createV7(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS rhythm (ts INTEGER PRIMARY KEY, beats INTEGER, hr INTEGER, nrmssd INTEGER, irregular INTEGER)")
+        db.execSQL("ALTER TABLE workout ADD COLUMN hrr INTEGER")
+    }
+
+    // ------------------------------------------------------------------ heart rhythm
+
+    data class RhythmRow(val timestamp: Long, val heartRate: Int, val irregular: Boolean)
+
+    fun insertRhythm(ts: Long, w: RhythmCheck.Window) {
+        val cv = ContentValues()
+        cv.put("ts", ts)
+        cv.put("beats", w.beats)
+        cv.put("hr", w.heartRate)
+        cv.put("nrmssd", (w.nRmssd * 1000).toInt())
+        cv.put("irregular", if (w.irregular) 1 else 0)
+        writableDatabase.insertWithOnConflict("rhythm", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    fun rhythm(from: Long, to: Long): List<RhythmRow> {
+        val out = ArrayList<RhythmRow>()
+        readableDatabase.rawQuery("SELECT ts, hr, irregular FROM rhythm WHERE ts >= ? AND ts < ? ORDER BY ts", arrayOf(from.toString(), to.toString())).use { c ->
+            while (c.moveToNext()) out += RhythmRow(c.getLong(0), c.getInt(1), c.getInt(2) == 1)
+        }
+        return out
     }
 
     // ------------------------------------------------------------------ quick entries
@@ -481,7 +514,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         private val VALUE_TABLES = setOf(SPO2, RESTING_HR, HRV, TEMPERATURE, RESPIRATION, BATTERY)
         private val ALL_TABLES = listOf(
             "activity", "stress", "workout", "workout_hr", "sleep_record", SPO2, RESTING_HR, HRV, "hr",
-            "pai", TEMPERATURE, RESPIRATION, BATTERY, "alarm", "sleep_edit", "sleep_tag", "event",
+            "pai", TEMPERATURE, RESPIRATION, BATTERY, "alarm", "sleep_edit", "sleep_tag", "event", "rhythm",
         )
     }
 
@@ -609,6 +642,12 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         writableDatabase.update("workout", cv, "id = ?", arrayOf(w.id.toString()))
     }
 
+    fun setWorkoutHrr(id: Long, drop: Int) {
+        val cv = ContentValues()
+        cv.put("hrr", drop)
+        writableDatabase.update("workout", cv, "id = ?", arrayOf(id.toString()))
+    }
+
     /** What the user did or took during a recording, and a free note. */
     fun setWorkoutNote(id: Long, tags: List<String>, note: String) {
         val cv = ContentValues()
@@ -631,7 +670,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
     fun workouts(): List<Workout> {
         val out = ArrayList<Workout>()
         readableDatabase.rawQuery(
-            "SELECT id, sport, start, end, avg_hr, max_hr, kcal, zones, tags, note FROM workout WHERE end > start ORDER BY start DESC",
+            "SELECT id, sport, start, end, avg_hr, max_hr, kcal, zones, tags, note, hrr FROM workout WHERE end > start ORDER BY start DESC",
             null,
         ).use { c ->
             while (c.moveToNext()) {
@@ -646,6 +685,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
                     zoneSeconds = c.getString(7).split(",").mapNotNull { it.toIntOrNull() },
                     tags = c.getString(8).orEmpty().split(",").filter { it.isNotBlank() },
                     note = c.getString(9).orEmpty(),
+                    hrr = if (c.isNull(10)) null else c.getInt(10),
                 )
             }
         }

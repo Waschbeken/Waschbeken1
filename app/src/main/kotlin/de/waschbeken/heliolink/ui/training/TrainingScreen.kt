@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -138,6 +139,9 @@ fun TrainingScreen(nav: NavHostController) {
     val data by dbValue(state.dataVersion) { load(it) }
     val controller = app.repo.controller
     var sport by remember { mutableStateOf(app.prefs.defaultSport) }
+    var useIntervals by remember { mutableStateOf(false) }
+    var plan by remember { mutableStateOf(de.waschbeken.heliolink.core.IntervalPlan.decode(app.prefs.intervalPlan) ?: de.waschbeken.heliolink.core.IntervalPlan.PRESETS[0]) }
+    val summary by dbValue(state.dataVersion, tick) { loadTrainingSummary(it, profile) }
     val rest = profile.zoneRest(data?.restingHr)
     val sections = de.waschbeken.heliolink.ui.rememberSections()
 
@@ -148,6 +152,7 @@ fun TrainingScreen(nav: NavHostController) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             val live = state.workout
+            state.cooldownUntil?.takeIf { live == null }?.let { until -> item { CooldownCard(until) } }
             if (live != null) {
                 item { LiveWorkoutCard(live, state.heartRate.takeIf { System.currentTimeMillis() - state.heartRateAt < 15_000 }, profile.maxHeartRate, rest, state.connected) { controller?.stopWorkout() } }
             } else {
@@ -162,10 +167,21 @@ fun TrainingScreen(nav: NavHostController) {
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 sports.forEach { (name, _) -> FilterChip(selected = sport == name, onClick = { sport = name }, label = { Text(name) }) }
                             }
-                            Button(onClick = { controller?.startWorkout(sport) }, enabled = state.connected, modifier = Modifier.fillMaxWidth()) {
+                            FilterChip(
+                                selected = useIntervals,
+                                onClick = { useIntervals = !useIntervals },
+                                label = { Text("Intervalle mit Vibration") },
+                                leadingIcon = { Icon(Icons.Default.Timer, contentDescription = null) },
+                            )
+                            if (useIntervals) IntervalChooser(plan) { plan = it }
+                            Button(
+                                onClick = { if (useIntervals) controller?.startIntervals(sport, plan) else controller?.startWorkout(sport) },
+                                enabled = state.connected,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
                                 Icon(Icons.Default.PlayArrow, contentDescription = null)
                                 Spacer(Modifier.width(8.dp))
-                                Text(if (state.connected) "Start" else "Strap nicht verbunden")
+                                Text(if (!state.connected) "Strap nicht verbunden" else if (useIntervals) "Intervalle starten" else "Start")
                             }
                         }
                     }
@@ -181,6 +197,7 @@ fun TrainingScreen(nav: NavHostController) {
                     }
                 }
             }
+            summary?.let { t -> item { TrainingSummaryPanel(t, profile) } }
             data?.let { d ->
                 item { SectionHeader("Aktive Minuten – letzte 7 Tage") }
                 item { Panel { BarChart(d.weekMinutes, Palette.Steps, labels = d.weekLabels, goal = 30f) } }
@@ -281,6 +298,7 @@ private fun LiveWorkoutCard(live: LiveWorkout, bpm: Int?, maxHr: Int, rest: Int?
     Card(colors = CardDefaults.cardColors(containerColor = if (zone >= 0) Palette.zones[zone].copy(alpha = 0.22f) else MaterialTheme.colorScheme.primaryContainer)) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(live.sport, style = MaterialTheme.typography.titleMedium)
+            live.intervals?.let { IntervalPhase(it, now - live.start) }
             Text(formatDuration(now - live.start), fontSize = 44.sp, fontWeight = FontWeight.Bold)
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(bpm?.toString() ?: "–", fontSize = 64.sp, fontWeight = FontWeight.Bold, color = if (zone >= 0) Palette.zones[zone] else Palette.Heart)
@@ -350,6 +368,14 @@ fun WorkoutDetailScreen(nav: NavHostController, id: Long) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     StatTile("Ø Puls", "${w.avgHr} bpm", Modifier.weight(1f), tint = Palette.Heart)
                     StatTile("Max. Puls", "${w.maxHr} bpm", Modifier.weight(1f), tint = Palette.Heart)
+                }
+            }
+            w.hrr?.let { drop ->
+                item {
+                    StatTile(
+                        "Puls-Erholung", recoveryText(drop), Modifier.fillMaxWidth(),
+                        caption = "Abfall in der ersten Minute nach dem Ende – je mehr, desto fitter (über 20 ist gut)",
+                    )
                 }
             }
             item {

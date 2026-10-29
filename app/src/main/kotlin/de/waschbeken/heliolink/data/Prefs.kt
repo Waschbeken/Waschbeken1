@@ -213,6 +213,11 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getBoolean("body_check_notify", true)
         set(v) = edit { putBoolean("body_check_notify", v) }
 
+    /** Time of the newest irregular heart rhythm the user already acknowledged. */
+    var rhythmHintSeen: Long
+        get() = sp.getLong("rhythm_hint_seen", 0)
+        set(v) = edit { putLong("rhythm_hint_seen", v) }
+
     var bodyCheckDay: Long
         get() = sp.getLong("body_check_day", 0)
         set(v) = edit { putLong("body_check_day", v) }
@@ -356,6 +361,11 @@ class Prefs(context: Context) : SyncCursor {
     var defaultSport: String
         get() = sp.getString("default_sport", null) ?: "Laufen"
         set(v) = edit { putString("default_sport", v) }
+
+    /** Last interval plan ("work,rest,rounds"). */
+    var intervalPlan: String?
+        get() = sp.getString("interval_plan", null)
+        set(v) = edit { putString("interval_plan", v) }
 
     /** The strap vibrates during a workout above this heart rate, 0 = off. */
     var workoutHrUpper: Int
