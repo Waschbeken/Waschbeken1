@@ -147,6 +147,16 @@ object Queries {
             .filter { it.asleepMinutes < 4 * 60 && it.asleepMinutes >= tuning.minSleepMinutes.coerceAtMost(15) }
     }
 
+    /** The night (date of its morning) an entry at [ts] belongs to: before 4 am the same morning, otherwise the next. */
+    fun nightOfEvent(ts: Long, zone: ZoneId): LocalDate {
+        val local = Instant.ofEpochSecond(ts).atZone(zone)
+        return if (local.hour < 4) local.toLocalDate() else local.toLocalDate().plusDays(1)
+    }
+
+    /** Quick entries that count for the night ending on [date]. */
+    fun eventsForNight(db: HealthDb, date: LocalDate, zone: ZoneId): List<HealthDb.Event> =
+        db.events(date.minusDays(1).atTime(4, 0).atZone(zone).toEpochSecond(), date.atTime(4, 0).atZone(zone).toEpochSecond())
+
     /** Diary tags offered on the sleep page. */
     val SLEEP_TAGS = listOf("Sport", "Koffein", "Nikotin", "Alkohol", "Stress", "Spät gegessen", "Bildschirm im Bett", "Krank", "Nickerchen", "Lesen", "Spät ins Bett")
 
@@ -156,7 +166,12 @@ object Queries {
     fun tagEffects(db: HealthDb, zone: ZoneId, days: Long = 90): List<TagEffect> {
         val today = LocalDate.now()
         val from = today.minusDays(days)
-        val tags = db.sleepTags(from.toEpochDay(), today.toEpochDay())
+        val tags = HashMap<Long, MutableSet<String>>()
+        db.sleepTags(from.toEpochDay(), today.toEpochDay()).forEach { (day, set) -> tags.getOrPut(day) { HashSet() } += set }
+        // quick entries count for the night that follows them
+        db.events(from.minusDays(1).atStartOfDay(zone).toEpochSecond(), today.plusDays(1).atStartOfDay(zone).toEpochSecond()).forEach { e ->
+            tags.getOrPut(nightOfEvent(e.timestamp, zone).toEpochDay()) { HashSet() } += e.tag
+        }
         if (tags.isEmpty()) return emptyList()
         val nights = nights(db, from, today, zone)
         val out = ArrayList<TagEffect>()

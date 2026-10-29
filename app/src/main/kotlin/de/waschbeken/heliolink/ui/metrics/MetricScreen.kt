@@ -161,6 +161,7 @@ private class MetricData(
     val sleepHr: Pair<Int?, Int?>? = null,
     val workouts: List<Workout> = emptyList(),
     val stages: Map<Long, SleepStage> = emptyMap(),
+    val events: List<Pair<Long, String>> = emptyList(),
 )
 
 private fun zoneLower(profile: UserProfile, rest: Int?) = IntArray(5) { HeartRateZones.lowerBpm(it, profile.maxHeartRate, rest) }
@@ -187,9 +188,10 @@ private fun load(db: HealthDb, metric: Metric, period: Period, date: LocalDate, 
         sleepHr: Pair<Int?, Int?>? = null,
         workouts: List<Workout> = emptyList(),
         stages: Map<Long, SleepStage> = emptyMap(),
+        events: List<Pair<Long, String>> = emptyList(),
     ) = MetricData(
         base.period, base.date, base.from, base.to, base.start, base.end, base.buckets,
-        activity, totals, values, stress, pai, hr, strapResting, restingBaseline, heatmap, sleepHr, workouts, stages,
+        activity, totals, values, stress, pai, hr, strapResting, restingBaseline, heatmap, sleepHr, workouts, stages, events,
     )
     return when (metric) {
         Metric.HEART, Metric.STEPS -> {
@@ -216,6 +218,7 @@ private fun load(db: HealthDb, metric: Metric, period: Period, date: LocalDate, 
                     stages = if (metric == Metric.HEART) {
                         Queries.nights(db, date, date.plusDays(1), zone).values.flatMap { it.stages }.associate { (t, st) -> t / 60 * 60 to st }
                     } else emptyMap(),
+                    events = db.events(start, end).map { it.timestamp to it.tag },
                 )
             } else {
                 copy(
@@ -417,6 +420,7 @@ private fun HeartDay(d: MetricData, profile: UserProfile, live: Int?, onRecord: 
                     Triple(maxP.first, maxP.second, "${maxP.second.toInt()}"),
                 ),
                 strip = minuteStrip(d.activity, d.stages),
+                events = d.events,
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(

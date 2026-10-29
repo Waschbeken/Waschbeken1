@@ -66,6 +66,8 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         private const val NOTIFICATION_UPDATE = Notifications.ID_UPDATE
         private const val ACTION_STOP = "de.waschbeken.heliolink.STOP"
 
+        const val PAUSED_TEXT = "Pausiert – der Strap ist frei für die Zepp-App"
+
         fun start(context: Context) {
             ContextCompat.startForegroundService(context, Intent(context, StrapService::class.java))
         }
@@ -188,6 +190,11 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             stopSelf()
             return
         }
+        if (prefs.connectionPaused) {
+            repo.update { it.copy(link = LinkState.DISCONNECTED, linkDetail = PAUSED_TEXT) }
+            updateNotification()
+            return
+        }
         if (connection == null) {
             connection = StrapConnection(applicationContext, address, key, handler, this)
             handler.removeCallbacks(periodic)
@@ -274,6 +281,23 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             val p = connection?.protocol ?: return@post
             p.findStrap(true)
             handler.postDelayed({ connection?.protocol?.findStrap(false) }, 6_000)
+        }
+    }
+
+    override fun setPaused(paused: Boolean) {
+        handler.post {
+            prefs.connectionPaused = paused
+            if (paused) {
+                connection?.close()
+                connection = null
+                hrStreaming = false
+                repo.update { it.copy(link = LinkState.DISCONNECTED, linkDetail = PAUSED_TEXT, syncing = false, liveHeartRate = false) }
+                repo.log("Verbindung pausiert – der Strap ist frei für die Zepp-App")
+                updateNotification()
+            } else {
+                repo.log("Verbindung fortgesetzt")
+                ensureConnection()
+            }
         }
     }
 
@@ -418,7 +442,8 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
 
     override fun onLinkState(state: LinkState, detail: String?) {
         if (state != LinkState.READY) hrStreaming = false
-        repo.update { it.copy(link = state, linkDetail = detail, syncing = if (state == LinkState.READY) it.syncing else false) }
+        val shown = if (prefs.connectionPaused && state == LinkState.DISCONNECTED) PAUSED_TEXT else detail
+        repo.update { it.copy(link = state, linkDetail = shown, syncing = if (state == LinkState.READY) it.syncing else false) }
         if (detail != null) repo.log(detail)
         if (state == LinkState.READY) {
             updateHeartRateStreaming()

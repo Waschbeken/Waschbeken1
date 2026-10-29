@@ -20,6 +20,13 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- Apps HelioLink opens: Zepp (firmware updates) and Shizuku. -->
+    <queries>
+        <package android:name="com.huami.watch.hmwatchmanager" />
+        <package android:name="com.xiaomi.hm.health" />
+        <package android:name="moe.shizuku.privileged.api" />
+    </queries>
+
     <application
         android:name=".HelioApp"
         android:allowBackup="true"

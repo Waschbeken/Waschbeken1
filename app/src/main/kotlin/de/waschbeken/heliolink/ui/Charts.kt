@@ -276,6 +276,24 @@ private fun nearest(points: List<Pair<Long, Float>>, t: Long, maxDistance: Long)
     return candidates.minByOrNull { kotlin.math.abs(it.first - t) }?.takeIf { kotlin.math.abs(it.first - t) <= maxDistance }
 }
 
+/** Quick entries (caffeine, …) as small flags: a dashed line with the name at the top. */
+private fun DrawScope.eventMarks(m: TextMeasurer, events: List<Pair<Long, String>>, x: (Long) -> Float, from: Long, to: Long, left: Float, right: Float, h: Float, color: Color) {
+    var lastLabelEnd = -1f
+    for ((t, name) in events.sortedBy { it.first }) {
+        if (t < from || t > to) continue
+        val px = x(t)
+        if (px < left || px > right) continue
+        drawLine(color.copy(alpha = 0.7f), Offset(px, 0f), Offset(px, h), 1.5f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f)))
+        drawCircle(color, radius = 3.dp.toPx(), center = Offset(px, 3.dp.toPx()))
+        val layout = m.measure(name, TextStyle(color = color, fontSize = 9.sp, fontWeight = FontWeight.SemiBold))
+        val lx = (px + 4.dp.toPx()).coerceAtMost(right - layout.size.width)
+        if (lx > lastLabelEnd) {
+            drawText(layout, topLeft = Offset(lx, 0f))
+            lastLabelEnd = lx + layout.size.width + 4.dp.toPx()
+        }
+    }
+}
+
 /** Points inside [from]..[to] (plus [margin]); dense data is thinned to the min and max per pixel column. */
 private fun visiblePoints(points: List<Pair<Long, Float>>, from: Long, to: Long, columns: Int, margin: Long): List<Pair<Long, Float>> {
     val sorted = if (points.zipWithNext().all { (a, b) -> a.first <= b.first }) points else points.sortedBy { it.first }
@@ -325,7 +343,10 @@ fun LineChart(
     zoom: TimeZoom? = null,
     /** Unit shown with the values when holding a finger on the chart. */
     unit: String = "",
+    /** Quick entries shown as flags (time, name). */
+    events: List<Pair<Long, String>> = emptyList(),
 ) {
+    val eventColor = MaterialTheme.colorScheme.tertiary
     val m = rememberTextMeasurer()
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val grid = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
@@ -431,6 +452,7 @@ fun LineChart(
             }
         }
         }
+        if (events.isNotEmpty()) eventMarks(m, events, ::x, from, to, left, size.width, h, eventColor)
         inspect.position?.let { p ->
             val t = from + (((p.x - left) / w).coerceIn(0f, 1f) * (to - from)).toLong()
             val maxDistance = maxOf(gapSeconds / 2, ((to - from) / w * 24).toLong(), 60)
@@ -1142,7 +1164,10 @@ fun ActivityChart(
     stages: Map<Long, SleepStage>,
     zoom: TimeZoom,
     modifier: Modifier = Modifier.fillMaxWidth().height(220.dp),
+    /** Quick entries shown as flags (time, name). */
+    events: List<Pair<Long, String>> = emptyList(),
 ) {
+    val eventColor = MaterialTheme.colorScheme.tertiary
     val colors = stateColors()
     val m = rememberTextMeasurer()
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -1207,9 +1232,11 @@ fun ActivityChart(
                 }
             }
         }
+        if (events.isNotEmpty()) eventMarks(m, events, ::x, from, to, 0f, w, h, eventColor)
         inspect.position?.let { p ->
             val t = from + ((p.x / w).coerceIn(0f, 1f) * (to - from)).toLong()
             val minute = t / 60
+            val near = events.filter { kotlin.math.abs(it.first - t) <= maxOf(600L, (to - from) / 40) }
             val stateAt = { mm: Long -> dayState(listOfNotNull(byMinute[mm]), stages) }
             val st = stateAt(minute)
             var a = minute
@@ -1240,6 +1267,7 @@ fun ActivityChart(
                 hr?.let { "Puls ${it.second.toInt()}" },
             )
             if (details.isNotEmpty()) lines += details.joinToString(" · ") to Palette.Heart
+            near.forEach { (et, name) -> lines += "$name · ${timeText(et, 86400)}" to eventColor }
             tooltip(m, lines, x(t), tipBg)
         }
         val visible = visiblePoints(heartRate, from, to, w.toInt(), 600)

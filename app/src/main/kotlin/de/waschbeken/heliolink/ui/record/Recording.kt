@@ -200,6 +200,10 @@ fun RecordingScreen(nav: NavHostController) {
                 }
             }
             item {
+                val saved by dbValue(live.id) { it.workoutNote(live.id) }
+                saved?.let { (tags, note) -> de.waschbeken.heliolink.ui.events.RecordingNotes(live.id, tags, note) }
+            }
+            item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     StatTile("Ø Puls", "${live.avgHr}", Modifier.weight(1f))
                     StatTile("Max", "${live.maxHr}", Modifier.weight(1f))
