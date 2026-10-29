@@ -9,7 +9,8 @@ aber ganz auf einen Strap ohne Display zugeschnitten.
 | Bereich | Funktionen |
 |---|---|
 | **Heute** | Begrüßung, Erholungswert (aus Schlaf, Ruhepuls, HRV und Stress), Kacheln für Schritte, Schlaf, Ruhepuls, Stress, SpO₂, HRV, PAI, Hauttemperatur, Atemfrequenz und Akku – jede mit Mini-Verlauf, antippen öffnet die Detailansicht. Live-Puls mit Zone, Ziel-Serie in Tagen |
-| **Details** | Jede Messgröße als Tag, Woche oder Monat: Kurven, Balken, Min/Max, Durchschnitt und Vergleich zum eigenen Normalwert |
+| **Details** | Jede Messgröße als Tag, Woche, Monat, 3 Monate, 6 Monate, 1 Jahr oder 3 Jahre (ab 3 Monaten pro Woche, ab 1 Jahr pro Monat): Kurven, Balken, Min/Max, Trend und Vergleich zum eigenen Normalwert |
+| **Puls** | Aktueller Puls groß, Verlauf mit farbigen Zonenflächen und markiertem Tiefst-/Höchstwert, Ruhepuls im Vergleich zu deinem Schnitt, Puls im Schlaf, Zeit in Zonen mit bpm-Bereichen, Stundenverlauf, Verteilung, Trainings des Tages. Über längere Zeit: Ruhepuls-Trend, Spanne, intensive Minuten, Rekorde |
 | **Schlaf** | Hypnogramm (Wach/REM/Leicht/Tief), Score, Phasen in Minuten und Prozent, Einschlaf- und Aufwachzeit, Wachphasen, Puls/SpO₂/HRV/Atmung/Temperatur in der Nacht. Nickerchen am Tag. Woche und Monat mit gestapelten Balken, Regelmäßigkeit, Schlafdefizit und Liste der Nächte |
 | **Schlaf korrigieren** | Stift oben rechts oder Hypnogramm antippen: Einschlaf-/Aufwachzeit ändern, Phase eines Abschnitts oder eines Zeitraums ändern, Schlaf selbst eintragen, „Das war kein Schlaf“. Morgens fragt die App „Stimmt deine Nacht?“. Aus deinen Korrekturen schlägt sie eine Kalibrierung für alle Nächte vor |
 | **Schlaf-Tagebuch** | Pro Nacht Sport, Koffein, Alkohol, Stress … markieren; Woche/Monat zeigt, wie sich das auf Score und Schlafdauer auswirkt |
@@ -46,7 +47,7 @@ sie beim nächsten Start einen Bericht zum Kopieren.
 | **Training & Zonen** | Max. Puls (mit Vorschlag, wenn ein Training höher ging), Ruhepuls, Zonen nach % HFmax oder Karvonen, Standard-Sportart, Strap vibriert über/unter einer Pulsgrenze |
 | **Synchronisierung** | Automatischer Abruf, Zeitraum beim ersten Abruf, Verlauf neu laden, Schlafphasen-Suche mit Stand und Zurücksetzen |
 | **App-Updates** | Automatisch prüfen, Vorabversionen, **Shizuku** (Status, Erlaubnis, Installieren ohne Nachfrage, im Hintergrund installieren), Update-Quelle |
-| **Daten & Sicherung** | Export als Zip mit CSV (speichern oder teilen, Zeitraum wählbar, inkl. `schlaf_naechte.csv` und `schlaf_phasen.csv` mit deinen Korrekturen), Sicherung erstellen/wiederherstellen, Gadgetbridge-Import, Protokoll anzeigen/kopieren |
+| **Daten & Sicherung** | Automatische Sicherung (täglich, alle 3 Tage oder wöchentlich und vor jedem Update) nach Downloads/HelioLink oder in einen gewählten Ordner, die letzten 3–30 bleiben; Export als Zip mit CSV (speichern oder teilen, Zeitraum wählbar, inkl. `schlaf_naechte.csv` und `schlaf_phasen.csv` mit deinen Korrekturen), Sicherung erstellen/wiederherstellen, Gadgetbridge-Import, Protokoll anzeigen/kopieren |
 
 Strap-Einstellungen werden direkt auf dem Strap gespeichert. Die App prüft danach, ob der Strap sie
 übernommen hat, und zeigt sonst „Vom Strap nicht übernommen“ an.

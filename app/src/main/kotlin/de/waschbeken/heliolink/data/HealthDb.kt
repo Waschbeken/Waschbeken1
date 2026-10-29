@@ -469,6 +469,43 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         }
     }
 
+    /** Totals of the minute values per hour – for long periods instead of millions of rows. */
+    class HourTotals(
+        val hour: Long, // epoch seconds of the hour
+        val steps: Int,
+        val hrMin: Int,
+        val hrMax: Int,
+        val hrSum: Long,
+        val hrCount: Int,
+        val activeMinutes: Int,
+        /** Minutes per heart rate zone 1–5. */
+        val zones: IntArray,
+    )
+
+    /** [zoneLower]: lower bpm of zones 1–5. */
+    fun hourTotals(from: Long, to: Long, zoneLower: IntArray): List<HourTotals> {
+        val z = zoneLower
+        val zoneSql = (0 until 5).joinToString(", ") { i ->
+            if (i < 4) "SUM(CASE WHEN hr >= ${z[i]} AND hr < ${z[i + 1]} THEN 1 ELSE 0 END)" else "SUM(CASE WHEN hr >= ${z[i]} THEN 1 ELSE 0 END)"
+        }
+        val sql = "SELECT ts / 3600, SUM(steps), MIN(CASE WHEN hr > 0 THEN hr END), MAX(CASE WHEN hr > 0 THEN hr END), " +
+            "SUM(CASE WHEN hr > 0 THEN hr ELSE 0 END), SUM(CASE WHEN hr > 0 THEN 1 ELSE 0 END), " +
+            "SUM(CASE WHEN steps >= 30 OR (kind != ${ActivitySample.KIND_SLEEP} AND intensity >= 40) THEN 1 ELSE 0 END), $zoneSql " +
+            "FROM activity WHERE ts >= ? AND ts < ? GROUP BY ts / 3600 ORDER BY 1"
+        val out = ArrayList<HourTotals>()
+        readableDatabase.rawQuery(sql, arrayOf(from.toString(), to.toString())).use { c ->
+            while (c.moveToNext()) {
+                out += HourTotals(
+                    c.getLong(0) * 3600, c.getInt(1),
+                    if (c.isNull(2)) 0 else c.getInt(2), if (c.isNull(3)) 0 else c.getInt(3),
+                    c.getLong(4), c.getInt(5), c.getInt(6),
+                    IntArray(5) { c.getInt(7 + it) },
+                )
+            }
+        }
+        return out
+    }
+
     fun activity(from: Long, to: Long): List<ActivitySample> {
         val out = ArrayList<ActivitySample>()
         readableDatabase.rawQuery(

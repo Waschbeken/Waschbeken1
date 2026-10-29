@@ -33,6 +33,7 @@ class HelioApp : Application() {
                 prefs.notifiedUpdateVersion = ""
             },
             useShizuku = { prefs.shizukuInstall },
+            beforeInstall = { if (prefs.autoBackupBeforeUpdate) de.waschbeken.heliolink.data.AutoBackup.run(this) },
         )
     }
 }

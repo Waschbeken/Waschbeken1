@@ -2,6 +2,8 @@ package de.waschbeken.heliolink.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,9 +26,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -43,6 +43,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import de.waschbeken.heliolink.app
+import de.waschbeken.heliolink.core.Bucket
+import de.waschbeken.heliolink.core.Buckets
+import de.waschbeken.heliolink.core.Granularity
 import de.waschbeken.heliolink.data.HealthDb
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -241,21 +244,45 @@ fun EmptyState(icon: ImageVector, title: String, message: String, modifier: Modi
     }
 }
 
-/** Day, week or month view of a chart. */
-enum class Period(val label: String) {
-    DAY("Tag"), WEEK("Woche"), MONTH("Monat");
+/** Day, week or month view of a chart, or a long view over several months ([months] > 0). */
+enum class Period(val label: String, val months: Int = 0) {
+    DAY("Tag"), WEEK("Woche"), MONTH("Monat"),
+    MONTHS3("3 Monate", 3), MONTHS6("6 Monate", 6), YEAR("1 Jahr", 12), YEARS3("3 Jahre", 36);
+
+    /** More than a month: charts show weeks or months instead of days. */
+    val long get() = months > 0
+
+    val granularity: Granularity
+        get() = when (this) {
+            DAY, WEEK, MONTH -> Granularity.DAY
+            MONTHS3, MONTHS6 -> Granularity.WEEK
+            YEAR, YEARS3 -> Granularity.MONTH
+        }
 
     fun range(date: LocalDate): Pair<LocalDate, LocalDate> = when (this) {
         DAY -> date to date
         WEEK -> date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).let { it to it.plusDays(6) }
         MONTH -> date.withDayOfMonth(1).let { it to it.plusMonths(1).minusDays(1) }
+        else -> date.withDayOfMonth(1).let { it.minusMonths(months - 1L) to it.plusMonths(1).minusDays(1) }
     }
 
     fun shift(date: LocalDate, by: Long): LocalDate = when (this) {
         DAY -> date.plusDays(by)
         WEEK -> date.plusWeeks(by)
         MONTH -> date.plusMonths(by)
+        else -> date.plusMonths(by * months)
     }
+
+    /** Buckets (bars) of the period around [date]. */
+    fun buckets(date: LocalDate): List<Bucket> = range(date).let { (from, to) -> Buckets.of(from, to, granularity, weekdays = this == WEEK) }
+
+    /** What one bar stands for, e.g. "pro Woche". */
+    val perBar: String
+        get() = when (granularity) {
+            Granularity.DAY -> "pro Tag"
+            Granularity.WEEK -> "pro Woche (Ø je Tag)"
+            Granularity.MONTH -> "pro Monat (Ø je Tag)"
+        }
 
     fun label(date: LocalDate): String {
         val today = LocalDate.now()
@@ -270,19 +297,32 @@ enum class Period(val label: String) {
                 if (today in from..to) "Diese Woche" else "${from.format(DateTimeFormatter.ofPattern("d. MMM", German))} – ${to.format(DateTimeFormatter.ofPattern("d. MMM", German))}"
             }
             MONTH -> date.format(DateTimeFormatter.ofPattern("MMMM yyyy", German))
+            else -> {
+                val (from, to) = range(date)
+                if (today in from..to) {
+                    when (this) {
+                        YEAR -> "Letzte 12 Monate"
+                        YEARS3 -> "Letzte 3 Jahre"
+                        else -> "Letzte $label"
+                    }
+                } else {
+                    val f = DateTimeFormatter.ofPattern("MMM yyyy", German)
+                    "${from.format(f)} – ${to.format(f)}"
+                }
+            }
         }
     }
 }
 
+/** Chips for all periods; they scroll sideways on small screens. */
 @Composable
 fun PeriodSelector(period: Period, onChange: (Period) -> Unit, modifier: Modifier = Modifier) {
-    SingleChoiceSegmentedButtonRow(modifier.fillMaxWidth()) {
-        Period.entries.forEachIndexed { i, p ->
-            SegmentedButton(
-                selected = period == p,
-                onClick = { onChange(p) },
-                shape = SegmentedButtonDefaults.itemShape(i, Period.entries.size),
-            ) { Text(p.label) }
+    Row(
+        modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Period.entries.forEach { p ->
+            FilterChip(selected = period == p, onClick = { onChange(p) }, label = { Text(p.label) })
         }
     }
 }

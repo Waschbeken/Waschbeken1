@@ -160,6 +160,7 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         AppVisibility.inForeground = true
+        if (configured) de.waschbeken.heliolink.data.AutoBackup.runIfDueInBackground(this)
     }
 
     override fun onStop() {

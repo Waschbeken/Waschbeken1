@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 sealed interface UpdateState {
@@ -34,6 +35,8 @@ class AppUpdater(
     private val skipped: () -> String,
     private val skip: (String) -> Unit,
     private val useShizuku: () -> Boolean = { false },
+    /** Runs on a background thread right before an update is installed (automatic backup). */
+    private val beforeInstall: () -> Unit = {},
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -92,6 +95,13 @@ class AppUpdater(
     }
 
     fun install(apk: File) {
+        scope.launch {
+            withContext(Dispatchers.IO) { runCatching { beforeInstall() } }
+            installNow(apk)
+        }
+    }
+
+    private fun installNow(apk: File) {
         if (useShizuku() && ShizukuInstaller.status() == ShizukuInstaller.Status.READY) {
             val info = (_state.value as? UpdateState.Ready)?.info
             scope.launch {
@@ -139,6 +149,7 @@ class AppUpdater(
         return try {
             val apk = manager.download(info) {}
             if (manager.sameSignature(apk) == false) return false
+            withContext(Dispatchers.IO) { runCatching { beforeInstall() } }
             ShizukuInstaller.install(manager.context, apk)
             true
         } catch (e: CancellationException) {

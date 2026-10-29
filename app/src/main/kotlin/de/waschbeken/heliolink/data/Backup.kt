@@ -85,6 +85,11 @@ class Backup(private val context: Context, private val prefs: Prefs, private val
     /** Everything needed to set up the app again: database and settings (incl. auth key). */
     fun createBackup(uri: Uri) {
         val out = context.contentResolver.openOutputStream(uri) ?: throw BackupException("Datei lässt sich nicht schreiben")
+        createBackup(out)
+    }
+
+    /** Writes the backup to [out] and closes it. */
+    fun createBackup(out: java.io.OutputStream) {
         ZipOutputStream(out.buffered()).use { zip ->
             zip.putNextEntry(ZipEntry("heliolink-backup.json"))
             val meta = JSONObject()

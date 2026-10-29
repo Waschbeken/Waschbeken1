@@ -136,6 +136,40 @@ class Prefs(context: Context) : SyncCursor {
         sleepIgnoreAwake, sleepMaxGap, sleepMinMinutes, sleepOnsetDelay, sleepWakeEarlier,
     )
 
+    // --- automatic backup
+
+    /** Days between automatic backups, 0 = off. */
+    var autoBackupDays: Int
+        get() = sp.getInt("auto_backup_days", 1)
+        set(v) = edit { putInt("auto_backup_days", v) }
+
+    /** How many automatic backups are kept. */
+    var autoBackupKeep: Int
+        get() = sp.getInt("auto_backup_keep", 7)
+        set(v) = edit { putInt("auto_backup_keep", v) }
+
+    /** Folder (document tree) chosen for automatic backups, null = Downloads/HelioLink. */
+    var autoBackupTree: String?
+        get() = sp.getString("auto_backup_tree", null)
+        set(v) = edit { if (v == null) remove("auto_backup_tree") else putString("auto_backup_tree", v) }
+
+    var autoBackupBeforeUpdate: Boolean
+        get() = sp.getBoolean("auto_backup_update", true)
+        set(v) = edit { putBoolean("auto_backup_update", v) }
+
+    var lastAutoBackup: Long
+        get() = sp.getLong("last_auto_backup", 0)
+        set(v) = edit { putLong("last_auto_backup", v) }
+
+    /** Where the last automatic backup went, or the error of the last attempt. */
+    var lastAutoBackupInfo: String
+        get() = sp.getString("last_auto_backup_info", "").orEmpty()
+        set(v) = edit { putString("last_auto_backup_info", v) }
+
+    var lastAutoBackupFailed: Boolean
+        get() = sp.getBoolean("last_auto_backup_failed", false)
+        set(v) = edit { putBoolean("last_auto_backup_failed", v) }
+
     // --- notifications
 
     /** Battery level at which a warning is shown, 0 = off. */

@@ -96,10 +96,15 @@ fun LineChart(
     maxY: Float? = null,
     bands: List<Pair<Float, Color>> = emptyList(),
     format: (Float) -> String = { it.toInt().toString() },
+    /** Colored areas between two values, e.g. heart rate zones (from, to, color). */
+    areas: List<Triple<Float, Float, Color>> = emptyList(),
+    /** Highlighted points with a short text, e.g. the minimum and maximum. */
+    markers: List<Triple<Long, Float, String>> = emptyList(),
 ) {
     val m = rememberTextMeasurer()
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val grid = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+    val markerColor = MaterialTheme.colorScheme.onSurface
     Canvas(modifier) {
         if (to <= from) return@Canvas
         val values = series.flatMap { s -> s.points.map { it.second } }
@@ -117,6 +122,11 @@ fun LineChart(
         fun x(t: Long) = left + (t - from).toFloat() / (to - from) * w
         fun y(v: Float) = h - (v - lo) / (hi - lo) * h
 
+        for ((a, b, c) in areas) {
+            val top = y(minOf(b, hi))
+            val bottom = y(maxOf(a, lo))
+            if (bottom > top) drawRect(c.copy(alpha = 0.10f), Offset(left, top), Size(w, bottom - top))
+        }
         var v = lo
         while (v <= hi + step / 2) {
             drawLine(grid, Offset(left, y(v)), Offset(size.width, y(v)), 1f)
@@ -166,6 +176,69 @@ fun LineChart(
             }
             drawPath(path, s.color, style = Stroke(width = s.width, cap = StrokeCap.Round))
         }
+        for ((t, value, text) in markers) {
+            if (t < from || t > to) continue
+            val c = Offset(x(t), y(value))
+            drawCircle(markerColor, radius = 4.dp.toPx(), center = c)
+            drawCircle(Color.White, radius = 2.dp.toPx(), center = c)
+            val above = c.y > 18.dp.toPx()
+            label(m, text, c.x, if (above) c.y - 17.dp.toPx() else c.y + 5.dp.toPx(), markerColor, center = true)
+        }
+    }
+}
+
+/**
+ * Line over buckets (e.g. resting heart rate per week); null values leave a gap. [baseline] draws a
+ * dashed reference line (e.g. your average).
+ */
+@Composable
+fun TrendChart(
+    values: List<Float?>,
+    labels: List<String>,
+    color: Color,
+    modifier: Modifier = Modifier.fillMaxWidth().height(160.dp),
+    baseline: Float? = null,
+    format: (Float) -> String = { it.toInt().toString() },
+) {
+    val m = rememberTextMeasurer()
+    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val grid = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+    Canvas(modifier) {
+        val known = values.filterNotNull() + listOfNotNull(baseline)
+        if (known.isEmpty()) return@Canvas
+        var lo = known.min()
+        var hi = known.max()
+        if (hi - lo < 1e-3f) { lo -= 1; hi += 1 }
+        val step = niceStep(hi - lo)
+        lo = floor(lo / step) * step
+        hi = ceil(hi / step) * step
+        val labelH = 16.dp.toPx()
+        val left = m.measure(format(hi), TextStyle(fontSize = 10.sp)).size.width + 6.dp.toPx()
+        val h = size.height - labelH
+        val w = size.width - left
+        val slot = w / values.size.coerceAtLeast(1)
+        fun x(i: Int) = left + i * slot + slot / 2
+        fun y(v: Float) = h - (v - lo) / (hi - lo) * h
+        var v = lo
+        while (v <= hi + step / 2) {
+            drawLine(grid, Offset(left, y(v)), Offset(size.width, y(v)), 1f)
+            label(m, format(v), left - 4.dp.toPx(), y(v) - 7.dp.toPx(), labelColor, alignRight = true)
+            v += step
+        }
+        if (baseline != null) {
+            drawLine(color.copy(alpha = 0.6f), Offset(left, y(baseline)), Offset(size.width, y(baseline)), 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f)))
+        }
+        val path = Path()
+        var open = false
+        values.forEachIndexed { i, value ->
+            if (value == null) { open = false; return@forEachIndexed }
+            if (!open) path.moveTo(x(i), y(value)) else path.lineTo(x(i), y(value))
+            open = true
+        }
+        drawPath(path, color, style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round))
+        val dot = (slot * 0.18f).coerceIn(2.dp.toPx(), 4.dp.toPx())
+        values.forEachIndexed { i, value -> if (value != null) drawCircle(color, radius = dot, center = Offset(x(i), y(value))) }
+        labels.forEachIndexed { i, text -> if (text.isNotEmpty()) label(m, text, x(i), h + 2.dp.toPx(), labelColor, center = true) }
     }
 }
 
