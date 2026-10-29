@@ -225,6 +225,7 @@ fun HomeScreen(nav: NavHostController) {
                 }
             }
             item { de.waschbeken.heliolink.ui.events.QuickEntryCard(state.dataVersion) }
+            item { de.waschbeken.heliolink.ui.tools.HelperCard(nav) }
             if (d != null) {
                 item { SectionHeader("Heute im Überblick") }
                 item { TileGrid(d, state, profile.stepGoal, hidden, order, nav) }

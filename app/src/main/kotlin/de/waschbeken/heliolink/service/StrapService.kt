@@ -445,12 +445,56 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         }
     }
 
-    /** Lets the strap vibrate [count] times for [onMs] each. */
-    private fun buzz(count: Int, onMs: Long) {
+    override fun buzz(count: Int, onMs: Long) {
         for (i in 0 until count) {
             val at = i * (onMs + 450)
             handler.postDelayed({ connection?.protocol?.findStrap(true) }, at)
             handler.postDelayed({ connection?.protocol?.findStrap(false) }, at + onMs)
+        }
+    }
+
+    private var lastFocusPhase: IntervalPlan.Phase? = null
+
+    override fun startFocus(plan: IntervalPlan) {
+        handler.post {
+            repo.update { it.copy(focus = System.currentTimeMillis() / 1000 to plan) }
+            prefs.focusPlan = plan.encode()
+            lastFocusPhase = null
+            handler.removeCallbacks(focusTick)
+            handler.post(focusTick)
+            updateNotification()
+        }
+    }
+
+    override fun stopFocus() {
+        handler.post {
+            handler.removeCallbacks(focusTick)
+            repo.update { it.copy(focus = null) }
+            updateNotification()
+        }
+    }
+
+    /** Focus timer: 2× short at each focus time, 1× long at each break, 3× when done. */
+    private val focusTick = object : Runnable {
+        override fun run() {
+            val (start, plan) = repo.state.value.focus ?: return
+            val phase = plan.phaseAt(System.currentTimeMillis() / 1000 - start)
+            val before = lastFocusPhase
+            if (phase == null) {
+                buzz(3, 400)
+                repo.update { it.copy(focus = null) }
+                Notifications.show(
+                    this@StrapService, Notifications.ID_FOCUS, Notifications.CHANNEL_HEALTH, "Fokus-Timer fertig",
+                    "${plan.rounds}× ${plan.workSeconds / 60} min geschafft.",
+                )
+                updateNotification()
+                return
+            }
+            if (before == null || before.work != phase.work || before.round != phase.round) {
+                if (phase.work) buzz(2, 450) else buzz(1, 1_300)
+            }
+            lastFocusPhase = phase
+            handler.postDelayed(this, 1_000)
         }
     }
 
@@ -690,6 +734,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         collectMinuteHrv(now / 1000, event.rrIntervalsMs)
         collectRhythm(now, event.bpm, event.rrIntervalsMs)
         checkCooldown(now / 1000, event.bpm)
+        if (event.rrIntervalsMs.isNotEmpty()) repo.beats.tryEmit(event.rrIntervalsMs)
         val hrv = rmssd(rrBuffer)
         repo.update { it.copy(heartRate = event.bpm, heartRateAt = now, hrv = hrv ?: it.hrv) }
 
@@ -835,12 +880,31 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         )
     }
 
+    /** In the morning (until 11:00), when there is no HRV value of today yet: reminds of the 1-minute measurement. */
+    private fun hrvReminder() {
+        val today = LocalDate.now()
+        val hour = LocalTime.now().hour
+        if (!prefs.hrvReminder || prefs.hrvReminderDay == today.toEpochDay() || hour < 5 || hour >= 11) return
+        val zone = ZoneId.systemDefault()
+        val night = de.waschbeken.heliolink.data.Queries.night(db, today, zone) ?: return
+        if (night.end > System.currentTimeMillis() / 1000 - 10 * 60) return // probably still in bed
+        if (db.values(HealthDb.HRV, today.atTime(4, 0).atZone(zone).toEpochSecond(), System.currentTimeMillis() / 1000 + 60).isNotEmpty()) return
+        prefs.hrvReminderDay = today.toEpochDay()
+        Notifications.show(
+            this, Notifications.ID_HRV_REMINDER, Notifications.CHANNEL_HEALTH,
+            "Zeit für deine HRV-Messung", "1 Minute ruhig liegen oder sitzen – tippen zum Starten.",
+            de.waschbeken.heliolink.ui.MainActivity.openIntent(this, de.waschbeken.heliolink.ui.Routes.TOOLS_HRV),
+        )
+    }
+
     /** Morning summary after the first successful sync of the day. */
     private fun afterSync() {
         de.waschbeken.heliolink.data.AutoBackup.runIfDueInBackground(this)
         weeklySummary()
         try {
             bodyCheckWarning()
+            StressPrompt.check(this, db, prefs, repo.state.value.workout != null)
+            hrvReminder()
         } catch (e: Exception) {
             de.waschbeken.heliolink.data.CrashReporter.nonFatal(this, e)
         }

@@ -57,6 +57,8 @@ data class StrapUiState(
     val firmware: String? = null,
     val serial: String? = null,
     val workout: LiveWorkout? = null,
+    /** Focus timer (focus = effort, break = rest of the plan) and when it started, epoch seconds. */
+    val focus: Pair<Long, de.waschbeken.heliolink.core.IntervalPlan>? = null,
     /** After a workout the pulse keeps being measured until then (epoch seconds) for the heart rate recovery. */
     val cooldownUntil: Long? = null,
     val dataVersion: Int = 0,
@@ -84,6 +86,11 @@ interface StrapController {
     /** Pauses the connection so another app (Zepp, e.g. for a firmware update) can use the strap. */
     fun setPaused(paused: Boolean)
     fun stopWorkout()
+    /** Lets the strap vibrate [count] times for [onMs] milliseconds each. */
+    fun buzz(count: Int, onMs: Long)
+    /** Focus timer: the strap vibrates at the start of each focus time and each break. */
+    fun startFocus(plan: de.waschbeken.heliolink.core.IntervalPlan)
+    fun stopFocus()
     fun reconnect()
     fun shutdown()
 }
@@ -103,4 +110,7 @@ class StrapRepository(prefs: Prefs) {
     }
 
     fun dataChanged() = _state.update { it.copy(dataVersion = it.dataVersion + 1) }
+
+    /** Beat intervals (ms) as the strap sends them while the pulse is streamed, for measurements on screen. */
+    val beats = kotlinx.coroutines.flow.MutableSharedFlow<List<Int>>(extraBufferCapacity = 256)
 }

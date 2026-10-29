@@ -26,6 +26,11 @@
         <package android:name="com.huami.watch.hmwatchmanager" />
         <package android:name="com.xiaomi.hm.health" />
         <package android:name="moe.shizuku.privileged.api" />
+        <!-- Apps to pick for "vibrate on the arm". -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
     </queries>
 
     <application
@@ -65,6 +70,22 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+
+        <!-- Calls and messages of chosen apps let the strap vibrate (only the sender app is looked at). -->
+        <service
+            android:name=".service.ArmNotificationListener"
+            android:exported="true"
+            android:label="HelioLink: Am Arm vibrieren"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Answers from the "Was war los?" stress notification. -->
+        <receiver
+            android:name=".service.StressAnswerReceiver"
+            android:exported="false" />
 
         <!-- Starts the connection after a reboot and after an update of the app. -->
         <receiver

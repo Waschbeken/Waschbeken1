@@ -25,6 +25,9 @@ object Notifications {
     const val ID_INSTALLED = 8
     const val ID_WEEKLY = 9
     const val ID_BODY_CHECK = 10
+    const val ID_FOCUS = 11
+    const val ID_STRESS = 12
+    const val ID_HRV_REMINDER = 13
 
     fun createChannels(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return

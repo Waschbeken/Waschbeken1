@@ -264,6 +264,11 @@ internal fun NotificationsPage() {
         "Wenn Hauttemperatur, Ruhepuls, HRV und Atmung nachts zusammen deutlich von deinem Normalwert abweichen",
         prefs.bodyCheckNotify,
     ) { prefs.bodyCheckNotify = it }
+    SwitchSetting(
+        "Stress-Momente",
+        "Nach längerem hohem Stress (ohne Sport) fragt HelioLink „Was war los?“ – höchstens 3× am Tag, nicht nachts",
+        prefs.stressPrompt,
+    ) { prefs.stressPrompt = it }
 
     SettingsHeader("System")
     SettingRow("Android-Benachrichtigungen", "Töne, Wichtigkeit und Kanäle in den Systemeinstellungen") {

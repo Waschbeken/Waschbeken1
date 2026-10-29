@@ -135,16 +135,22 @@ fun TrainingSummaryPanel(t: TrainingSummary, profile: UserProfile) {
 /** Interval choice in the start card. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun IntervalChooser(plan: IntervalPlan, onChange: (IntervalPlan) -> Unit) {
+fun IntervalChooser(
+    plan: IntervalPlan,
+    presets: List<IntervalPlan> = IntervalPlan.PRESETS,
+    showHint: Boolean = true,
+    onChange: (IntervalPlan) -> Unit,
+) {
     var custom by remember { mutableStateOf(false) }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        (IntervalPlan.PRESETS + listOf(plan).filter { it !in IntervalPlan.PRESETS }).forEach { p ->
+        (presets + listOf(plan).filter { it !in presets }).forEach { p ->
             FilterChip(selected = p == plan, onClick = { onChange(p) }, label = { Text(p.label) })
         }
         AssistChip(onClick = { custom = true }, label = { Text("Eigene …") })
     }
     Text(
-        "Gesamt ${formatDuration(plan.totalSeconds.toLong())}. Der Strap vibriert: 2× kurz = los, 1× lang = Pause, 3× = fertig.",
+        "Gesamt ${formatDuration(plan.totalSeconds.toLong())}." +
+            if (showHint) " Der Strap vibriert: 2× kurz = los, 1× lang = Pause, 3× = fertig." else "",
         style = MaterialTheme.typography.bodySmall,
     )
     if (custom) {
@@ -181,7 +187,7 @@ fun IntervalChooser(plan: IntervalPlan, onChange: (IntervalPlan) -> Unit) {
 
 /** Big effort/rest display during interval training. */
 @Composable
-fun IntervalPhase(plan: IntervalPlan, elapsed: Long) {
+fun IntervalPhase(plan: IntervalPlan, elapsed: Long, workLabel: String = "BELASTUNG") {
     val phase = plan.phaseAt(elapsed)
     val color = when {
         phase == null -> MaterialTheme.colorScheme.primary
@@ -192,7 +198,7 @@ fun IntervalPhase(plan: IntervalPlan, elapsed: Long) {
         Text(
             when {
                 phase == null -> "FERTIG"
-                phase.work -> "BELASTUNG"
+                phase.work -> workLabel
                 else -> "PAUSE"
             },
             fontSize = 32.sp, fontWeight = FontWeight.Black, color = color,

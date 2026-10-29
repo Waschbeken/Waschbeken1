@@ -362,6 +362,58 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getString("default_sport", null) ?: "Laufen"
         set(v) = edit { putString("default_sport", v) }
 
+    /** Last focus timer ("focus,break,rounds" in seconds). */
+    var focusPlan: String?
+        get() = sp.getString("focus_plan", null)
+        set(v) = edit { putString("focus_plan", v) }
+
+    /** Breathing exercise: minutes and whether the strap gives the pace. */
+    var breatheMinutes: Int
+        get() = sp.getInt("breathe_minutes", 5)
+        set(v) = edit { putInt("breathe_minutes", v) }
+
+    var breatheBuzz: Boolean
+        get() = sp.getBoolean("breathe_buzz", false)
+        set(v) = edit { putBoolean("breathe_buzz", v) }
+
+    /** Remind of the HRV measurement in the morning (after the first sync, until 11:00). */
+    var hrvReminder: Boolean
+        get() = sp.getBoolean("hrv_reminder", false)
+        set(v) = edit { putBoolean("hrv_reminder", v) }
+
+    var hrvReminderDay: Long
+        get() = sp.getLong("hrv_reminder_day", 0)
+        set(v) = edit { putLong("hrv_reminder_day", v) }
+
+    // --- strap vibrates for notifications
+
+    var armNotify: Boolean
+        get() = sp.getBoolean("arm_notify", false)
+        set(v) = edit { putBoolean("arm_notify", v) }
+
+    var armCalls: Boolean
+        get() = sp.getBoolean("arm_calls", true)
+        set(v) = edit { putBoolean("arm_calls", v) }
+
+    /** Apps whose notifications let the strap vibrate. */
+    var armApps: Set<String>
+        get() = sp.getStringSet("arm_apps", emptySet()).orEmpty()
+        set(v) = edit { putStringSet("arm_apps", v) }
+
+    /** Ask "Was war los?" after a longer stretch of high stress. */
+    var stressPrompt: Boolean
+        get() = sp.getBoolean("stress_prompt", true)
+        set(v) = edit { putBoolean("stress_prompt", v) }
+
+    /** End of the last stress stretch the app asked about (epoch seconds) and how often it asked today. */
+    var stressPromptLast: Long
+        get() = sp.getLong("stress_prompt_last", 0)
+        set(v) = edit { putLong("stress_prompt_last", v) }
+
+    var stressPromptToday: String
+        get() = sp.getString("stress_prompt_today", "").orEmpty()
+        set(v) = edit { putString("stress_prompt_today", v) }
+
     /** Last interval plan ("work,rest,rounds"). */
     var intervalPlan: String?
         get() = sp.getString("interval_plan", null)
