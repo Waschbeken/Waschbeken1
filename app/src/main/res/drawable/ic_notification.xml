@@ -1,13 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="2"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000"
-        android:pathData="M2,12h4l3,-7l5,14l3,-9l2,2h3" />
+    android:viewportWidth="66"
+    android:viewportHeight="66">
+    <!-- The launcher logo (ring + pulse) as a small white status bar icon. -->
+    <group
+        android:translateX="-21"
+        android:translateY="-21">
+        <path
+            android:pathData="M33.6,45.76A22,22 0,0 1,74.4 45.76M74.4,62.24A22,22 0,0 1,33.6 62.24"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="7.5"
+            android:strokeLineCap="round" />
+        <path
+            android:pathData="M24,54H41l4,-10l6,21l5,-15l3,4H84"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="5.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
 </vector>

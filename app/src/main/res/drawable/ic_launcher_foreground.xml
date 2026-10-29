@@ -1,22 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- strap band -->
-    <path
-        android:fillColor="#FF2B3440"
-        android:pathData="M24,46h60a8,8 0,0 1,8 8v0a8,8 0,0 1,-8 8h-60a8,8 0,0 1,-8 -8v0a8,8 0,0 1,8 -8z" />
-    <!-- sensor pod -->
-    <path
-        android:fillColor="#FFFF6B4A"
-        android:pathData="M42,38h24a8,8 0,0 1,8 8v16a8,8 0,0 1,-8 8h-24a8,8 0,0 1,-8 -8v-16a8,8 0,0 1,8 -8z" />
-    <!-- pulse line -->
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="3"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000"
-        android:pathData="M38,54h8l3,-7l5,14l4,-10l2,3h10" />
+    <!-- The strap as a ring, open left and right where the pulse runs through. Inside the 66dp safe zone. -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.86"
+        android:scaleY="0.86">
+        <path
+            android:pathData="M33.6,45.76A22,22 0,0 1,74.4 45.76M74.4,62.24A22,22 0,0 1,33.6 62.24"
+            android:strokeWidth="7"
+            android:strokeLineCap="round">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="36"
+                    android:startY="30"
+                    android:endX="72"
+                    android:endY="78">
+                    <item android:offset="0" android:color="#FFFFB224" />
+                    <item android:offset="0.5" android:color="#FFF0435A" />
+                    <item android:offset="1" android:color="#FF8E5CF0" />
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path
+            android:pathData="M24,54H41l4,-10l6,21l5,-15l3,4H84"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeWidth="4.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
 </vector>
