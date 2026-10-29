@@ -37,6 +37,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import de.waschbeken.heliolink.core.minuteRmssd
 import de.waschbeken.heliolink.core.rmssd
 import de.waschbeken.heliolink.data.HealthDb
 import de.waschbeken.heliolink.data.Workout
@@ -544,11 +545,29 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         }
     }
 
+    private var hrvMinute = 0L
+    private val hrvRr = ArrayList<Int>()
+
+    /**
+     * HRV during the day: whenever the strap streams the heart rate with beat intervals (live view,
+     * recording, workout), the RMSSD of every full minute is saved – the strap itself only measures at night.
+     */
+    private fun collectMinuteHrv(second: Long, rr: List<Int>) {
+        val minute = second / 60
+        if (minute != hrvMinute) {
+            if (hrvMinute > 0) minuteRmssd(hrvRr)?.let { db.insertValues(HealthDb.HRV, listOf(ValueSample(hrvMinute * 60, it))) }
+            hrvMinute = minute
+            hrvRr.clear()
+        }
+        hrvRr.addAll(rr)
+    }
+
     private fun onHeartRate(event: StrapEvent.HeartRate) {
         if (event.bpm <= 0) return
         val now = System.currentTimeMillis()
         rrBuffer.addAll(event.rrIntervalsMs)
         while (rrBuffer.size > 60) rrBuffer.removeAt(0)
+        collectMinuteHrv(now / 1000, event.rrIntervalsMs)
         val hrv = rmssd(rrBuffer)
         repo.update { it.copy(heartRate = event.bpm, heartRateAt = now, hrv = hrv ?: it.hrv) }
 

@@ -8,12 +8,16 @@ import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -32,12 +36,15 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.sp
 import de.waschbeken.heliolink.core.ActivitySample
 import de.waschbeken.heliolink.core.SleepStage
@@ -46,6 +53,8 @@ import java.time.ZoneId
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
+import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 
 /** One line of a [LineChart]: points as (epoch seconds, value). */
 class Series(val points: List<Pair<Long, Float>>, val color: Color, val fill: Boolean = false, val width: Float = 2.5f)
@@ -167,6 +176,101 @@ fun Modifier.timeZoom(z: TimeZoom): Modifier = this
         detectTapGestures(onDoubleTap = { o -> if (z.zoomed) z.reset() else z.zoom(4f, (o.x / size.width).coerceIn(0f, 1f)) })
     }
 
+/** Where a finger is held on a chart (long press); stays a few seconds after letting go. */
+@Stable
+class InspectState {
+    var position by mutableStateOf<Offset?>(null)
+    var holding by mutableStateOf(false)
+}
+
+@Composable
+fun rememberInspect(): InspectState {
+    val s = remember { InspectState() }
+    LaunchedEffect(s.holding, s.position) {
+        if (!s.holding && s.position != null) {
+            delay(4_000)
+            s.position = null
+        }
+    }
+    return s
+}
+
+/**
+ * Long press and hold to inspect: the position follows the finger. Taps and scrolling are left to
+ * the page; after a long press the gesture is used up so a surrounding card does not react.
+ */
+fun Modifier.holdToInspect(s: InspectState): Modifier = pointerInput(s) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        val endedEarly = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+            var stop = false
+            while (!stop) {
+                val e = awaitPointerEvent()
+                val c = e.changes.firstOrNull { it.id == down.id }
+                stop = c == null || !c.pressed || c.isConsumed || e.changes.count { it.pressed } > 1 ||
+                    (c.position - down.position).getDistance() > viewConfiguration.touchSlop
+            }
+            true
+        }
+        if (endedEarly != null) return@awaitEachGesture
+        s.holding = true
+        s.position = down.position
+        try {
+            while (true) {
+                val e = awaitPointerEvent()
+                e.changes.forEach { it.consume() }
+                val c = e.changes.firstOrNull { it.id == down.id } ?: break
+                if (!c.pressed) break
+                s.position = c.position
+            }
+        } finally {
+            s.holding = false
+        }
+    }
+}
+
+/** A small dark box with text lines (first line is the heading), placed above [x]. */
+private fun DrawScope.tooltip(m: TextMeasurer, lines: List<Pair<String, Color>>, x: Float, bg: Color, top: Float = 0f) {
+    if (lines.isEmpty()) return
+    val layouts = lines.mapIndexed { i, (t, c) ->
+        m.measure(t, TextStyle(color = c, fontSize = if (i == 0) 11.sp else 12.sp, fontWeight = if (i == 0) FontWeight.Normal else FontWeight.SemiBold))
+    }
+    val pad = 6.dp.toPx()
+    val w = layouts.maxOf { it.size.width } + pad * 2
+    val h = layouts.sumOf { it.size.height } + pad * 2
+    val left = (x - w / 2).coerceIn(0f, max(0f, size.width - w))
+    drawRoundRect(bg, Offset(left, top), Size(w, h), CornerRadius(8.dp.toPx(), 8.dp.toPx()))
+    var y = top + pad
+    layouts.forEach {
+        drawText(it, topLeft = Offset(left + pad, y))
+        y += it.size.height
+    }
+}
+
+private fun timeText(t: Long, span: Long): String {
+    val local = Instant.ofEpochSecond(t).atZone(ZoneId.systemDefault())
+    return if (span < 2 * 3600) "%02d:%02d:%02d".format(local.hour, local.minute, local.second) else "%02d:%02d".format(local.hour, local.minute)
+}
+
+/** "45 min" or "2 h 05 min". */
+fun spanText(seconds: Long): String {
+    val m = (seconds + 30) / 60
+    return if (m >= 60) "%d h %02d min".format(m / 60, m % 60) else "$m min"
+}
+
+/** The point closest to [t] in a list sorted by time, if not further away than [maxDistance]. */
+private fun nearest(points: List<Pair<Long, Float>>, t: Long, maxDistance: Long): Pair<Long, Float>? {
+    if (points.isEmpty()) return null
+    var lo = 0
+    var hi = points.size - 1
+    while (lo < hi) {
+        val mid = (lo + hi) / 2
+        if (points[mid].first < t) lo = mid + 1 else hi = mid
+    }
+    val candidates = listOfNotNull(points.getOrNull(lo), points.getOrNull(lo - 1))
+    return candidates.minByOrNull { kotlin.math.abs(it.first - t) }?.takeIf { kotlin.math.abs(it.first - t) <= maxDistance }
+}
+
 /** Points inside [from]..[to] (plus [margin]); dense data is thinned to the min and max per pixel column. */
 private fun visiblePoints(points: List<Pair<Long, Float>>, from: Long, to: Long, columns: Int, margin: Long): List<Pair<Long, Float>> {
     val sorted = if (points.zipWithNext().all { (a, b) -> a.first <= b.first }) points else points.sortedBy { it.first }
@@ -212,12 +316,24 @@ fun LineChart(
     markers: List<Triple<Long, Float, String>> = emptyList(),
     /** Colored band under the chart, one color per minute (see [minuteStrip]). */
     strip: List<Pair<Long, Color>> = emptyList(),
+    /** Makes the chart zoomable; [from] and [to] are then taken from it. */
+    zoom: TimeZoom? = null,
+    /** Unit shown with the values when holding a finger on the chart. */
+    unit: String = "",
 ) {
     val m = rememberTextMeasurer()
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val grid = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
     val markerColor = MaterialTheme.colorScheme.onSurface
-    Canvas(modifier) {
+    val tipBg = MaterialTheme.colorScheme.inverseSurface
+    val tipFg = MaterialTheme.colorScheme.inverseOnSurface
+    val inspect = rememberInspect()
+    val gestures = (if (zoom != null) Modifier.timeZoom(zoom) else Modifier).holdToInspect(inspect)
+    val fixedFrom = from
+    val fixedTo = to
+    Canvas(modifier.then(gestures)) {
+        val from = zoom?.start ?: fixedFrom
+        val to = zoom?.end ?: fixedTo
         if (to <= from) return@Canvas
         val values = series.flatMap { s -> s.points.filter { it.first in from..to }.map { it.second } }
             .ifEmpty { series.flatMap { s -> s.points.map { it.second } } }
@@ -299,9 +415,33 @@ fun LineChart(
             }
             drawPath(path, s.color, style = Stroke(width = s.width, cap = StrokeCap.Round))
         }
+        // zoomed in far enough: write the values next to the points, like Gadgetbridge
+        val visibleRaw = series.sumOf { sr -> sr.points.count { it.first in from..to } }
+        if (visibleRaw in 1..(w / 30.dp.toPx()).toInt()) {
+            for (sr in series) {
+                for ((t, value) in sr.points) {
+                    if (t !in from..to) continue
+                    drawCircle(sr.color, radius = 2.5.dp.toPx(), center = Offset(x(t), y(value)))
+                    label(m, format(value), x(t), y(value) - 15.dp.toPx(), sr.color, center = true)
+                }
+            }
+        }
+        }
+        inspect.position?.let { p ->
+            val t = from + (((p.x - left) / w).coerceIn(0f, 1f) * (to - from)).toLong()
+            val maxDistance = maxOf(gapSeconds / 2, ((to - from) / w * 24).toLong(), 60)
+            val hits = series.mapNotNull { sr -> nearest(sr.points, t, maxDistance)?.let { sr to it } }
+            val at = hits.firstOrNull()?.second?.first ?: t
+            drawLine(markerColor.copy(alpha = 0.6f), Offset(x(at), 0f), Offset(x(at), h), 1.5f)
+            hits.forEach { (sr, pt) -> drawCircle(sr.color, radius = 5.dp.toPx(), center = Offset(x(pt.first), y(pt.second))) }
+            tooltip(
+                m,
+                listOf(timeText(at, to - from) to tipFg) + hits.map { (sr, pt) -> (format(pt.second) + if (unit.isNotEmpty()) " $unit" else "") to sr.color },
+                x(at), tipBg,
+            )
         }
         for ((t, value, text) in markers) {
-            if (t < from || t > to) continue
+            if (inspect.position != null || t < from || t > to) continue
             val c = Offset(x(t), y(value))
             drawCircle(markerColor, radius = 4.dp.toPx(), center = c)
             drawCircle(Color.White, radius = 2.dp.toPx(), center = c)
@@ -323,11 +463,16 @@ fun TrendChart(
     modifier: Modifier = Modifier.fillMaxWidth().height(160.dp),
     baseline: Float? = null,
     format: (Float) -> String = { it.toInt().toString() },
+    /** Heading when holding a finger on entry i (e.g. the week). */
+    tooltip: ((Int) -> String)? = null,
 ) {
     val m = rememberTextMeasurer()
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val grid = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-    Canvas(modifier) {
+    val tipBg = MaterialTheme.colorScheme.inverseSurface
+    val tipFg = MaterialTheme.colorScheme.inverseOnSurface
+    val inspect = rememberInspect()
+    Canvas(modifier.holdToInspect(inspect)) {
         val known = values.filterNotNull() + listOfNotNull(baseline)
         if (known.isEmpty()) return@Canvas
         var lo = known.min()
@@ -363,6 +508,15 @@ fun TrendChart(
         val dot = (slot * 0.18f).coerceIn(2.dp.toPx(), 4.dp.toPx())
         values.forEachIndexed { i, value -> if (value != null) drawCircle(color, radius = dot, center = Offset(x(i), y(value))) }
         labels.forEachIndexed { i, text -> if (text.isNotEmpty()) label(m, text, x(i), h + 2.dp.toPx(), labelColor, center = true) }
+        if (values.size <= (w / 34.dp.toPx()).toInt() && inspect.position == null) {
+            values.forEachIndexed { i, value -> if (value != null) label(m, format(value), x(i), y(value) - 16.dp.toPx(), color, center = true) }
+        }
+        inspect.position?.let { p ->
+            val i = ((p.x - left) / slot).toInt().coerceIn(0, values.lastIndex)
+            drawLine(labelColor.copy(alpha = 0.5f), Offset(x(i), 0f), Offset(x(i), h), 1.5f)
+            val head = tooltip?.invoke(i) ?: labels.getOrNull(i).orEmpty()
+            tooltip(m, listOfNotNull(head.takeIf { it.isNotBlank() }?.let { it to tipFg }, (values[i]?.let { format(it) } ?: "keine Werte") to color), x(i), tipBg)
+        }
     }
 }
 
@@ -393,12 +547,17 @@ fun BarChart(
     goal: Float? = null,
     highlight: Int? = null,
     format: (Float) -> String = { it.toInt().fmt() },
+    /** Text when holding a finger on bar i; defaults to its label and value. */
+    tooltip: ((Int) -> String)? = null,
 ) {
     val m = rememberTextMeasurer()
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val track = MaterialTheme.colorScheme.surfaceContainerHighest
     val goalColor = MaterialTheme.colorScheme.primary
-    Canvas(modifier) {
+    val tipBg = MaterialTheme.colorScheme.inverseSurface
+    val tipFg = MaterialTheme.colorScheme.inverseOnSurface
+    val inspect = rememberInspect()
+    Canvas(modifier.holdToInspect(inspect)) {
         if (values.isEmpty()) return@Canvas
         val max = maxOf(values.maxOrNull() ?: 0f, goal ?: 0f).takeIf { it > 0 } ?: 1f
         val labelH = if (labels.isEmpty()) 0f else 16.dp.toPx()
@@ -426,9 +585,18 @@ fun BarChart(
             drawLine(goalColor, Offset(0f, gy), Offset(size.width, gy), 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f)))
             label(m, "Ziel ${format(goal)}", size.width, gy - 14.dp.toPx(), goalColor, alignRight = true)
         }
-        highlight?.let { i ->
-            val v = values.getOrNull(i) ?: return@let
-            if (v > 0) label(m, format(v), i * slot + slot / 2, topLabel + h - v / max * h - 14.dp.toPx(), labelColor, center = true)
+        val selected = inspect.position?.let { p -> (p.x / slot).toInt().coerceIn(0, values.lastIndex) }
+        val wide = slot >= 30.dp.toPx()
+        values.forEachIndexed { i, v ->
+            if (v > 0 && (i == highlight || (wide && selected == null))) {
+                label(m, format(v), i * slot + slot / 2, topLabel + h - v / max * h - 14.dp.toPx(), labelColor, center = true)
+            }
+        }
+        if (selected != null) {
+            val cx = selected * slot + slot / 2
+            drawLine(labelColor.copy(alpha = 0.5f), Offset(cx, topLabel), Offset(cx, topLabel + h), 1.5f)
+            val text = tooltip?.invoke(selected) ?: listOfNotNull(labels.getOrNull(selected)?.takeIf { it.isNotBlank() }, format(values[selected])).joinToString(" · ")
+            tooltip(m, listOf(text to tipFg), cx, tipBg)
         }
     }
 }
@@ -441,12 +609,17 @@ fun StackedBarChart(
     modifier: Modifier = Modifier.fillMaxWidth().height(160.dp),
     goal: Float? = null,
     format: (Float) -> String = { it.toInt().toString() },
+    /** Lines shown when holding a finger on stack i. */
+    tooltip: ((Int) -> List<String>)? = null,
 ) {
     val m = rememberTextMeasurer()
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val track = MaterialTheme.colorScheme.surfaceContainerHighest
     val goalColor = MaterialTheme.colorScheme.primary
-    Canvas(modifier) {
+    val tipBg = MaterialTheme.colorScheme.inverseSurface
+    val tipFg = MaterialTheme.colorScheme.inverseOnSurface
+    val inspect = rememberInspect()
+    Canvas(modifier.holdToInspect(inspect)) {
         if (stacks.isEmpty()) return@Canvas
         val max = maxOf(stacks.maxOf { s -> s.sumOf { it.first.toDouble() }.toFloat() }, goal ?: 0f).takeIf { it > 0 } ?: 1f
         val labelH = 16.dp.toPx()
@@ -471,6 +644,13 @@ fun StackedBarChart(
             drawLine(goalColor, Offset(0f, gy), Offset(size.width, gy), 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f)))
             label(m, "Ziel ${format(goal)}", size.width, gy - 14.dp.toPx(), goalColor, alignRight = true)
         }
+        inspect.position?.let { p ->
+            val i = (p.x / slot).toInt().coerceIn(0, stacks.lastIndex)
+            val cx = i * slot + slot / 2
+            drawLine(labelColor.copy(alpha = 0.5f), Offset(cx, top), Offset(cx, top + h), 1.5f)
+            val lines = tooltip?.invoke(i) ?: listOf(format(stacks[i].sumOf { it.first.toDouble() }.toFloat()))
+            tooltip(m, lines.mapIndexed { n, l -> l to tipFg }, cx, tipBg)
+        }
     }
 }
 
@@ -481,11 +661,16 @@ fun RangeChart(
     labels: List<String>,
     color: Color,
     modifier: Modifier = Modifier.fillMaxWidth().height(160.dp),
+    /** Heading when holding a finger on entry i (e.g. the date); values are added. */
+    tooltip: ((Int) -> String)? = null,
 ) {
     val m = rememberTextMeasurer()
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val grid = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-    Canvas(modifier) {
+    val tipBg = MaterialTheme.colorScheme.inverseSurface
+    val tipFg = MaterialTheme.colorScheme.inverseOnSurface
+    val inspect = rememberInspect()
+    Canvas(modifier.holdToInspect(inspect)) {
         val all = ranges.flatMap { listOfNotNull(it.first, it.third) }
         if (all.isEmpty()) return@Canvas
         val step = niceStep(all.max() - all.min())
@@ -512,19 +697,49 @@ fun RangeChart(
             if (avg != null) drawCircle(color, radius = bw * 0.6f, center = Offset(cx, y(avg)))
             labels.getOrNull(i)?.takeIf { it.isNotEmpty() }?.let { label(m, it, cx, h + 2.dp.toPx(), labelColor, center = true) }
         }
+        inspect.position?.let { p ->
+            val i = ((p.x - left) / slot).toInt().coerceIn(0, ranges.lastIndex)
+            val (mn, avg, mx) = ranges[i]
+            val cx = left + i * slot + slot / 2
+            drawLine(labelColor.copy(alpha = 0.5f), Offset(cx, 0f), Offset(cx, h), 1.5f)
+            val head = tooltip?.invoke(i) ?: labels.getOrNull(i).orEmpty()
+            val body = if (mn == null || mx == null) "keine Werte" else "${mn.toInt()}–${mx.toInt()}" + (avg?.let { " · Ø ${it.roundToInt()}" } ?: "")
+            tooltip(m, listOfNotNull(head.takeIf { it.isNotBlank() }?.let { it to tipFg }, body to color), cx, tipBg)
+        }
     }
 }
 
-/** Sleep stages over time as steps (deep at the bottom), like the sleep charts of Gadgetbridge and Zepp. */
+/**
+ * Sleep stages over time as steps (deep at the bottom), like the sleep charts of Gadgetbridge and Zepp.
+ * Zoom with two fingers or a double tap; hold a finger on it to see the stage with start, end and length.
+ */
 @Composable
 fun Hypnogram(stages: List<Pair<Long, SleepStage>>, modifier: Modifier = Modifier.fillMaxWidth().height(170.dp)) {
     val m = rememberTextMeasurer()
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val grid = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-    Canvas(modifier) {
-        if (stages.isEmpty()) return@Canvas
-        val from = stages.first().first
-        val to = stages.last().first + 60
+    val tipBg = MaterialTheme.colorScheme.inverseSurface
+    val tipFg = MaterialTheme.colorScheme.inverseOnSurface
+    val sorted = remember(stages) { stages.sortedBy { it.first } }
+    val nightFrom = sorted.firstOrNull()?.first ?: 0L
+    val nightTo = (sorted.lastOrNull()?.first ?: 0L) + 60
+    val zoom = rememberTimeZoom(nightFrom, nightTo, minSpan = 900)
+    val inspect = rememberInspect()
+    // runs of the same stage: (start, end, stage)
+    val runs = remember(sorted) {
+        val out = ArrayList<Triple<Long, Long, SleepStage>>()
+        for ((t, st) in sorted) {
+            val last = out.lastOrNull()
+            if (last != null && last.third == st && t - last.second <= 60) out[out.lastIndex] = Triple(last.first, t + 60, st)
+            else out += Triple(t, t + 60, st)
+        }
+        out
+    }
+    Canvas(modifier.timeZoom(zoom).holdToInspect(inspect)) {
+        if (sorted.isEmpty()) return@Canvas
+        val from = zoom.start
+        val to = zoom.end
+        if (to <= from) return@Canvas
         val rows = listOf(SleepStage.AWAKE, SleepStage.REM, SleepStage.LIGHT, SleepStage.DEEP)
         val left = rows.maxOf { m.measure(stageName(it), TextStyle(fontSize = 10.sp)).size.width } + 8.dp.toPx()
         val axisH = 18.dp.toPx()
@@ -536,32 +751,47 @@ fun Hypnogram(stages: List<Pair<Long, SleepStage>>, modifier: Modifier = Modifie
             label(m, stageName(s), 0f, i * rowH + rowH / 2 - 7.dp.toPx(), Palette.stage(s))
             drawLine(grid, Offset(left, i * rowH + rowH / 2), Offset(size.width, i * rowH + rowH / 2), 1f)
         }
-        var runStart = 0
-        var prevCenter: Offset? = null
-        for (i in 1..stages.size) {
-            if (i == stages.size || stages[i].second != stages[runStart].second) {
-                val s = stages[runStart].second
-                val row = rows.indexOf(s)
-                val x0 = x(stages[runStart].first)
-                val x1 = x(stages[i - 1].first + 60)
+        clipRect(left, 0f, size.width, h) {
+            var prevCenter: Offset? = null
+            for ((a, b, st) in runs) {
+                if (b < from || a > to) { prevCenter = null; continue }
+                val row = rows.indexOf(st)
+                val x0 = x(a)
+                val x1 = x(b)
                 val top = row * rowH + rowH * 0.18f
                 val bh = rowH * 0.64f
-                prevCenter?.let { p ->
-                    drawLine(labelColor.copy(alpha = 0.25f), Offset(x0, p.y), Offset(x0, top + bh / 2), 1.5f)
+                prevCenter?.let { p -> drawLine(labelColor.copy(alpha = 0.25f), Offset(x0, p.y), Offset(x0, top + bh / 2), 1.5f) }
+                drawRoundRect(Palette.stage(st), Offset(x0, top), Size((x1 - x0).coerceAtLeast(2f), bh), CornerRadius(6f, 6f))
+                // zoomed in: the length is written into the bar
+                val text = spanText(b - a)
+                val tw = m.measure(text, TextStyle(fontSize = 10.sp)).size.width
+                if (x1 - x0 > tw + 8.dp.toPx() && zoom.zoomed) {
+                    label(m, text, (x0 + x1) / 2, top + bh / 2 - 7.dp.toPx(), Color.White, center = true)
                 }
-                drawRoundRect(Palette.stage(s), Offset(x0, top), Size((x1 - x0).coerceAtLeast(2f), bh), CornerRadius(6f, 6f))
                 prevCenter = Offset(x1, top + bh / 2)
-                runStart = i
             }
         }
         timeAxis(m, from, to, left, w, h + 3.dp.toPx(), labelColor)
+        inspect.position?.let { p ->
+            val t = from + (((p.x - left) / w).coerceIn(0f, 1f) * (to - from)).toLong()
+            val run = runs.firstOrNull { t >= it.first && t < it.second } ?: runs.minByOrNull { minOf(kotlin.math.abs(it.first - t), kotlin.math.abs(it.second - t)) }
+            if (run != null) {
+                val (a, b, st) = run
+                val row = rows.indexOf(st)
+                drawRoundRect(
+                    labelColor, Offset(x(a), row * rowH + rowH * 0.12f), Size((x(b) - x(a)).coerceAtLeast(2f), rowH * 0.76f),
+                    CornerRadius(7f, 7f), style = Stroke(2.dp.toPx()),
+                )
+                tooltip(
+                    m,
+                    listOf(stageName(st) to tipFg, "${timeText(a, 86400)} – ${timeText(b, 86400)}" to tipFg, spanText(b - a) to Palette.stage(st)),
+                    (x(a) + x(b)) / 2, tipBg,
+                )
+            }
+        }
     }
 }
 
-/**
- * Overview of a day like Gadgetbridge's activity chart: bars every 5 minutes coloured by what
- * happened (sleep stage, movement, not worn), the height is the movement; the line is the heart rate.
- */
 @Composable
 fun DayChart(
     samples: List<ActivitySample>,
@@ -710,6 +940,18 @@ fun dayState(samples: List<ActivitySample>, stages: Map<Long, SleepStage>): DayS
     }
 }
 
+fun dayStateName(s: DayState): String = when (s) {
+    DayState.NO_DATA -> "Keine Daten"
+    DayState.NOT_WORN -> "Nicht getragen"
+    DayState.IDLE -> "Ruhig"
+    DayState.LIGHT -> "Leicht aktiv"
+    DayState.ACTIVE -> "Aktiv"
+    DayState.AWAKE -> "Wach im Bett"
+    DayState.SLEEP_LIGHT -> "Leichter Schlaf"
+    DayState.SLEEP_DEEP -> "Tiefschlaf"
+    DayState.SLEEP_REM -> "REM-Schlaf"
+}
+
 @Composable
 fun dayStateColor(s: DayState): Color = when (s) {
     DayState.NO_DATA -> Color.Transparent
@@ -759,17 +1001,34 @@ fun DayClock(
         val byBucket = samples.filter { it.timestamp >= dayStart && it.timestamp < dayStart + 86400 }.groupBy { ((it.timestamp - dayStart) / 300).toInt() }
         Array(288) { i -> dayState(byBucket[i].orEmpty(), stages) }
     }
-    Box(modifier, contentAlignment = Alignment.Center) {
+    val inspect = rememberInspect()
+    var boxSize by remember { mutableStateOf(IntSize.Zero) }
+    // the touched run of equal 5-minute segments: (first, last, state)
+    val run = inspect.position?.let { p ->
+        val angle = (Math.toDegrees(kotlin.math.atan2((p.y - boxSize.height / 2f).toDouble(), (p.x - boxSize.width / 2f).toDouble())) + 90 + 360) % 360
+        val i = (angle / 360 * 288).toInt().coerceIn(0, 287)
+        val st = segments[i]
+        var a = i
+        var b = i
+        while (a > 0 && segments[a - 1] == st) a--
+        while (b < 287 && segments[b + 1] == st) b++
+        Triple(a, b, st)
+    }
+    Box(modifier.onSizeChanged { boxSize = it }.holdToInspect(inspect), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val stroke = size.minDimension * 0.11f
-            val inset = stroke / 2 + 2.dp.toPx()
+            val inset = stroke / 2 + 4.dp.toPx()
             val arcSize = Size(size.minDimension - inset * 2, size.minDimension - inset * 2)
             val topLeft = Offset((size.width - arcSize.width) / 2, (size.height - arcSize.height) / 2)
             drawArc(track, 0f, 360f, false, topLeft, arcSize, style = Stroke(stroke))
             val sweep = 360f / 288
             segments.forEachIndexed { i, st ->
                 if (st == DayState.NO_DATA) return@forEachIndexed
-                drawArc(colors.getValue(st), -90f + i * sweep, sweep + 0.4f, false, topLeft, arcSize, style = Stroke(stroke))
+                val inRun = run != null && i in run.first..run.second
+                drawArc(
+                    colors.getValue(st).let { if (run != null && !inRun) it.copy(alpha = it.alpha * 0.35f) else it },
+                    -90f + i * sweep, sweep + 0.4f, false, topLeft, arcSize, style = Stroke(if (inRun) stroke * 1.35f else stroke),
+                )
             }
             val c = Offset(size.width / 2, size.height / 2)
             val rInner = arcSize.width / 2 - stroke / 2 - 4.dp.toPx()
@@ -779,7 +1038,7 @@ fun DayClock(
                 val p1 = Offset(c.x + (rInner * kotlin.math.cos(a)).toFloat(), c.y + (rInner * kotlin.math.sin(a)).toFloat())
                 val p2 = Offset(c.x + ((rInner - len) * kotlin.math.cos(a)).toFloat(), c.y + ((rInner - len) * kotlin.math.sin(a)).toFloat())
                 drawLine(tick.copy(alpha = 0.6f), p1, p2, 1.5f)
-                if (h % 6 == 0) {
+                if (h % 6 == 0 && run == null) {
                     val layout = m.measure("$h", TextStyle(color = tick, fontSize = 10.sp))
                     val rl = rInner - len - 9.dp.toPx()
                     val lp = Offset(c.x + (rl * kotlin.math.cos(a)).toFloat() - layout.size.width / 2, c.y + (rl * kotlin.math.sin(a)).toFloat() - layout.size.height / 2)
@@ -795,7 +1054,16 @@ fun DayClock(
                 drawCircle(track, radius = stroke * 0.25f, center = p)
             }
         }
-        center()
+        if (run == null) {
+            center()
+        } else {
+            val (a, b, st) = run
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(dayStateName(st), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                Text("${timeText(dayStart + a * 300L, 86400)}–${timeText(dayStart + (b + 1) * 300L, 86400)}", style = MaterialTheme.typography.labelSmall)
+                Text(spanText((b + 1 - a) * 300L), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+            }
+        }
     }
 }
 
@@ -818,7 +1086,11 @@ fun ActivityChart(
     val grid = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
     val byMinute = remember(samples) { samples.associateBy { it.timestamp / 60 } }
     val maxIntensity = remember(samples) { (samples.filter { !it.isSleep && !it.notWorn }.maxOfOrNull { it.intensity } ?: 0).coerceAtLeast(40) }
-    Canvas(modifier.timeZoom(zoom)) {
+    val inspect = rememberInspect()
+    val tipBg = MaterialTheme.colorScheme.inverseSurface
+    val tipFg = MaterialTheme.colorScheme.inverseOnSurface
+    val cursorColor = MaterialTheme.colorScheme.onSurface
+    Canvas(modifier.timeZoom(zoom).holdToInspect(inspect)) {
         val from = zoom.start
         val to = zoom.end
         if (to <= from) return@Canvas
@@ -866,7 +1138,46 @@ fun ActivityChart(
                     last = ts
                 }
                 drawPath(path, Palette.Heart, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
+                val raw = heartRate.count { it.first in from..to }
+                if (raw in 1..(w / 30.dp.toPx()).toInt() && inspect.position == null) {
+                    for ((ts, v) in heartRate) if (ts in from..to) label(m, "${v.toInt()}", x(ts), y(v) - 15.dp.toPx(), Palette.Heart, center = true)
+                }
             }
+        }
+        inspect.position?.let { p ->
+            val t = from + ((p.x / w).coerceIn(0f, 1f) * (to - from)).toLong()
+            val minute = t / 60
+            val stateAt = { mm: Long -> dayState(listOfNotNull(byMinute[mm]), stages) }
+            val st = stateAt(minute)
+            var a = minute
+            var b = minute
+            if (st != DayState.NO_DATA) {
+                while (a - 1 > minute - 1440 && stateAt(a - 1) == st) a--
+                while (b + 1 < minute + 1440 && stateAt(b + 1) == st) b++
+            }
+            drawLine(cursorColor.copy(alpha = 0.6f), Offset(x(t), 0f), Offset(x(t), h), 1.5f)
+            val sample = byMinute[minute]
+            val hr = nearest(heartRate, t, 300)
+            hr?.let { (ts, v) ->
+                val visibleHr = visiblePoints(heartRate, from, to, w.toInt(), 600)
+                if (visibleHr.isNotEmpty()) {
+                    val lo = (visibleHr.minOf { it.second } - 5f).coerceAtLeast(0f)
+                    val hi = visibleHr.maxOf { it.second } + 5f
+                    drawCircle(Palette.Heart, radius = 5.dp.toPx(), center = Offset(x(ts), h - (v - lo) / (hi - lo) * h))
+                }
+            }
+            val lines = ArrayList<Pair<String, Color>>()
+            lines += timeText(t, 86400) to tipFg
+            if (st != DayState.NO_DATA) {
+                lines += dayStateName(st) to colors.getValue(st).copy(alpha = 1f).let { if (st == DayState.IDLE) tipFg else it }
+                lines += "${timeText(a * 60, 86400)} – ${timeText((b + 1) * 60, 86400)} · ${spanText((b + 1 - a) * 60)}" to tipFg
+            }
+            val details = listOfNotNull(
+                sample?.steps?.takeIf { it > 0 }?.let { "$it Schritte" },
+                hr?.let { "Puls ${it.second.toInt()}" },
+            )
+            if (details.isNotEmpty()) lines += details.joinToString(" · ") to Palette.Heart
+            tooltip(m, lines, x(t), tipBg)
         }
         val visible = visiblePoints(heartRate, from, to, w.toInt(), 600)
         if (visible.isNotEmpty()) {

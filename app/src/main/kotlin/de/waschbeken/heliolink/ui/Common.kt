@@ -371,3 +371,62 @@ fun scoreColor(score: Int) = when {
     score >= 60 -> Color(0xFFF59E0B)
     else -> Color(0xFFE5484D)
 }
+
+/** "Mo 27. Okt", "20.–26. Okt", "Oktober 2026" – for tooltips of week and month charts. */
+fun Bucket.describe(): String {
+    val day = DateTimeFormatter.ofPattern("EEE d. MMM", German)
+    val dm = DateTimeFormatter.ofPattern("d. MMM", German)
+    return when {
+        from == to -> from.format(day)
+        from.dayOfMonth == 1 && to == from.plusMonths(1).minusDays(1) -> from.format(DateTimeFormatter.ofPattern("MMMM yyyy", German))
+        from.month == to.month -> "${from.dayOfMonth}.–${to.format(dm)}"
+        else -> "${from.format(dm)} – ${to.format(dm)}"
+    }
+}
+
+/** Which collapsible lists are open; remembered in the settings. */
+class SectionStates(private val prefs: de.waschbeken.heliolink.data.Prefs) {
+    private val map = androidx.compose.runtime.mutableStateMapOf<String, Boolean>()
+
+    fun isOpen(key: String, default: Boolean = false): Boolean = map[key] ?: prefs.isExpanded(key, default)
+
+    fun toggle(key: String, default: Boolean = false) {
+        val v = !isOpen(key, default)
+        map[key] = v
+        prefs.setExpanded(key, v)
+    }
+}
+
+@Composable
+fun rememberSections(): SectionStates {
+    val prefs = LocalContext.current.app.prefs
+    return androidx.compose.runtime.remember { SectionStates(prefs) }
+}
+
+/** Header of a list that opens and closes, with the number of entries and a short summary when closed. */
+@Composable
+fun CollapsibleHeader(title: String, expanded: Boolean, count: Int? = null, summary: String? = null, onToggle: () -> Unit) {
+    Surface(
+        onClick = onToggle,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                if (!expanded && summary != null) {
+                    Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            if (count != null) {
+                CountPill("$count", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
+                Spacer(Modifier.width(8.dp))
+            }
+            Icon(
+                if (expanded) androidx.compose.material.icons.Icons.Default.ExpandLess else androidx.compose.material.icons.Icons.Default.ExpandMore,
+                contentDescription = if (expanded) "Zuklappen" else "Aufklappen",
+            )
+        }
+    }
+}

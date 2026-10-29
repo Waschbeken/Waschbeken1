@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.BatteryStd
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Sync
@@ -70,6 +71,7 @@ import de.waschbeken.heliolink.core.SleepStage
 import de.waschbeken.heliolink.service.StrapUiState
 import de.waschbeken.heliolink.ui.CountPill
 import de.waschbeken.heliolink.ui.DayChart
+import de.waschbeken.heliolink.ui.CollapsibleHeader
 import de.waschbeken.heliolink.ui.Legend
 import de.waschbeken.heliolink.ui.Metric
 import de.waschbeken.heliolink.ui.Palette
@@ -130,6 +132,7 @@ fun HomeScreen(nav: NavHostController) {
     val data by dbValue(state.dataVersion, tick, state.heartRateAt / 300_000) { HomeData.load(it, profile.stepGoal) }
     val controller = app.repo.controller
     val startRecording = de.waschbeken.heliolink.ui.record.rememberRecordStarter(nav)
+    val sections = de.waschbeken.heliolink.ui.rememberSections()
 
     Scaffold(
         topBar = {
@@ -257,24 +260,35 @@ fun HomeScreen(nav: NavHostController) {
                     }
                 }
                 if (d.activities.isNotEmpty() || d.workouts.isNotEmpty()) {
-                    item { SectionHeader("Aktivitäten heute") }
-                    d.workouts.forEach { w ->
-                        item {
-                            ActivityRow(
-                                Icons.Default.Favorite, w.sport,
-                                "${formatDuration(w.end - w.start)} · Ø ${w.avgHr} bpm · ${w.calories} kcal",
-                                Instant.ofEpochSecond(w.start),
-                            ) { nav.navigate(Routes.workout(w.id)) }
-                        }
+                    val open = sections.isOpen("home-activities")
+                    val total = d.workouts.size + d.activities.size
+                    item {
+                        CollapsibleHeader(
+                            "Aktivitäten heute", open, count = total,
+                            summary = (d.workouts.map { it.sport } + d.activities.map { it.kind.label }).distinct().joinToString(", "),
+                        ) { sections.toggle("home-activities") }
                     }
-                    d.activities.forEach { a ->
-                        item {
-                            ActivityRow(
-                                if (a.kind == DetectedActivity.Kind.RUN) Icons.AutoMirrored.Filled.DirectionsRun else Icons.AutoMirrored.Filled.DirectionsWalk,
-                                "${a.kind.label} (erkannt)",
-                                "${formatMinutes(a.minutes)} · ${a.steps.fmt()} Schritte" + (a.avgHeartRate?.let { " · Ø $it bpm" } ?: ""),
-                                Instant.ofEpochSecond(a.start),
-                            ) { nav.navigate(Routes.metric("steps")) }
+                    if (open) {
+                        // trainings, recordings and detected activities together, newest first
+                        val rows = d.workouts.map { w -> w.start to w } + d.activities.map { a -> a.start to a }
+                        rows.sortedByDescending { it.first }.forEach { (_, row) ->
+                            item {
+                                when (row) {
+                                    is de.waschbeken.heliolink.data.Workout -> ActivityRow(
+                                        if (row.sport == de.waschbeken.heliolink.service.RECORDING_SPORT) Icons.Default.FiberManualRecord else Icons.Default.Favorite,
+                                        row.sport,
+                                        "${formatDuration(row.end - row.start)} · Ø ${row.avgHr} bpm · ${row.calories} kcal",
+                                        Instant.ofEpochSecond(row.start),
+                                    ) { nav.navigate(Routes.workout(row.id)) }
+                                    is DetectedActivity -> ActivityRow(
+                                        if (row.kind == DetectedActivity.Kind.RUN) Icons.AutoMirrored.Filled.DirectionsRun else Icons.AutoMirrored.Filled.DirectionsWalk,
+                                        "${row.kind.label} (erkannt)",
+                                        "${formatMinutes(row.minutes)} · ${row.steps.fmt()} Schritte" + (row.avgHeartRate?.let { " · Ø $it bpm" } ?: ""),
+                                        Instant.ofEpochSecond(row.start),
+                                    ) { nav.navigate(Routes.metric("steps")) }
+                                    else -> Unit
+                                }
+                            }
                         }
                     }
                 }

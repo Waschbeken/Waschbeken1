@@ -90,7 +90,6 @@ import de.waschbeken.heliolink.ui.record.RecordingBanner
 import de.waschbeken.heliolink.ui.record.rememberRecordStarter
 import de.waschbeken.heliolink.ui.rememberTimeZoom
 import de.waschbeken.heliolink.ui.stressColor
-import de.waschbeken.heliolink.ui.timeZoom
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
@@ -235,7 +234,7 @@ fun DataScreen(nav: NavHostController) {
 private fun ZoomHint(zoom: TimeZoom) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            if (zoom.zoomed) "${clock(zoom.start)} – ${clock(zoom.end)}" else "Zwei Finger oder Doppeltipp zum Zoomen",
+            if (zoom.zoomed) "${clock(zoom.start)} – ${clock(zoom.end)}" else "Finger halten: Werte · zwei Finger oder Doppeltipp: zoomen",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
@@ -323,7 +322,7 @@ private fun HeartPage(d: DayData, nav: NavHostController) {
         val zoom = rememberTimeZoom(d.from, d.to)
         LineChart(
             listOf(Series(d.hr, Palette.Heart, fill = true, width = 2f)), zoom.start, zoom.end,
-            modifier = Modifier.fillMaxWidth().height(240.dp).timeZoom(zoom),
+            modifier = Modifier.fillMaxWidth().height(240.dp), zoom = zoom, unit = "bpm",
             areas = (0..4).map { i -> Triple(lower[i].toFloat(), if (i < 4) lower[i + 1].toFloat() else 260f, Palette.zones[i]) },
             markers = listOf(Triple(minP.first, minP.second, "${minP.second.toInt()}"), Triple(maxP.first, maxP.second, "${maxP.second.toInt()}")),
             strip = minuteStrip(d.activity, d.stages),
@@ -350,8 +349,13 @@ private fun HeartPage(d: DayData, nav: NavHostController) {
 @Composable
 private fun WorkoutList(workouts: List<Workout>, nav: NavHostController) {
     if (workouts.isEmpty()) return
-    Text("Aufzeichnungen und Trainings", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-    workouts.forEach { w ->
+    val sections = de.waschbeken.heliolink.ui.rememberSections()
+    val open = sections.isOpen("data-workouts", default = true)
+    de.waschbeken.heliolink.ui.CollapsibleHeader(
+        "Aufzeichnungen und Trainings", open, count = workouts.size,
+        summary = workouts.joinToString(", ") { "${it.sport} ${clock(it.start)}" },
+    ) { sections.toggle("data-workouts", default = true) }
+    if (open) workouts.sortedByDescending { it.start }.forEach { w ->
         Panel(onClick = { nav.navigate(Routes.workout(w.id)) }) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(if (w.sport == RECORDING_SPORT) Icons.Default.FiberManualRecord else Icons.Default.Favorite, contentDescription = null, tint = Palette.Heart)
@@ -432,7 +436,7 @@ private fun StressPage(d: DayData) {
         val zoom = rememberTimeZoom(d.from, d.to)
         LineChart(
             listOf(Series(d.stress.map { it.timestamp to it.stress.toFloat() }, Palette.Stress, fill = true)), zoom.start, zoom.end,
-            modifier = Modifier.fillMaxWidth().height(200.dp).timeZoom(zoom), minY = 0f, maxY = 100f, gapSeconds = 1800,
+            modifier = Modifier.fillMaxWidth().height(200.dp), zoom = zoom, minY = 0f, maxY = 100f, gapSeconds = 1800,
             areas = listOf(Triple(0f, 40f, stressColor(20)), Triple(40f, 60f, stressColor(50)), Triple(60f, 80f, stressColor(70)), Triple(80f, 100f, stressColor(90))),
         )
         ZoomHint(zoom)
@@ -472,7 +476,7 @@ private fun ValuePage(
         val zoom = rememberTimeZoom(d.from, d.to)
         LineChart(
             listOf(Series(values.map { it.timestamp to (it.value * scale).toFloat() }, color, fill = true)), zoom.start, zoom.end,
-            modifier = Modifier.fillMaxWidth().height(200.dp).timeZoom(zoom), gapSeconds = 3 * 3600, minY = minY, maxY = maxY,
+            modifier = Modifier.fillMaxWidth().height(200.dp), zoom = zoom, unit = unit, gapSeconds = 3 * 3600, minY = minY, maxY = maxY,
             format = { f(it.toDouble()) },
         )
         ZoomHint(zoom)
@@ -518,7 +522,7 @@ private fun BatteryPage(d: DayData) {
         val zoom = rememberTimeZoom(d.from - 2 * 86400, d.to, minSpan = 3600)
         LineChart(
             listOf(Series(d.battery.map { it.timestamp to it.value.toFloat() }, Palette.Battery, fill = true)), zoom.start, zoom.end,
-            modifier = Modifier.fillMaxWidth().height(200.dp).timeZoom(zoom), gapSeconds = 12 * 3600, minY = 0f, maxY = 100f,
+            modifier = Modifier.fillMaxWidth().height(200.dp), zoom = zoom, unit = "%", gapSeconds = 12 * 3600, minY = 0f, maxY = 100f,
         )
     }
     Panel {

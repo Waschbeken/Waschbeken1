@@ -21,9 +21,9 @@ import de.waschbeken.heliolink.data.Workout
 import de.waschbeken.heliolink.ui.Legend
 import de.waschbeken.heliolink.ui.StackedBarChart
 import de.waschbeken.heliolink.ui.TrendChart
+import de.waschbeken.heliolink.ui.describe
 import de.waschbeken.heliolink.ui.minuteStrip
 import de.waschbeken.heliolink.ui.rememberTimeZoom
-import de.waschbeken.heliolink.ui.timeZoom
 import de.waschbeken.heliolink.core.SleepStage
 import androidx.compose.material3.TextButton
 import kotlin.math.roundToInt
@@ -109,7 +109,9 @@ enum class Metric(val key: String, val title: String, val color: Color, val abou
     HRV(
         "hrv", "Herzfrequenzvariabilität", Palette.Hrv,
         "Die HRV zeigt, wie flexibel dein Nervensystem ist. Wichtig ist der Vergleich mit deinem eigenen Schnitt: " +
-            "höher als sonst heißt meist gut erholt, deutlich niedriger heißt Belastung.",
+            "höher als sonst heißt meist gut erholt, deutlich niedriger heißt Belastung. Nachts kommt sie aus dem Import; " +
+            "tagsüber berechnet HelioLink sie jede Minute aus den Herzschlag-Abständen, solange der Puls live gemessen wird " +
+            "(Live-Puls, Puls-Aufzeichnung, Training). Werte in Bewegung schwanken stark.",
     ),
     TEMPERATURE(
         "temperature", "Hauttemperatur", Palette.Temperature,
@@ -123,7 +125,8 @@ enum class Metric(val key: String, val title: String, val color: Color, val abou
     ),
     RESPIRATION(
         "respiration", "Atemfrequenz", Palette.Breath,
-        "Atemzüge pro Minute im Schlaf. Normal sind etwa 12–20. Wichtig sind Änderungen gegenüber deinem Schnitt.",
+        "Atemzüge pro Minute im Schlaf. Normal sind etwa 12–20. Wichtig sind Änderungen gegenüber deinem Schnitt. " +
+            "Der Strap misst die Atemfrequenz nur im Schlaf (auch Gadgetbridge liest nur diese Werte).",
     ),
     BATTERY(
         "battery", "Akku", Palette.Battery,
@@ -407,7 +410,7 @@ private fun HeartDay(d: MetricData, profile: UserProfile, live: Int?, onRecord: 
             val dayZoom = rememberTimeZoom(d.start, d.end)
             LineChart(
                 listOf(Series(points, Palette.Heart, fill = true, width = 2f)), dayZoom.start, dayZoom.end,
-                modifier = Modifier.fillMaxWidth().height(260.dp).timeZoom(dayZoom),
+                modifier = Modifier.fillMaxWidth().height(260.dp), zoom = dayZoom, unit = "bpm",
                 areas = (0..4).map { i -> Triple(lower[i].toFloat(), if (i < 4) lower[i + 1].toFloat() else 260f, Palette.zones[i]) },
                 markers = listOf(
                     Triple(minP.first, minP.second, "${minP.second.toInt()}"),
@@ -417,7 +420,7 @@ private fun HeartDay(d: MetricData, profile: UserProfile, live: Int?, onRecord: 
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    if (dayZoom.zoomed) "${clock(dayZoom.start)} – ${clock(dayZoom.end)}" else "Zwei Finger oder Doppeltipp zum Zoomen",
+                    if (dayZoom.zoomed) "${clock(dayZoom.start)} – ${clock(dayZoom.end)}" else "Finger halten: Werte · zwei Finger oder Doppeltipp: zoomen",
                     style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f),
                 )
                 if (dayZoom.zoomed) TextButton(onClick = { dayZoom.reset() }) { Text("Ganzer Tag") }
@@ -445,8 +448,12 @@ private fun HeartDay(d: MetricData, profile: UserProfile, live: Int?, onRecord: 
         }
         d.totals[d.date]?.let { ZonePanel("Zeit in Pulszonen", it.zones, lower) }
         if (d.workouts.isNotEmpty()) {
-            SectionHeader("Aufzeichnungen und Trainings")
-            d.workouts.forEach { w ->
+            val sections = de.waschbeken.heliolink.ui.rememberSections()
+            val open = sections.isOpen("heart-workouts", default = true)
+            de.waschbeken.heliolink.ui.CollapsibleHeader("Aufzeichnungen und Trainings", open, count = d.workouts.size) {
+                sections.toggle("heart-workouts", default = true)
+            }
+            if (open) d.workouts.forEach { w ->
                 Panel {
                     Text("${w.sport} · ${clock(w.start)}", style = MaterialTheme.typography.titleSmall)
                     Text("${formatMinutes(((w.end - w.start) / 60).toInt())} · Ø ${w.avgHr} · max. ${w.maxHr} bpm", style = MaterialTheme.typography.bodySmall)
@@ -516,7 +523,7 @@ private fun HeartRange(d: MetricData, profile: UserProfile) {
         if (restingTrend.any { it != null }) {
             Panel {
                 Text("Ruhepuls", style = MaterialTheme.typography.titleMedium)
-                TrendChart(restingTrend, labels, Palette.Heart, baseline = d.restingBaseline?.toFloat())
+                TrendChart(restingTrend, labels, Palette.Heart, baseline = d.restingBaseline?.toFloat(), tooltip = { d.buckets[it].describe() })
                 Text(
                     (if (d.restingBaseline != null) "Gestrichelt: dein Schnitt davor (${d.restingBaseline} bpm). " else "") +
                         "Sinkt der Ruhepuls über Wochen, wirst du fitter.",
@@ -532,7 +539,7 @@ private fun HeartRange(d: MetricData, profile: UserProfile) {
                     if (inB.isEmpty()) Triple(null, null, null)
                     else Triple(inB.mapNotNull { it.hrMin }.minOrNull()?.toFloat(), inB.mapNotNull { it.hrAvg }.average().toFloat(), inB.mapNotNull { it.hrMax }.maxOrNull()?.toFloat())
                 },
-                labels, Palette.Heart,
+                labels, Palette.Heart, tooltip = { d.buckets[it].describe() },
             )
             Text("Balken: niedrigster bis höchster Wert, Punkt: Durchschnitt", style = MaterialTheme.typography.labelSmall)
         }
@@ -544,6 +551,11 @@ private fun HeartRange(d: MetricData, profile: UserProfile) {
                     if (inB.isEmpty()) emptyList() else (1..4).map { z -> inB.sumOf { it.zones[z] }.toFloat() / inB.size to Palette.zones[z] }
                 },
                 labels,
+                tooltip = { i ->
+                    val b = d.buckets[i]
+                    val inB = days.filter { it.date in b }
+                    listOf(b.describe()) + if (inB.isEmpty()) listOf("keine Werte") else (1..4).map { z -> "Zone ${z + 1}: ${formatMinutes(inB.sumOf { it.zones[z] } / inB.size)}/Tag" }
+                },
             )
             Text("Ø Minuten pro Tag", style = MaterialTheme.typography.labelSmall)
         }
@@ -580,7 +592,10 @@ private fun StepsContent(d: MetricData, profile: UserProfile) {
             val perBar = Buckets.average(d.buckets) { day -> d.totals[day]?.steps?.takeIf { it > 0 }?.toDouble() }
             Panel {
                 Text("Schritte ${d.period.perBar}", style = MaterialTheme.typography.titleMedium)
-                BarChart(perBar.map { it ?: 0f }, Palette.Steps, labels = d.buckets.map { it.label }, goal = profile.stepGoal.toFloat())
+                BarChart(
+                    perBar.map { it ?: 0f }, Palette.Steps, labels = d.buckets.map { it.label }, goal = profile.stepGoal.toFloat(),
+                    tooltip = { i -> d.buckets[i].describe() + ": " + (perBar[i]?.toInt()?.fmt()?.let { "$it Schritte" + if (d.buckets[i].days > 1) "/Tag" else "" } ?: "keine Daten") },
+                )
             }
             TileRow(
                 "Ø pro Tag" to (withData.takeIf { it.isNotEmpty() }?.map { it.steps }?.average()?.toInt()?.fmt() ?: "–"),
@@ -626,7 +641,10 @@ private fun StressContent(d: MetricData) {
             val perBar = Buckets.average(d.buckets) { day -> byDay[day]?.average() }
             Panel {
                 Text("Ø Stress ${period.perBar}", style = MaterialTheme.typography.titleMedium)
-                BarChart(perBar.map { it ?: 0f }, Palette.Stress, colors = perBar.map { stressColor((it ?: 0f).toInt()) }, labels = d.buckets.map { it.label })
+                BarChart(
+                    perBar.map { it ?: 0f }, Palette.Stress, colors = perBar.map { stressColor((it ?: 0f).toInt()) }, labels = d.buckets.map { it.label },
+                    tooltip = { i -> d.buckets[i].describe() + ": " + (perBar[i]?.let { "Ø ${it.toInt()}" } ?: "keine Werte") },
+                )
             }
         }
         val parts = listOf(0 until 40, 40 until 60, 60 until 80, 80..100).map { r -> values.count { it in r } }
@@ -677,13 +695,13 @@ private fun ValueContent(
                         val v = generateSequence(b.from) { it.plusDays(1) }.takeWhile { !it.isAfter(b.to) }.flatMap { byDay[it].orEmpty() }.toList()
                         if (v.isEmpty()) Triple(null, null, null) else Triple(v.min().toFloat(), avgPerBar[i], v.max().toFloat())
                     },
-                    d.buckets.map { it.label }, metric.color,
+                    d.buckets.map { it.label }, metric.color, tooltip = { d.buckets[it].describe() },
                 )
             }
             if (period.long) {
                 Panel {
                     Text("Trend", style = MaterialTheme.typography.titleMedium)
-                    TrendChart(avgPerBar, d.buckets.map { it.label }, metric.color, baseline = values.average().toFloat(), format = { f(it.toDouble()) })
+                    TrendChart(avgPerBar, d.buckets.map { it.label }, metric.color, baseline = values.average().toFloat(), format = { f(it.toDouble()) }, tooltip = { d.buckets[it].describe() })
                     Text("Gestrichelt: Durchschnitt des Zeitraums", style = MaterialTheme.typography.labelSmall)
                 }
             }

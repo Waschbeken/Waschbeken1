@@ -60,6 +60,7 @@ import de.waschbeken.heliolink.data.HealthDb
 import de.waschbeken.heliolink.data.Workout
 import de.waschbeken.heliolink.service.LiveWorkout
 import de.waschbeken.heliolink.ui.BackTopBar
+import de.waschbeken.heliolink.ui.CollapsibleHeader
 import de.waschbeken.heliolink.ui.BarChart
 import de.waschbeken.heliolink.ui.German
 import de.waschbeken.heliolink.ui.LineChart
@@ -77,7 +78,6 @@ import de.waschbeken.heliolink.ui.formatDuration
 import de.waschbeken.heliolink.ui.formatMinutes
 import de.waschbeken.heliolink.ui.rememberSaveFile
 import de.waschbeken.heliolink.ui.shareFile
-import de.waschbeken.heliolink.ui.timeZoom
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -139,6 +139,7 @@ fun TrainingScreen(nav: NavHostController) {
     val controller = app.repo.controller
     var sport by remember { mutableStateOf(app.prefs.defaultSport) }
     val rest = profile.zoneRest(data?.restingHr)
+    val sections = de.waschbeken.heliolink.ui.rememberSections()
 
     Scaffold(topBar = { TopAppBar(title = { Text("Training") }) }) { padding ->
         LazyColumn(
@@ -184,8 +185,14 @@ fun TrainingScreen(nav: NavHostController) {
                 item { SectionHeader("Aktive Minuten – letzte 7 Tage") }
                 item { Panel { BarChart(d.weekMinutes, Palette.Steps, labels = d.weekLabels, goal = 30f) } }
                 if (d.detected.isNotEmpty()) {
-                    item { SectionHeader("Automatisch erkannt") }
-                    d.detected.take(10).forEach { a ->
+                    val open = sections.isOpen("training-detected")
+                    item {
+                        CollapsibleHeader(
+                            "Automatisch erkannt (7 Tage)", open, count = d.detected.size,
+                            summary = "${d.detected.count { it.kind == DetectedActivity.Kind.RUN }} Läufe · ${d.detected.count { it.kind != DetectedActivity.Kind.RUN }} Spaziergänge",
+                        ) { sections.toggle("training-detected") }
+                    }
+                    if (open) d.detected.take(20).forEach { a ->
                         item {
                             Panel(onClick = { nav.navigate(Routes.metric("heart")) }) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -211,28 +218,41 @@ fun TrainingScreen(nav: NavHostController) {
                 if (d.workouts.isEmpty()) {
                     item { Text("Noch keine Trainings aufgezeichnet.", style = MaterialTheme.typography.bodyMedium) }
                 }
-                d.workouts.forEach { w ->
+                // grouped by month; the current month is open
+                val zone = ZoneId.systemDefault()
+                val byMonth = d.workouts.groupBy { Instant.ofEpochSecond(it.start).atZone(zone).toLocalDate().withDayOfMonth(1) }
+                byMonth.entries.sortedByDescending { it.key }.forEachIndexed { index, (month, list) ->
+                    val key = "training-${month.year}-${month.monthValue}"
+                    val open = sections.isOpen(key, default = index == 0)
                     item {
-                        Panel(onClick = { nav.navigate(Routes.workout(w.id)) }) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    if (w.sport == de.waschbeken.heliolink.service.RECORDING_SPORT) Icons.Default.FiberManualRecord else Icons.Default.Favorite,
-                                    contentDescription = null, tint = Palette.Heart,
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text("${w.sport} · ${dateTime(w.start)}", style = MaterialTheme.typography.titleSmall)
-                                    Text(
-                                        "${formatDuration(w.end - w.start)} · Ø ${w.avgHr} · max. ${w.maxHr} bpm · ${w.calories} kcal",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        CollapsibleHeader(
+                            month.format(DateTimeFormatter.ofPattern("MMMM yyyy", German)), open, count = list.size,
+                            summary = "${formatDuration(list.sumOf { it.end - it.start })} · ${list.sumOf { it.calories }} kcal · " +
+                                list.groupingBy { it.sport }.eachCount().entries.joinToString(", ") { "${it.value}× ${it.key}" },
+                        ) { sections.toggle(key, default = index == 0) }
+                    }
+                    if (open) list.sortedByDescending { it.start }.forEach { w ->
+                        item {
+                            Panel(onClick = { nav.navigate(Routes.workout(w.id)) }) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        if (w.sport == de.waschbeken.heliolink.service.RECORDING_SPORT) Icons.Default.FiberManualRecord else Icons.Default.Favorite,
+                                        contentDescription = null, tint = Palette.Heart,
                                     )
-                                    if (w.zoneSeconds.size == 5) {
-                                        Spacer(Modifier.width(4.dp))
-                                        StackedBar(w.zoneSeconds.mapIndexed { i, s -> s.toFloat() to Palette.zones[i] }, Modifier.fillMaxWidth().padding(top = 6.dp).then(Modifier))
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text("${w.sport} · ${dateTime(w.start)}", style = MaterialTheme.typography.titleSmall)
+                                        Text(
+                                            "${formatDuration(w.end - w.start)} · Ø ${w.avgHr} · max. ${w.maxHr} bpm · ${w.calories} kcal",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                        if (w.zoneSeconds.size == 5) {
+                                            StackedBar(w.zoneSeconds.mapIndexed { i, s -> s.toFloat() to Palette.zones[i] }, Modifier.fillMaxWidth().padding(top = 6.dp))
+                                        }
                                     }
+                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
                                 }
-                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
                             }
                         }
                     }
@@ -341,7 +361,7 @@ fun WorkoutDetailScreen(nav: NavHostController, id: Long) {
                         val lower = IntArray(5) { HeartRateZones.lowerBpm(it, profile.maxHeartRate, null) }
                         LineChart(
                             listOf(Series(series, Palette.Heart, fill = true, width = 2f)), zoom.start, zoom.end,
-                            modifier = Modifier.fillMaxWidth().height(240.dp).timeZoom(zoom), gapSeconds = 30,
+                            modifier = Modifier.fillMaxWidth().height(240.dp), gapSeconds = 30, zoom = zoom, unit = "bpm",
                             areas = (0..4).map { i -> Triple(lower[i].toFloat(), if (i < 4) lower[i + 1].toFloat() else 260f, Palette.zones[i]) },
                             markers = listOf(Triple(minP.first, minP.second, "${minP.second.toInt()}"), Triple(maxP.first, maxP.second, "${maxP.second.toInt()}")),
                         )

@@ -240,6 +240,18 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getStringSet("hidden_tiles", emptySet()).orEmpty()
         set(v) = edit { putStringSet("hidden_tiles", v) }
 
+    /** Opened or closed lists ("key=1" / "key=0"), so they stay as the user left them. */
+    private var sectionStates: Set<String>
+        get() = sp.getStringSet("section_states", emptySet()).orEmpty()
+        set(v) = edit { putStringSet("section_states", v) }
+
+    fun isExpanded(key: String, default: Boolean): Boolean =
+        sectionStates.firstOrNull { it.startsWith("$key=") }?.endsWith("=1") ?: default
+
+    fun setExpanded(key: String, expanded: Boolean) {
+        sectionStates = sectionStates.filterNot { it.startsWith("$key=") }.toSet() + "$key=${if (expanded) 1 else 0}"
+    }
+
     /** Order of the dashboard tiles (names), tiles not in the list follow in their default order. */
     var tileOrder: List<String>
         get() = sp.getString("tile_order", "").orEmpty().split(',').filter { it.isNotBlank() }
