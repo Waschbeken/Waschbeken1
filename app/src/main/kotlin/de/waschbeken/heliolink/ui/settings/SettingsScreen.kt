@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.FitnessCenter
@@ -75,6 +76,7 @@ enum class SettingsCategory(val key: String, val section: SettingsSection, val t
 
     APPEARANCE("appearance", SettingsSection.APP, "Darstellung", Icons.Default.Palette, "Hell/dunkel, Akzentfarbe, Material You, Schriftgröße"),
     HOME("home", SettingsSection.APP, "Startseite", Icons.Default.Dashboard, "Welche Kacheln auf „Heute“ erscheinen"),
+    SLEEP("sleep", SettingsSection.APP, "Schlaf", Icons.Default.Bedtime, "Schlafziel, Wachphasen, Phasen-Quelle, Korrekturen"),
     NOTIFICATIONS("notifications", SettingsSection.APP, "Benachrichtigungen", Icons.Default.Notifications, "Akku, Schlafenszeit, Morgenbericht, Live-Puls"),
     RECORDING("recording", SettingsSection.APP, "Puls-Aufzeichnung", Icons.Default.Timer, "Öfter als jede Minute: jede Sekunde bis alle 30 Sekunden"),
     PROFILE("profile", SettingsSection.APP, "Profil", Icons.Default.Person, "Alter, Gewicht, Größe, Schlaf- und Schrittziel"),
@@ -206,6 +208,7 @@ fun SettingsCategoryScreen(nav: NavHostController, key: String, onForget: () -> 
                 SettingsCategory.ALARMS -> Unit
                 SettingsCategory.APPEARANCE -> AppearancePage()
                 SettingsCategory.HOME -> HomeTilesPage()
+                SettingsCategory.SLEEP -> SleepSettingsPage(nav)
                 SettingsCategory.NOTIFICATIONS -> NotificationsPage()
                 SettingsCategory.RECORDING -> RecordingPage(state)
                 SettingsCategory.PROFILE -> ProfilePage(state)

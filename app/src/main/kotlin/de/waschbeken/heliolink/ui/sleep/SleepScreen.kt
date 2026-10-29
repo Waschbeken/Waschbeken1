@@ -15,11 +15,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -27,6 +32,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -124,7 +130,24 @@ fun SleepScreen(nav: NavHostController) {
         RangeData(Queries.nights(it, from, minOf(to, LocalDate.now()), ZoneId.systemDefault()), from, to)
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Schlaf") }) }) { padding ->
+    val askCheck = app.prefs.sleepAskCheck && app.prefs.sleepCheckedDay != LocalDate.now().toEpochDay()
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Schlaf") },
+                actions = {
+                    if (period == Period.DAY) {
+                        IconButton(onClick = { nav.navigate(Routes.sleepEdit(date.toEpochDay())) }) {
+                            Icon(Icons.Default.Edit, contentDescription = "Schlaf bearbeiten")
+                        }
+                    }
+                    IconButton(onClick = { nav.navigate(Routes.settings("sleep")) }) {
+                        Icon(Icons.Default.Tune, contentDescription = "Schlaf-Einstellungen")
+                    }
+                },
+            )
+        },
+    ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
@@ -136,8 +159,14 @@ fun SleepScreen(nav: NavHostController) {
                 val n = night
                 when {
                     n == null -> item { Text("Lade …") }
-                    n.night == null -> item { NoSleep() }
-                    else -> nightItems(n, n.night, goal, onEstimatedInfo = { nav.navigate(Routes.settings("sync")) })
+                    n.night == null -> item { NoSleep { nav.navigate(Routes.sleepEdit(date.toEpochDay())) } }
+                    else -> nightItems(
+                        n, n.night, goal,
+                        onEstimatedInfo = { nav.navigate(Routes.settings("sleep")) },
+                        onEdit = { nav.navigate(Routes.sleepEdit(date.toEpochDay())) },
+                        askCheck = askCheck && date == LocalDate.now() && !n.night.edited,
+                        onConfirm = { app.prefs.sleepCheckedDay = LocalDate.now().toEpochDay() },
+                    )
                 }
             } else {
                 range?.let { r -> item { RangeContent(r, period, goal) } }
@@ -147,19 +176,28 @@ fun SleepScreen(nav: NavHostController) {
 }
 
 @Composable
-private fun NoSleep() {
+private fun NoSleep(onAdd: () -> Unit) {
     Panel {
         Text("Für diese Nacht liegen keine Schlafdaten vor.", style = MaterialTheme.typography.bodyMedium)
         Text(
-            "Trage den Strap nachts und synchronisiere morgens. Tipp: Unter Einstellungen → Messungen am Strap " +
+            "Trage den Strap nachts und synchronisiere morgens. Tipp: Unter Einstellungen → Messungen " +
                 "„Schlaf mit hoher Genauigkeit“ einschalten.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        OutlinedButton(onClick = onAdd) { Text("Schlaf selbst eintragen") }
     }
 }
 
-private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(d: NightData, n: SleepSession, goal: Int, onEstimatedInfo: () -> Unit) {
+private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(
+    d: NightData,
+    n: SleepSession,
+    goal: Int,
+    onEstimatedInfo: () -> Unit,
+    onEdit: () -> Unit,
+    askCheck: Boolean,
+    onConfirm: () -> Unit,
+) {
     item {
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
             Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -183,6 +221,38 @@ private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(d: NightDa
             }
         }
     }
+    if (askCheck) {
+        item {
+            var answered by remember { mutableStateOf(false) }
+            if (!answered) {
+                Panel(color = MaterialTheme.colorScheme.tertiaryContainer) {
+                    Text("Stimmt deine Nacht?", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "Wenn Einschlafen, Aufwachen oder Wachphasen nicht passen, korrigiere sie – das macht Score und Statistik genauer.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = {
+                            answered = true
+                            onConfirm()
+                        }) { Text("Passt") }
+                        OutlinedButton(onClick = onEdit) { Text("Korrigieren") }
+                    }
+                }
+            }
+        }
+    }
+    if (n.edited) {
+        item {
+            Panel(onClick = onEdit) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(10.dp))
+                    Text("Von dir korrigiert – tippen zum Bearbeiten", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
     if (n.estimated) {
         item {
             Panel(color = MaterialTheme.colorScheme.secondaryContainer, onClick = onEstimatedInfo) {
@@ -191,7 +261,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(d: NightDa
                     Spacer(Modifier.width(10.dp))
                     Text(
                         "Phasen geschätzt: Für diese Nacht hat der Strap keine eigenen Schlafphasen geliefert. HelioLink schätzt sie aus Puls " +
-                            "und Bewegung (trifft etwa 7 von 10 Minuten). Tippen für die Schlafphasen-Suche.",
+                            "und Bewegung (trifft etwa 7 von 10 Minuten). Tippen für die Schlaf-Einstellungen, oben rechts kannst du die Nacht korrigieren.",
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }

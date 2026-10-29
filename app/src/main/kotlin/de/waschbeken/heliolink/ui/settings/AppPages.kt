@@ -422,3 +422,82 @@ internal fun UpdatesPage() {
         SettingsNote("Dies ist eine Test-Version (debug). Updates installieren die normale Version zusätzlich.")
     }
 }
+
+// --------------------------------------------------------------------------- Schlaf
+
+@Composable
+internal fun SleepSettingsPage(nav: androidx.navigation.NavHostController) {
+    val context = LocalContext.current
+    val app = context.app
+    val prefs = app.prefs
+    val tick = prefsTick()
+    val state by app.repo.state.collectAsState()
+    val edits by de.waschbeken.heliolink.ui.dbValue(state.dataVersion, tick) { it.sleepEditCount() }
+    var confirmClear by remember { mutableStateOf(false) }
+    fun changed() = app.repo.dataChanged()
+
+    SettingsHeader("Ziel")
+    ChoiceSetting(
+        "Schlafziel",
+        (300..600 step 30).map { it to "%d:%02d h".format(it / 60, it % 60) },
+        prefs.profile.sleepGoalMinutes,
+        subtitle = "für Score, Schlafdefizit und Schlafenszeit-Erinnerung",
+    ) { prefs.profile = prefs.profile.copy(sleepGoalMinutes = it); changed() }
+    SwitchSetting(
+        "Morgens nachfragen",
+        "Auf der Schlafseite „Stimmt deine Nacht?“ zeigen, damit du schnell korrigieren kannst",
+        prefs.sleepAskCheck,
+    ) { prefs.sleepAskCheck = it }
+
+    SettingsHeader("Erkennung")
+    ChoiceSetting(
+        "Kurze Wachphasen",
+        listOf(0 to "Alle zeigen", 2 to "Unter 2 min ignorieren", 5 to "Unter 5 min ignorieren", 10 to "Unter 10 min ignorieren"),
+        prefs.sleepIgnoreAwake,
+        subtitle = "kurzes Aufwachen als Leichtschlaf zählen",
+    ) { prefs.sleepIgnoreAwake = it; changed() }
+    ChoiceSetting(
+        "Wach in der Nacht",
+        listOf(30 to "Bis 30 min", 45 to "Bis 45 min", 60 to "Bis 1 h", 90 to "Bis 1,5 h", 120 to "Bis 2 h"),
+        prefs.sleepMaxGap,
+        subtitle = "längeres Wachsein teilt die Nacht",
+    ) { prefs.sleepMaxGap = it; changed() }
+    ChoiceSetting(
+        "Kürzester Schlaf",
+        listOf(20 to "20 min (mit Nickerchen)", 45 to "45 min", 90 to "1,5 h", 180 to "3 h (nur Nachtschlaf)"),
+        prefs.sleepMinMinutes,
+        subtitle = "kürzerer Schlaf wird nicht als Nacht gezählt",
+    ) { prefs.sleepMinMinutes = it; changed() }
+    SwitchSetting(
+        "Phasen immer schätzen",
+        "Statt der Phasen vom Strap oder aus Gadgetbridge die Schätzung aus Puls und Bewegung nutzen",
+        prefs.sleepAlwaysEstimate,
+    ) { prefs.sleepAlwaysEstimate = it; changed() }
+    SettingsNote(
+        "Die Einstellungen ändern nur die Anzeige – die gespeicherten Daten bleiben unverändert. " +
+            "Gadgetbridge und der Strap liegen bei den Phasen nicht immer richtig: Einzelne Nächte korrigierst du auf der Schlafseite mit dem Stift.",
+    )
+
+    SettingsHeader("Korrekturen")
+    SettingRow("Letzte Nacht bearbeiten", "Zeiten und Phasen anpassen") {
+        nav.navigate(de.waschbeken.heliolink.ui.Routes.sleepEdit(java.time.LocalDate.now().toEpochDay()))
+    }
+    SettingRow("Korrigierte Nächte", "${edits ?: 0}")
+    SettingRow("Alle Korrekturen löschen", "Zeigt wieder die erkannten Nächte", enabled = (edits ?: 0) > 0) { confirmClear = true }
+    SettingRow("Schlafphasen vom Strap", "Suche nach dem Schlafdatensatz des Straps") {
+        nav.navigate(de.waschbeken.heliolink.ui.Routes.settings("sync"))
+    }
+
+    if (confirmClear) {
+        ConfirmDialog(
+            "Alle Korrekturen löschen?",
+            "Alle Nächte, die du bearbeitet hast, zeigen wieder die erkannten Werte.",
+            "Löschen",
+            onConfirm = {
+                app.db.clearSleepEdits()
+                changed()
+            },
+            onDismiss = { confirmClear = false },
+        )
+    }
+}

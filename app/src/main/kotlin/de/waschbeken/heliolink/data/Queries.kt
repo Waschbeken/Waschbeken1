@@ -2,6 +2,7 @@ package de.waschbeken.heliolink.data
 
 import de.waschbeken.heliolink.core.ActivitySample
 import de.waschbeken.heliolink.core.SleepAnalyzer
+import de.waschbeken.heliolink.core.SleepEditor
 import de.waschbeken.heliolink.core.SleepSession
 import de.waschbeken.heliolink.core.ValueSample
 import java.time.Instant
@@ -17,23 +18,32 @@ object Queries {
     fun dayWindow(date: LocalDate, zone: ZoneId): Pair<Long, Long> =
         date.atStartOfDay(zone).toEpochSecond() to date.plusDays(1).atStartOfDay(zone).toEpochSecond()
 
-    /** All nights between [from] and [to] (dates of the mornings). The strap's own records win. */
-    fun nights(db: HealthDb, from: LocalDate, to: LocalDate, zone: ZoneId): Map<LocalDate, SleepSession> {
+    /** All nights between [from] and [to] (dates of the mornings). The strap's own records win, corrections by hand win over both. */
+    fun nights(db: HealthDb, from: LocalDate, to: LocalDate, zone: ZoneId, applyEdits: Boolean = true): Map<LocalDate, SleepSession> {
+        val prefs = db.prefs
+        val tuning = prefs.sleepTuning
         val start = nightWindow(from, zone).first
         val end = nightWindow(to, zone).second
         val samples = db.activity(start, end)
-        val records = db.sleepRecords(start, end)
-        val sessions = SleepAnalyzer.combine(records.map { it.toSession(samples) }, SleepAnalyzer.sessions(samples))
+        val fromMinutes = SleepAnalyzer.sessions(samples, tuning.maxGapMinutes, tuning.minSleepMinutes)
+        val sessions = if (prefs.sleepAlwaysEstimate) fromMinutes else {
+            SleepAnalyzer.combine(db.sleepRecords(start, end).map { it.toSession(samples) }, fromMinutes)
+        }
+        val edits = if (applyEdits) db.sleepEdits(from.toEpochDay(), to.toEpochDay()) else emptyMap()
         val out = LinkedHashMap<LocalDate, SleepSession>()
         var d = from
         while (!d.isAfter(to)) {
-            SleepAnalyzer.nightOf(d, sessions, zone)?.let { out[d] = it }
+            var night = SleepAnalyzer.nightOf(d, sessions, zone)?.let { SleepEditor.ignoreShortAwake(it, tuning.ignoreAwakeMinutes) }
+            val edit = edits[d.toEpochDay()]
+            if (edit != null) night = SleepEditor.apply(night, edit, samples)
+            night?.let { out[d] = it }
             d = d.plusDays(1)
         }
         return out
     }
 
-    fun night(db: HealthDb, date: LocalDate, zone: ZoneId): SleepSession? = nights(db, date, date, zone)[date]
+    fun night(db: HealthDb, date: LocalDate, zone: ZoneId, applyEdits: Boolean = true): SleepSession? =
+        nights(db, date, date, zone, applyEdits)[date]
 
     /** Average per day of a value table, null for days without values. */
     fun dailyAverage(samples: List<ValueSample>, from: LocalDate, to: LocalDate, zone: ZoneId, scale: Double = 1.0): List<Float?> {

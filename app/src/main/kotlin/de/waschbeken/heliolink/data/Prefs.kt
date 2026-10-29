@@ -92,6 +92,40 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getLong("last_sync", 0)
         set(v) = edit { putLong("last_sync", v) }
 
+    // --- sleep
+
+    /** Awake periods shorter than this many minutes count as light sleep, 0 = keep all. */
+    var sleepIgnoreAwake: Int
+        get() = sp.getInt("sleep_ignore_awake", 0)
+        set(v) = edit { putInt("sleep_ignore_awake", v) }
+
+    /** Awake gaps up to this many minutes stay inside one night. */
+    var sleepMaxGap: Int
+        get() = sp.getInt("sleep_max_gap", 45)
+        set(v) = edit { putInt("sleep_max_gap", v) }
+
+    /** Shorter sleep is not shown as a night. */
+    var sleepMinMinutes: Int
+        get() = sp.getInt("sleep_min_minutes", 20)
+        set(v) = edit { putInt("sleep_min_minutes", v) }
+
+    /** Always estimate the stages, even when a strap or Gadgetbridge record exists. */
+    var sleepAlwaysEstimate: Boolean
+        get() = sp.getBoolean("sleep_always_estimate", false)
+        set(v) = edit { putBoolean("sleep_always_estimate", v) }
+
+    /** Ask "Stimmt dein Schlaf?" on the sleep page each morning. */
+    var sleepAskCheck: Boolean
+        get() = sp.getBoolean("sleep_ask_check", true)
+        set(v) = edit { putBoolean("sleep_ask_check", v) }
+
+    /** Morning (epoch day) for which the user already confirmed or corrected the night. */
+    var sleepCheckedDay: Long
+        get() = sp.getLong("sleep_checked_day", 0)
+        set(v) = edit { putLong("sleep_checked_day", v) }
+
+    val sleepTuning get() = de.waschbeken.heliolink.core.SleepTuning(sleepIgnoreAwake, sleepMaxGap, sleepMinMinutes)
+
     // --- notifications
 
     /** Battery level at which a warning is shown, 0 = off. */

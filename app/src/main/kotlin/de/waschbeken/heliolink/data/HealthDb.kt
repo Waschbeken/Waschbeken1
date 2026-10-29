@@ -7,6 +7,7 @@ import android.database.sqlite.SQLiteOpenHelper
 import de.waschbeken.heliolink.core.ActivitySample
 import de.waschbeken.heliolink.core.PaiSample
 import de.waschbeken.heliolink.core.StrapAlarm
+import de.waschbeken.heliolink.core.SleepEdit
 import de.waschbeken.heliolink.core.SleepRecord
 import de.waschbeken.heliolink.core.SleepStage
 import de.waschbeken.heliolink.core.StressSample
@@ -25,7 +26,7 @@ data class Workout(
 
 data class HrPoint(val timestamp: Long, val bpm: Int)
 
-class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME, null, 4) {
+class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME, null, 5) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -42,12 +43,14 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         createV2(db)
         createV3(db)
         createV4(db)
+        createV5(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) createV2(db)
         if (oldVersion < 3) createV3(db)
         if (oldVersion < 4) createV4(db)
+        if (oldVersion < 5) createV5(db)
     }
 
     /** Version 4: PAI, skin temperature, breathing rate, battery history and alarms. */
@@ -63,6 +66,50 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
             "CREATE TABLE IF NOT EXISTS alarm (position INTEGER PRIMARY KEY, enabled INTEGER, smart INTEGER, " +
                 "hour INTEGER, minute INTEGER, repetition INTEGER, label TEXT, pending INTEGER, deleted INTEGER)"
         )
+    }
+
+    /** The app's settings (sleep tuning is read while building nights). */
+    val prefs: Prefs get() = (context.applicationContext as de.waschbeken.heliolink.HelioApp).prefs
+
+    /** Version 5: sleep corrections by hand. */
+    private fun createV5(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS sleep_edit (night INTEGER PRIMARY KEY, start INTEGER, end INTEGER, ranges TEXT, deleted INTEGER)")
+    }
+
+    // ------------------------------------------------------------------ sleep corrections
+
+    /** Corrections for the nights (epoch days of the mornings) [fromDay]..[toDay]. */
+    fun sleepEdits(fromDay: Long, toDay: Long): Map<Long, SleepEdit> {
+        val out = HashMap<Long, SleepEdit>()
+        readableDatabase.rawQuery(
+            "SELECT night, start, end, ranges, deleted FROM sleep_edit WHERE night >= ? AND night <= ?",
+            arrayOf(fromDay.toString(), toDay.toString()),
+        ).use { c ->
+            while (c.moveToNext()) {
+                out[c.getLong(0)] = SleepEdit(c.getLong(0), c.getLong(1), c.getLong(2), SleepEdit.parseRanges(c.getString(3)), c.getInt(4) == 1)
+            }
+        }
+        return out
+    }
+
+    fun saveSleepEdit(edit: SleepEdit) {
+        val cv = ContentValues()
+        cv.put("night", edit.night)
+        cv.put("start", edit.start)
+        cv.put("end", edit.end)
+        cv.put("ranges", edit.rangesText())
+        cv.put("deleted", if (edit.deleted) 1 else 0)
+        writableDatabase.insertWithOnConflict("sleep_edit", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    fun deleteSleepEdit(night: Long) {
+        writableDatabase.delete("sleep_edit", "night = ?", arrayOf(night.toString()))
+    }
+
+    fun sleepEditCount(): Int = readableDatabase.rawQuery("SELECT COUNT(*) FROM sleep_edit", null).use { if (it.moveToFirst()) it.getInt(0) else 0 }
+
+    fun clearSleepEdits() {
+        writableDatabase.delete("sleep_edit", null, null)
     }
 
     // ------------------------------------------------------------------ PAI
@@ -366,7 +413,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         private val VALUE_TABLES = setOf(SPO2, RESTING_HR, HRV, TEMPERATURE, RESPIRATION, BATTERY)
         private val ALL_TABLES = listOf(
             "activity", "stress", "workout", "workout_hr", "sleep_record", SPO2, RESTING_HR, HRV, "hr",
-            "pai", TEMPERATURE, RESPIRATION, BATTERY, "alarm",
+            "pai", TEMPERATURE, RESPIRATION, BATTERY, "alarm", "sleep_edit",
         )
     }
 

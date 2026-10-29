@@ -79,6 +79,7 @@ object Routes {
     fun settings(category: String) = "settings/$category"
     fun workout(id: Long) = "workout/$id"
     fun alarm(position: Int) = "alarm/$position"
+    fun sleepEdit(day: Long) = "sleep/edit/$day"
 }
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
@@ -274,6 +275,9 @@ private fun AppContent(onForget: () -> Unit) {
             composable("settings/{category}") { SettingsCategoryScreen(nav, it.arguments?.getString("category").orEmpty(), onForget) }
             composable("workout/{id}", listOf(navArgument("id") { type = NavType.LongType })) {
                 WorkoutDetailScreen(nav, it.arguments?.getLong("id") ?: 0)
+            }
+            composable("sleep/edit/{day}", listOf(navArgument("day") { type = NavType.LongType })) {
+                de.waschbeken.heliolink.ui.sleep.SleepEditScreen(nav, it.arguments?.getLong("day") ?: java.time.LocalDate.now().toEpochDay())
             }
             composable("alarm/{position}", listOf(navArgument("position") { type = NavType.IntType })) {
                 AlarmEditScreen(nav, it.arguments?.getInt("position") ?: -1)

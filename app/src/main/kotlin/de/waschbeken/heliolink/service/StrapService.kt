@@ -580,11 +580,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
     private fun lastNightText(): String? {
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now()
-        val from = today.minusDays(1).atTime(18, 0).atZone(zone).toEpochSecond()
-        val to = today.atTime(18, 0).atZone(zone).toEpochSecond()
-        val night = db.sleepRecords(from, to).maxByOrNull { it.end }?.toSession()
-            ?: SleepAnalyzer.nightOf(today, SleepAnalyzer.sessions(db.activity(from, to)), zone)
-            ?: return null
+        val night = de.waschbeken.heliolink.data.Queries.night(db, today, zone) ?: return null
         return "${night.asleepMinutes / 60}:%02d h".format(night.asleepMinutes % 60)
     }
 
@@ -614,12 +610,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         val today = LocalDate.now()
         if (!prefs.morningSummary || prefs.morningSummaryDay == today.toEpochDay() || LocalTime.now().hour < 5) return
         val zone = ZoneId.systemDefault()
-        val from = today.minusDays(1).atTime(18, 0).atZone(zone).toEpochSecond()
-        val to = today.atTime(14, 0).atZone(zone).toEpochSecond()
-        val records = db.sleepRecords(from, to)
-        val night = records.maxByOrNull { it.end }?.toSession()
-            ?: SleepAnalyzer.nightOf(today, SleepAnalyzer.sessions(db.activity(from, to)), zone)
-            ?: return
+        val night = de.waschbeken.heliolink.data.Queries.night(db, today, zone) ?: return
         if (night.end > System.currentTimeMillis() / 1000 - 15 * 60) return // probably still in bed
         prefs.morningSummaryDay = today.toEpochDay()
         val text = buildString {

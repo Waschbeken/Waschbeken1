@@ -15,6 +15,8 @@ data class SleepSession(
     val strapScore: Int? = null,
     /** Stages estimated by [SleepStager] because the strap delivered none. */
     val estimated: Boolean = false,
+    /** Corrected by hand (see [SleepEdit]). */
+    val edited: Boolean = false,
 ) {
     fun minutes(stage: SleepStage) = stages.count { it.second == stage }
     val asleepMinutes get() = stages.count { it.second != SleepStage.AWAKE }
