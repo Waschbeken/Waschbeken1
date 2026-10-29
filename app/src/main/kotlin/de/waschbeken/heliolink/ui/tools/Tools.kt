@@ -18,13 +18,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Air
-import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -44,7 +42,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -52,29 +49,21 @@ import androidx.navigation.NavHostController
 import de.waschbeken.heliolink.app
 import de.waschbeken.heliolink.core.HrvMeasurement
 import de.waschbeken.heliolink.core.IntervalPlan
-import de.waschbeken.heliolink.core.RhythmCheck
-import de.waschbeken.heliolink.core.ValueSample
-import de.waschbeken.heliolink.data.HealthDb
-import de.waschbeken.heliolink.data.Queries
 import de.waschbeken.heliolink.ui.BackTopBar
-import de.waschbeken.heliolink.ui.BarChart
 import de.waschbeken.heliolink.ui.LineChart
 import de.waschbeken.heliolink.ui.Palette
 import de.waschbeken.heliolink.ui.Panel
 import de.waschbeken.heliolink.ui.Routes
 import de.waschbeken.heliolink.ui.Series
 import de.waschbeken.heliolink.ui.StatTile
-import de.waschbeken.heliolink.ui.dbValue
 import de.waschbeken.heliolink.ui.training.IntervalChooser
 import de.waschbeken.heliolink.ui.training.IntervalPhase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import java.time.LocalDate
-import java.time.ZoneId
 import kotlin.math.roundToInt
 
-/** The helpers inside "Schnell eintragen": breathing, HRV measurement and focus timer. */
+/** The helpers inside "Schnell eintragen": breathing and focus timer. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun HelperRow(nav: NavHostController) {
@@ -98,7 +87,6 @@ fun HelperRow(nav: NavHostController) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         listOf(
             Triple("Atemübung", Icons.Default.Air, Routes.TOOLS_BREATHE),
-            Triple("HRV messen", Icons.Default.MonitorHeart, Routes.TOOLS_HRV),
             Triple("Fokus-Timer", Icons.Default.Timer, Routes.TOOLS_FOCUS),
         ).forEach { (label, icon, route) ->
             AssistChip(
@@ -267,132 +255,6 @@ fun BreatheScreen(nav: NavHostController) {
                             )
                         }
                         OutlinedButton(onClick = { start = 0 }) { Text("Abbrechen") }
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ------------------------------------------------------------------ HRV measurement
-
-private enum class MeasureStep { IDLE, SETTLING, MEASURING, DONE }
-
-/**
- * One minute of HRV at rest, best right after waking up: same time, same position every day. The
- * value goes into the HRV history (HRV status) and the beats into the heart rhythm check.
- */
-@Composable
-fun HrvMeasureScreen(nav: NavHostController) {
-    val context = LocalContext.current
-    val app = context.app
-    val prefs = app.prefs
-    val state by app.repo.state.collectAsStateWithLifecycle()
-    var step by remember { mutableStateOf(MeasureStep.IDLE) }
-    var started by remember { mutableLongStateOf(0L) }
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    var outcome by remember { mutableStateOf<String?>(null) }
-    var version by remember { mutableStateOf(0) }
-    val active = step == MeasureStep.SETTLING || step == MeasureStep.MEASURING
-    KeepLiveHeartRate(active)
-    val beats = rememberBeats(active)
-    val settle = 20_000L
-    val measure = 75_000L
-    LaunchedEffect(active) {
-        if (!active) return@LaunchedEffect
-        while (true) {
-            now = System.currentTimeMillis()
-            if (now - started >= settle) step = MeasureStep.MEASURING
-            if (now - started >= settle + measure) {
-                val from = (started + settle) / 1000
-                val rr = beats.filter { it.first >= from }.map { it.second }
-                val r = HrvMeasurement.compute(rr)
-                outcome = if (r == null) {
-                    "Zu wenige saubere Herzschläge (${rr.size}). Lieg ganz ruhig, zieh den Strap etwas fester und versuch es noch einmal."
-                } else {
-                    val ts = System.currentTimeMillis() / 1000
-                    withContext(Dispatchers.IO) {
-                        app.db.insertValues(HealthDb.HRV, listOf(ValueSample(ts, r.rmssd)))
-                        RhythmCheck.analyze(rr)?.let { app.db.insertRhythm(ts, it) }
-                    }
-                    app.repo.dataChanged()
-                    version++
-                    "HRV ${r.rmssd} ms · Puls ${r.heartRate} · ${r.beats} Schläge" + if (r.artefacts > 5) " (${r.artefacts} Störungen herausgefiltert)" else ""
-                }
-                step = MeasureStep.DONE
-                break
-            }
-            delay(200)
-        }
-    }
-    val history by dbValue(version, state.dataVersion) { db ->
-        val today = LocalDate.now()
-        Queries.hrvDaily(db, today.minusDays(13), today, ZoneId.systemDefault())
-    }
-
-    Scaffold(topBar = { BackTopBar("HRV messen", onBack = { nav.popBackStack() }) }) { padding ->
-        LazyColumn(
-            Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            item {
-                Panel {
-                    when (step) {
-                        MeasureStep.IDLE, MeasureStep.DONE -> {
-                            Text("1 Minute in Ruhe", style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "Am besten morgens direkt nach dem Aufwachen, im Liegen, jeden Tag gleich. Nicht reden, nicht bewegen, " +
-                                    "normal atmen. Der Strap misst die HRV zwar selbst, aber unter wechselnden Bedingungen – diese Messung " +
-                                    "gibt dir jeden Tag einen gut vergleichbaren Wert. Nebenbei wird der Herzrhythmus geprüft.",
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                            outcome?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = Palette.Hrv) }
-                            Button(
-                                onClick = {
-                                    outcome = null
-                                    started = System.currentTimeMillis()
-                                    step = MeasureStep.SETTLING
-                                },
-                                enabled = state.connected,
-                                modifier = Modifier.fillMaxWidth(),
-                            ) { Text(if (!state.connected) "Strap nicht verbunden" else if (step == MeasureStep.DONE) "Noch einmal messen" else "Messung starten") }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Morgens daran erinnern", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                                Switch(checked = prefs.hrvReminder, onCheckedChange = { prefs.hrvReminder = it })
-                            }
-                        }
-                        else -> {
-                            val settling = step == MeasureStep.SETTLING
-                            val total = if (settling) settle else measure
-                            val done = if (settling) now - started else now - started - settle
-                            Text(if (settling) "Zur Ruhe kommen …" else "Messe …", style = MaterialTheme.typography.titleLarge)
-                            LinearProgressIndicator(progress = { (done.toFloat() / total).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
-                            Text(
-                                "noch ${((total - done) / 1000).coerceAtLeast(0)} s · Puls ${state.heartRate ?: "–"} · ${beats.size} Schläge empfangen",
-                                style = MaterialTheme.typography.bodyMedium,
-                                textAlign = TextAlign.Start,
-                            )
-                            OutlinedButton(onClick = { step = MeasureStep.IDLE }) { Text("Abbrechen") }
-                        }
-                    }
-                }
-            }
-            item {
-                Panel {
-                    Text("HRV morgens, letzte 14 Tage", style = MaterialTheme.typography.titleMedium)
-                    val today = LocalDate.now()
-                    val days = (13 downTo 0).map { today.minusDays(it.toLong()) }
-                    val h = history.orEmpty()
-                    if (h.isEmpty()) {
-                        Text("Noch keine Werte.", style = MaterialTheme.typography.bodySmall)
-                    } else {
-                        BarChart(
-                            days.map { (h[it] ?: 0.0).toFloat() }, Palette.Hrv,
-                            labels = days.map { it.dayOfMonth.toString() },
-                            format = { "${it.roundToInt()}" },
-                        )
-                        Text("Wichtig ist der Verlauf, nicht der einzelne Wert. Der HRV-Status auf der HRV-Seite vergleicht die letzte Woche mit deinem Bereich.", style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }

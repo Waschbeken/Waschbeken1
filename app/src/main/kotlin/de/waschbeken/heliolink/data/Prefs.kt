@@ -376,15 +376,6 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getBoolean("breathe_buzz", false)
         set(v) = edit { putBoolean("breathe_buzz", v) }
 
-    /** Remind of the HRV measurement in the morning (after the first sync, until 11:00). */
-    var hrvReminder: Boolean
-        get() = sp.getBoolean("hrv_reminder", false)
-        set(v) = edit { putBoolean("hrv_reminder", v) }
-
-    var hrvReminderDay: Long
-        get() = sp.getLong("hrv_reminder_day", 0)
-        set(v) = edit { putLong("hrv_reminder_day", v) }
-
     // --- strap vibrates for notifications
 
     var armNotify: Boolean

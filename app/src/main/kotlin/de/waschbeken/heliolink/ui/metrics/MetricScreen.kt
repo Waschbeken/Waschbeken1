@@ -310,6 +310,7 @@ fun MetricScreen(nav: NavHostController, key: String) {
                 item { RhythmPanel(state.dataVersion) }
             }
             if (metric == Metric.HRV) item { HrvStatusPanel(state.dataVersion) }
+            if (metric == Metric.HRV) item { SdnnPanel(state.dataVersion) }
             if (metric == Metric.STRESS) item { StressTriggersPanel(state.dataVersion) }
             item {
                 Panel(color = MaterialTheme.colorScheme.surfaceContainerLow) {
@@ -388,7 +389,7 @@ private fun RhythmPanel(dataVersion: Int) {
         Text("Herzrhythmus", style = MaterialTheme.typography.titleMedium)
         if (list.isEmpty()) {
             Text(
-                "Wird geprüft, sobald der Puls live läuft (Live-Puls, Puls-Aufzeichnung, Morgenmessung) und du ruhig bist: " +
+                "Wird geprüft, sobald der Puls live läuft (Live-Puls, Puls-Aufzeichnung, Atemübung) und du ruhig bist: " +
                     "je 64 Herzschläge auf einen unregelmäßigen Rhythmus.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -409,6 +410,36 @@ private fun RhythmPanel(dataVersion: Int) {
         Text(
             "Der optische Sensor stört sich an Bewegung und lockerem Sitz – einzelne Treffer heißen wenig. Kommt es öfter vor oder " +
                 "spürst du Herzstolpern, Schwindel oder Atemnot, lass es ärztlich mit einem EKG prüfen. Keine Diagnose.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** The strap's SDNN (a few values a day) of the last 14 days, as average per day. */
+@Composable
+private fun SdnnPanel(dataVersion: Int) {
+    val zone = ZoneId.systemDefault()
+    val values by dbValue(dataVersion) { db ->
+        val today = LocalDate.now()
+        db.values(HealthDb.SDNN, today.minusDays(13).atStartOfDay(zone).toEpochSecond(), today.plusDays(1).atStartOfDay(zone).toEpochSecond())
+    }
+    val list = values ?: return
+    if (list.isEmpty()) return
+    val today = LocalDate.now()
+    val days = (13 downTo 0).map { today.minusDays(it.toLong()) }
+    val byDay = list.groupBy { java.time.Instant.ofEpochSecond(it.timestamp).atZone(zone).toLocalDate() }
+    Panel {
+        Text("SDNN vom Strap", style = MaterialTheme.typography.titleMedium)
+        BarChart(
+            days.map { d -> byDay[d]?.map { it.value }?.average()?.toFloat() ?: 0f }, Palette.Hrv,
+            labels = days.map { it.dayOfMonth.toString() },
+            format = { "${it.toInt()}" },
+            tooltip = { i -> "${days[i].dayOfMonth}.${days[i].monthValue}.: " + (byDay[days[i]]?.joinToString(", ") { "${it.value} ms" } ?: "keine Werte") },
+        )
+        Text(
+            "Zuletzt ${list.last().value} ms. SDNN ist ein zweites HRV-Maß, das der Strap 3–4 Mal am Tag selbst berechnet " +
+                "(Streuung der Herzschlag-Abstände über mehrere Minuten). Auch hier zählt der Vergleich mit deinen eigenen Werten.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

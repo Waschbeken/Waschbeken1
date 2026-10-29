@@ -648,6 +648,14 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 db.insertValues(HealthDb.HRV, event.samples)
                 repo.log("${event.samples.size} HRV-Werte gespeichert")
             }
+            is StrapEvent.SdnnData -> {
+                db.insertValues(HealthDb.SDNN, event.samples)
+                repo.log("${event.samples.size} SDNN-Werte gespeichert")
+            }
+            is StrapEvent.OdiData -> {
+                db.insertOdi(event.nights)
+                repo.log("${event.nights.size} Nächte Atemaussetzer-Auswertung gespeichert")
+            }
             is StrapEvent.Alarms -> {
                 db.mergeStrapAlarms(event.alarms)
                 repo.update { it.copy(alarmsLoaded = true) }
@@ -884,23 +892,6 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         )
     }
 
-    /** In the morning (until 11:00), when there is no HRV value of today yet: reminds of the 1-minute measurement. */
-    private fun hrvReminder() {
-        val today = LocalDate.now()
-        val hour = LocalTime.now().hour
-        if (!prefs.hrvReminder || prefs.hrvReminderDay == today.toEpochDay() || hour < 5 || hour >= 11) return
-        val zone = ZoneId.systemDefault()
-        val night = de.waschbeken.heliolink.data.Queries.night(db, today, zone) ?: return
-        if (night.end > System.currentTimeMillis() / 1000 - 10 * 60) return // probably still in bed
-        if (db.values(HealthDb.HRV, today.atTime(4, 0).atZone(zone).toEpochSecond(), System.currentTimeMillis() / 1000 + 60).isNotEmpty()) return
-        prefs.hrvReminderDay = today.toEpochDay()
-        Notifications.show(
-            this, Notifications.ID_HRV_REMINDER, Notifications.CHANNEL_HEALTH,
-            "Zeit für deine HRV-Messung", "1 Minute ruhig liegen oder sitzen – tippen zum Starten.",
-            de.waschbeken.heliolink.ui.MainActivity.openIntent(this, de.waschbeken.heliolink.ui.Routes.TOOLS_HRV),
-        )
-    }
-
     /** Morning summary after the first successful sync of the day. */
     private fun afterSync() {
         de.waschbeken.heliolink.data.AutoBackup.runIfDueInBackground(this)
@@ -908,7 +899,6 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         try {
             bodyCheckWarning()
             StressPrompt.check(this, db, prefs, repo.state.value.workout != null)
-            hrvReminder()
         } catch (e: Exception) {
             de.waschbeken.heliolink.data.CrashReporter.nonFatal(this, e)
         }

@@ -66,6 +66,9 @@ enum class FetchType(val code: Int?, val label: String) {
     TEMPERATURE(0x2e, "Hauttemperatur"),
     RESPIRATION(0x38, "Atemfrequenz"),
     HRV(0x49, "HRV"),
+    SPO2_SLEEP(0x26, "SpO₂ im Schlaf"),
+    ODI(0x4a, "Atemaussetzer-Auswertung"),
+    HRV_SDNN(0x4e, "HRV (SDNN)"),
     SLEEP(null, "Schlafphasen"),
 }
 
@@ -80,6 +83,13 @@ data class PaiSample(
 )
 
 data class ValueSample(val timestamp: Long, val value: Int)
+
+/**
+ * The strap's nightly oxygen drop summary (fetch type 0x4A). [day] is the local midnight that
+ * starts the day of waking up (epoch seconds). [validTime] is how long the measurement was usable
+ * (unit not verified, probably seconds); the other values are only meaningful when it is above 0.
+ */
+data class OdiNight(val day: Long, val validTime: Long, val odi: Long, val score: Int?, val drops: Int)
 
 data class DeviceInfo(val firmware: String? = null, val hardware: String? = null, val serial: String? = null)
 
@@ -109,6 +119,10 @@ sealed interface StrapEvent {
     data class RespirationData(val samples: List<ValueSample>) : StrapEvent
     /** The strap's own HRV values in ms, measured every one or two minutes (day and night). */
     data class HrvData(val samples: List<ValueSample>) : StrapEvent
+    /** SDNN in ms, a few values a day, calculated by the strap. */
+    data class SdnnData(val samples: List<ValueSample>) : StrapEvent
+    /** The strap's own nightly summary of oxygen drops (sleep apnea screening). */
+    data class OdiData(val nights: List<OdiNight>) : StrapEvent
     data class Alarms(val alarms: List<StrapAlarm>) : StrapEvent
 
     /** Progress of the sleep code search: [tried] of [total] codes, with the last answer. */

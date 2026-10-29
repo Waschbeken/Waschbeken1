@@ -1,6 +1,7 @@
 package de.waschbeken.heliolink.data
 
 import android.content.ContentValues
+import de.waschbeken.heliolink.core.OdiNight
 import de.waschbeken.heliolink.core.RhythmCheck
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
@@ -32,7 +33,7 @@ data class Workout(
 
 data class HrPoint(val timestamp: Long, val bpm: Int)
 
-class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME, null, 7) {
+class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME, null, 8) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -52,6 +53,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         createV5(db)
         createV6(db)
         createV7(db)
+        createV8(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -61,6 +63,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         if (oldVersion < 5) createV5(db)
         if (oldVersion < 6) createV6(db)
         if (oldVersion < 7) createV7(db)
+        if (oldVersion < 8) createV8(db)
     }
 
     /** Version 4: PAI, skin temperature, breathing rate, battery history and alarms. */
@@ -99,6 +102,34 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
     private fun createV7(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE IF NOT EXISTS rhythm (ts INTEGER PRIMARY KEY, beats INTEGER, hr INTEGER, nrmssd INTEGER, irregular INTEGER)")
         db.execSQL("ALTER TABLE workout ADD COLUMN hrr INTEGER")
+    }
+
+    /** Version 8: the strap's SDNN values and its nightly oxygen drop summary. */
+    private fun createV8(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS $SDNN (ts INTEGER PRIMARY KEY, value INTEGER)")
+        db.execSQL("CREATE TABLE IF NOT EXISTS odi (day INTEGER PRIMARY KEY, valid INTEGER, odi INTEGER, score INTEGER, drops INTEGER)")
+    }
+
+    fun insertOdi(nights: List<OdiNight>) = transaction { db ->
+        val cv = ContentValues()
+        for (n in nights) {
+            cv.clear()
+            cv.put("day", n.day)
+            cv.put("valid", n.validTime)
+            cv.put("odi", n.odi)
+            if (n.score != null) cv.put("score", n.score) else cv.putNull("score")
+            cv.put("drops", n.drops)
+            db.insertWithOnConflict("odi", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+        }
+    }
+
+    /** Oxygen drop summaries whose day (local midnight of the wake day, epoch seconds) is in [from, to). */
+    fun odi(from: Long, to: Long): List<OdiNight> {
+        val out = ArrayList<OdiNight>()
+        readableDatabase.rawQuery("SELECT day, valid, odi, score, drops FROM odi WHERE day >= ? AND day < ? ORDER BY day", arrayOf(from.toString(), to.toString())).use { c ->
+            while (c.moveToNext()) out += OdiNight(c.getLong(0), c.getLong(1), c.getLong(2), if (c.isNull(3)) null else c.getInt(3), c.getInt(4))
+        }
+        return out
     }
 
     // ------------------------------------------------------------------ heart rhythm
@@ -511,10 +542,11 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         const val TEMPERATURE = "temperature"
         const val RESPIRATION = "respiration"
         const val BATTERY = "battery"
-        private val VALUE_TABLES = setOf(SPO2, RESTING_HR, HRV, TEMPERATURE, RESPIRATION, BATTERY)
+        const val SDNN = "hrv_sdnn"
+        private val VALUE_TABLES = setOf(SPO2, RESTING_HR, HRV, TEMPERATURE, RESPIRATION, BATTERY, SDNN)
         private val ALL_TABLES = listOf(
             "activity", "stress", "workout", "workout_hr", "sleep_record", SPO2, RESTING_HR, HRV, "hr",
-            "pai", TEMPERATURE, RESPIRATION, BATTERY, "alarm", "sleep_edit", "sleep_tag", "event", "rhythm",
+            "pai", TEMPERATURE, RESPIRATION, BATTERY, "alarm", "sleep_edit", "sleep_tag", "event", "rhythm", SDNN, "odi",
         )
     }
 

@@ -12,13 +12,13 @@ aber ganz auf einen Strap ohne Display zugeschnitten.
 | **Daten** | Eigener Tab wie in Gadgetbridge: ein Datum für alle Seiten, wischen zwischen Aktivität, Puls, Schlaf, Schritte, Stress, SpO₂, HRV, Temperatur, Atmung, PAI und Akku. Tagesuhr (24 h) mit Aktivität, Schlaf und „nicht getragen“, Aktivitätsdiagramm mit Balken und Pulslinie. Seiten „Schlaf-Woche“ und „Schritte-Woche“. Alle Zeitdiagramme lassen sich mit zwei Fingern zoomen und verschieben, Doppeltipp zoomt hinein oder zurück; weit hineingezoomt stehen die Werte an den Punkten. **Finger halten** zeigt Zeit und Wert – im Schlaf, im Aktivitätsdiagramm und auf der Tagesuhr die Phase mit Beginn, Ende und Dauer |
 | **Schnell eintragen** | Auf „Heute“ mit einem Tipp Koffein, Nikotin, Alkohol, Essen, Medikament … notieren (Knöpfe frei änderbar, Karte zuklappbar). Die Einträge erscheinen als Markierung in den Tagesdiagrammen und zählen automatisch für die folgende Nacht in „Was deinem Schlaf guttut“ |
 | **Frühwarnung** | Weichen nachts mehrere Werte zugleich von deinem Normalwert ab (Hauttemperatur und Ruhepuls hoch, HRV niedrig, Atmung schneller), zeigt „Heute“ eine Karte und morgens kommt eine Benachrichtigung – oft einen Tag bevor man sich krank fühlt. Vergleich mit den letzten 30 Nächten, Hinweis auf Einträge wie Alkohol oder Sport, keine Diagnose |
-| **Im Körper** | Aus den Schnell-Einträgen: wie viel Koffein und Nikotin gerade noch im Körper ist, wie viel zur üblichen Schlafenszeit und ab wann es abgebaut ist |
+| **Im Körper** | Aus den Schnell-Einträgen (aufgeklappt): wie viel Koffein und Nikotin gerade noch im Körper ist, wie lange noch und bis wann, und wie viel zur üblichen Schlafenszeit |
 | **Wirkung auf den Puls** | Was Koffein, Nikotin, Alkohol … mit deinem Ruhepuls machen: die zwei Stunden nach jedem Eintrag im Vergleich zur selben Uhrzeit an Tagen ohne – nur ruhige Minuten, ab 3 Einträgen |
 | **HRV-Status** | Schnitt der letzten 7 Tage gegen deinen üblichen Bereich: ausgeglichen, niedrig, sehr niedrig oder ungewöhnlich hoch, mit Verlauf – aus der Nacht-HRV, die der Strap selbst misst |
 | **Sauerstoff-Abfälle** | Pro Nacht: Abfälle des SpO₂ um mindestens 3 %, pro Stunde bewertet (Hinweis auf Atemaussetzer), niedrigster Wert und Minuten unter 90 % |
 | **Herzrhythmus** | Während der Puls live läuft und du ruhig bist, prüft HelioLink je 64 Herzschläge auf einen unregelmäßigen Rhythmus (RMSSD, Wendepunkte, Entropie); wiederholte Treffer an mehreren Tagen ergeben einen Hinweis – keine Diagnose |
 | **Beste Einschlafzeit** | Aus den letzten 90 Nächten: in welcher Stunde deine besten Nächte beginnen |
-| **Helfer** | In „Schnell eintragen“ auf „Heute“: **Atemübung** (6 Atemzüge pro Minute mit Kreis, optional Takt am Arm, Puls und HRV vorher/nachher als Eintrag gespeichert), **HRV messen** (1 Minute in Ruhe, z. B. morgens – ein gut vergleichbarer Tageswert, prüft nebenbei den Herzrhythmus, Erinnerung am Morgen), **Fokus-Timer** (z. B. 25/5 × 4: der Strap vibriert zu Fokus und Pause, läuft im Hintergrund weiter) |
+| **Helfer** | In „Schnell eintragen“ auf „Heute“: **Atemübung** (6 Atemzüge pro Minute mit Kreis, optional Takt am Arm, Puls und HRV vorher/nachher als Eintrag gespeichert) und **Fokus-Timer** (z. B. 25/5 × 4: der Strap vibriert zu Fokus und Pause, läuft im Hintergrund weiter) |
 | **Am Arm vibrieren** | Anrufe (3× lang) und Nachrichten gewählter Apps (2× kurz) lassen den Strap vibrieren – nicht im Schlaf und nicht bei „Bitte nicht stören“. Nur die sendende App wird angesehen, nie der Inhalt |
 | **Stress-Momente** | Nach längerem hohem Stress ohne Sport fragt HelioLink per Benachrichtigung „Was war los?“ (höchstens 3× am Tag, nicht nachts); die Stressseite zeigt deine häufigsten Auslöser |
 | **Pulsaufzeichnung** | Auf den aktuellen Puls tippen, Dauer wählen (1 min bis 2 h oder bis zum Stoppen): jede Sekunde wird aufgezeichnet, automatisch beendet und gespeichert – mit Live-Ansicht und zoombarer Auswertung. Dazu „Was machst du gerade?“, „Hast du etwas genommen?“ und eine Notiz |
@@ -41,8 +41,10 @@ Android-Cloud-Sicherung ist ausgeschlossen, Sicherungen lassen sich mit Passwort
 (PBKDF2 + AES-GCM, `core/BackupCrypto.kt`), die App lässt sich sperren. Die einzige Verbindung ins
 Internet ist die Update-Suche bei GitHub; sie lässt sich abschalten.
 
-**HRV vom Strap:** Der Strap misst die HRV alle ein bis zwei Minuten (Tag und Nacht) und gibt sie über den
-Abruf-Typ `0x49` heraus (6-Byte-Datensätze: Zeit, Zeitzone, Wert in ms). HelioLink holt sie bei jedem Abruf.
+**Daten vom Strap:** Neben Aktivität, Stress, SpO₂, Ruhepuls, PAI, Hauttemperatur, Atmung und Schlaf holt
+HelioLink auch die HRV (Typ `0x49`, alle 1–2 Minuten, Tag und Nacht), SpO₂ im Schlaf (`0x26`), SDNN (`0x4E`,
+3–4 am Tag) und die nächtliche Atemaussetzer-Auswertung des Straps (`0x4A`, Zahl der Sauerstoff-Abfälle und
+Bewertung; der Strap hebt nur etwa 6 Nächte auf).
 Das Protokollwissen stammt aus Gadgetbridge und der Strap-Protokollbeschreibung des Projekts Ridge.
 
 Im Hintergrund hält ein Dienst die Verbindung, startet nach einem Neustart des Handys von selbst,

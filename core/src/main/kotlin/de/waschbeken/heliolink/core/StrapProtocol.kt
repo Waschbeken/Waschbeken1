@@ -568,6 +568,54 @@ class StrapProtocol(
                 if (samples.isNotEmpty()) emit(StrapEvent.HrvData(samples))
                 end = samples.maxOfOrNull { it.timestamp }?.plus(60)
             }
+            FetchType.SPO2_SLEEP -> {
+                // version 2, then 30 byte records: timestamp(4) spo2(1) duration(1) 24 unknown
+                if (data.isEmpty() || (data.size - 1) % 30 != 0 || data.u8(0) != 2) {
+                    emit(StrapEvent.Log("SpO₂ im Schlaf: unbekanntes Format (${data.size} Bytes)"))
+                    return false
+                }
+                val samples = (0 until (data.size - 1) / 30).map { n ->
+                    val o = 1 + n * 30
+                    ValueSample(data.u32(o), data.u8(o + 4))
+                }.filter { it.value in 50..100 }
+                if (samples.isNotEmpty()) emit(StrapEvent.Spo2Data(samples))
+                end = samples.maxOfOrNull { it.timestamp }?.plus(60)
+            }
+            FetchType.HRV_SDNN -> {
+                // 9 byte records: timestamp(4) utc offset in quarter hours(1) SDNN in 1/100 ms (4)
+                if (data.size % 9 != 0) {
+                    emit(StrapEvent.Log("SDNN: unbekanntes Format (${data.size} Bytes)"))
+                    return false
+                }
+                val samples = (0 until data.size / 9).mapNotNull { n ->
+                    val raw = data.u32(n * 9 + 5)
+                    if (raw == 0L || raw == 0xffffffffL) null else ValueSample(data.u32(n * 9), ((raw + 50) / 100).toInt())
+                }.filter { it.value in 5..400 }
+                if (samples.isNotEmpty()) emit(StrapEvent.SdnnData(samples))
+                end = samples.maxOfOrNull { it.timestamp }?.plus(60)
+            }
+            FetchType.ODI -> {
+                // 2896 byte records: day(4) valid time(4) odi(4) score(1) display code(1) version(1) drops(1), 240 events
+                if (data.size % 2896 != 0) {
+                    emit(StrapEvent.Log("Atemaussetzer-Auswertung: unbekanntes Format (${data.size} Bytes)"))
+                    return false
+                }
+                val nights = (0 until data.size / 2896).mapNotNull { n ->
+                    val o = n * 2896
+                    val day = data.u32(o)
+                    if (day !in 1_600_000_000L..2_000_000_000L) return@mapNotNull null
+                    val valid = data.u32(o + 4)
+                    OdiNight(
+                        day = day,
+                        validTime = valid,
+                        odi = if (valid > 0) data.u32(o + 8) else 0,
+                        score = data.u8(o + 12).takeIf { valid > 0 && it != 0xff },
+                        drops = if (valid > 0) data.u8(o + 15) else 0,
+                    )
+                }
+                if (nights.isNotEmpty()) emit(StrapEvent.OdiData(nights))
+                end = nights.maxOfOrNull { it.day }?.plus(60)
+            }
             FetchType.SLEEP -> {
                 val records = SleepRecordParser.parseAll(data, sleepRecordOffset)
                 if (records.isNotEmpty()) emit(StrapEvent.SleepData(records))
@@ -591,7 +639,7 @@ class StrapProtocol(
         /** Fetch codes that are not used by any data type we know, tried when looking for sleep records. */
         val SLEEP_CODE_CANDIDATES: List<Int> =
             ((0x27..0x50) + (0x14..0x24) + (0x08..0x0c) + (0x0e..0x11) + listOf(0x03, 0x04))
-                .filter { it !in setOf(0x2c, 0x2e, 0x38, 0x3a, 0x3d, 0x49) }
+                .filter { it !in setOf(0x2c, 0x2e, 0x38, 0x3a, 0x3d, 0x49, 0x4a, 0x4e) }
     }
 }
 
