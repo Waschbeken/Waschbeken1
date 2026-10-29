@@ -159,7 +159,7 @@ private fun loadDay(db: HealthDb, date: LocalDate): DayData {
     return DayData(
         date, from, to, activity,
         hr = Queries.heartRatePoints(db, from, to, activity),
-        stages = nights.values.flatMap { it.stages }.associate { (t, s) -> t / 60 * 60 to s },
+        stages = (nights.values + Queries.naps(db, date, zone, nights[date])).flatMap { it.stages }.associate { (t, s) -> t / 60 * 60 to s },
         night = nights[date],
         stress = db.stress(from, to),
         spo2 = db.values(HealthDb.SPO2, from, to),

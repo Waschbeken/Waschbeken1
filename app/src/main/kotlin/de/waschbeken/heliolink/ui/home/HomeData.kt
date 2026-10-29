@@ -45,6 +45,8 @@ class HomeData(
     val nextAlarmLabel: String,
     val readiness: Readiness?,
     val hrPoints: List<Pair<Long, Float>>,
+    /** Naps of today (confirmed by the sleep detection). */
+    val naps: List<SleepSession>,
     /** Early warning from last night's values, null without enough history. */
     val bodyCheck: BodyCheck.Result?,
     /** Entries of yesterday that can explain unusual night values (alcohol, sport …). */
@@ -117,6 +119,7 @@ class HomeData(
                 nextAlarmLabel = nextLabel,
                 readiness = Readiness.calculate(night?.score, hrvNight, hrvBaseline, resting, restingBaseline),
                 hrPoints = Queries.heartRatePoints(db, dayStart, dayEnd, day),
+                naps = Queries.naps(db, today, zone, night),
                 bodyCheck = bodyCheck,
                 bodyCheckHints = hints,
                 hrvStatus = hrvStatus,
