@@ -34,17 +34,25 @@ internal object TimeCodec {
         quarterHours(time),
     )
 
-    /** Decodes year(2) month day hour minute second [tz] into epoch millis. */
-    fun decode(bytes: ByteArray, offset: Int, zone: ZoneId): Long {
-        val local = LocalDateTime.of(
-            bytes.u16(offset), bytes.u8(offset + 2), bytes.u8(offset + 3),
-            bytes.u8(offset + 4), bytes.u8(offset + 5), bytes.u8(offset + 6),
-        )
-        val instant: Instant = if (bytes.size > offset + 7) {
-            local.toInstant(ZoneOffset.ofTotalSeconds(bytes[offset + 7] * 15 * 60))
-        } else {
-            local.atZone(zone).toInstant()
+    /**
+     * Decodes year(2) month day hour minute second [tz] into epoch millis. Returns null for an
+     * empty or invalid time (the strap sends zeros, e.g. month 0, when it has no data).
+     */
+    fun decode(bytes: ByteArray, offset: Int, zone: ZoneId): Long? {
+        if (bytes.size < offset + 7) return null
+        return try {
+            val local = LocalDateTime.of(
+                bytes.u16(offset), bytes.u8(offset + 2), bytes.u8(offset + 3),
+                bytes.u8(offset + 4), bytes.u8(offset + 5), bytes.u8(offset + 6),
+            )
+            val instant: Instant = if (bytes.size > offset + 7) {
+                local.toInstant(ZoneOffset.ofTotalSeconds(bytes[offset + 7] * 15 * 60))
+            } else {
+                local.atZone(zone).toInstant()
+            }
+            instant.toEpochMilli()
+        } catch (e: java.time.DateTimeException) {
+            null
         }
-        return instant.toEpochMilli()
     }
 }

@@ -37,6 +37,11 @@ class Backup(private val context: Context, private val prefs: Prefs, private val
             zip.putNextEntry(ZipEntry("info.txt"))
             zip.write(info.toByteArray())
             zip.closeEntry()
+            CrashReporter.errors(context)?.let { errors ->
+                zip.putNextEntry(ZipEntry("fehler.txt"))
+                zip.write(errors.toByteArray())
+                zip.closeEntry()
+            }
             CrashReporter.read(context)?.let { crash ->
                 zip.putNextEntry(ZipEntry("absturz.txt"))
                 zip.write(crash.toByteArray())

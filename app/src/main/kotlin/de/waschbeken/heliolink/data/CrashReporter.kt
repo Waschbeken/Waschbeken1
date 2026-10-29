@@ -14,6 +14,7 @@ import java.time.LocalDateTime
  */
 object CrashReporter {
     private const val FILE = "crash.txt"
+    private const val ERRORS = "errors.txt"
 
     fun install(context: Context) {
         val appContext = context.applicationContext
@@ -36,6 +37,20 @@ object CrashReporter {
             previous?.uncaughtException(thread, error)
         }
     }
+
+    /** Exceptions the app caught and survived; they go into the data export (fehler.txt). */
+    fun nonFatal(context: Context, error: Throwable) {
+        try {
+            val sw = StringWriter()
+            error.printStackTrace(PrintWriter(sw))
+            val file = File(context.filesDir, ERRORS)
+            val old = if (file.exists()) file.readText().takeLast(40_000) else ""
+            file.writeText(old + "--- ${BuildConfig.VERSION_NAME} ${LocalDateTime.now().withNano(0)}\n" + sw.toString().take(4_000) + "\n")
+        } catch (_: Throwable) {
+        }
+    }
+
+    fun errors(context: Context): String? = File(context.filesDir, ERRORS).takeIf { it.exists() }?.readText()
 
     fun read(context: Context): String? = File(context.filesDir, FILE).takeIf { it.exists() }?.readText()
 

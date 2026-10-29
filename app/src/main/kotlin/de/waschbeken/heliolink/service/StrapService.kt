@@ -125,7 +125,17 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
     override fun onCreate() {
         super.onCreate()
         thread = HandlerThread("strap").also { it.start() }
-        handler = Handler(thread.looper)
+        handler = object : Handler(thread.looper) {
+            // A single unexpected packet from the strap must not close the app: log it and go on.
+            override fun dispatchMessage(msg: android.os.Message) {
+                try {
+                    super.dispatchMessage(msg)
+                } catch (e: Exception) {
+                    repo.log("Fehler abgefangen: ${e.javaClass.simpleName}: ${e.message}")
+                    de.waschbeken.heliolink.data.CrashReporter.nonFatal(this@StrapService, e)
+                }
+            }
+        }
         createChannel()
         repo.controller = this
         // React to settings that change the heart rate streaming (continuous recording).

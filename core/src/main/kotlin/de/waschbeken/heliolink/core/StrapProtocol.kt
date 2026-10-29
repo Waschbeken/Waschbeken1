@@ -259,6 +259,8 @@ class StrapProtocol(
     // ------------------------------------------------------------------ history download
 
     private class Fetch(val type: FetchType, val code: Int, val round: Int = 1, val probe: Boolean = false) {
+        /** Start the app asked for (epoch millis). */
+        var requested = 0L
         var start = 0L
         var expected = 0L
         var lastCounter = -1
@@ -357,6 +359,7 @@ class StrapProtocol(
         val sinceMillis = (if (next.probe) null else cursor?.get(next.type))
             ?: now.minus(defaultHistory).toInstant().toEpochMilli()
         val since = Instant.ofEpochMilli(sinceMillis).atZone(now.zone)
+        next.requested = sinceMillis
         write(GattWrite(WriteTarget.FETCH_CONTROL, byteArrayOf(0x01, next.code.toByte()) + TimeCodec.fetchStart(since)))
     }
 
@@ -372,7 +375,15 @@ class StrapProtocol(
                     return
                 }
                 f.expected = value.u32(3)
-                f.start = TimeCodec.decode(value, 7, clock().zone)
+                val start = TimeCodec.decode(value, 7, clock().zone)
+                if (start == null && f.expected > 0 && !f.probe) {
+                    // Without a valid start the samples cannot be placed in time: leave them on the strap.
+                    emit(StrapEvent.Log("${f.type.label}: ungültige Startzeit (${value.toHex()}) – übersprungen"))
+                    f.skipped = true
+                    sendFetchAck(keepOnStrap = true)
+                    return
+                }
+                f.start = start ?: f.requested
                 if (!f.probe) emit(StrapEvent.SyncProgress(f.type, f.start, f.expected, 0))
                 if (f.expected == 0L || (f.probe && f.expected > PROBE_MAX_BYTES)) {
                     if (f.probe) probeStep(f, if (f.expected == 0L) "leer" else "${f.expected} Bytes, zu groß")

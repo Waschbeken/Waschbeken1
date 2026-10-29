@@ -109,6 +109,37 @@ class StrapProtocolTest {
     }
 
     @Test
+    fun emptyStartTimeDoesNotCrash() {
+        val h = Harness(key, now)
+        val cursor = object : SyncCursor {
+            override fun get(type: FetchType): Long? = null
+            override fun set(type: FetchType, epochMillis: Long) {}
+        }
+        h.protocol.startSync(cursor, listOf(FetchType.STRESS, FetchType.ACTIVITY))
+        // No data: the strap answers with zeros instead of a time (month 0).
+        h.protocol.onFetchControlNotification(byteArrayOf(0x10, 0x01, 0x01) + le32(0) + ByteArray(8))
+        assertEquals(listOf<Byte>(0x03, 0x09), h.writes.last().value.toList())
+        h.protocol.onFetchControlNotification(byteArrayOf(0x10, 0x03, 0x01))
+        // Data but an invalid time: skipped and kept on the strap.
+        assertEquals(0x01, h.writes.last().value[0].toInt())
+        h.protocol.onFetchControlNotification(byteArrayOf(0x10, 0x01, 0x01) + le32(16) + byteArrayOf(*le16(2026), 13, 40, 0, 0, 0, 4))
+        assertEquals(listOf<Byte>(0x03, 0x09), h.writes.last().value.toList())
+        assertTrue(h.events.any { it is StrapEvent.Log && "ungültige Startzeit" in it.message })
+    }
+
+    @Test
+    fun decodeRejectsInvalidTimes() {
+        val zone = ZoneId.of("Europe/Berlin")
+        assertEquals(null, TimeCodec.decode(ByteArray(8), 0, zone))
+        assertEquals(null, TimeCodec.decode(byteArrayOf(*le16(2026), 10, 29, 6, 0, 0, 127), 0, zone)) // tz +31:45
+        assertEquals(null, TimeCodec.decode(byteArrayOf(1, 2, 3), 0, zone))
+        assertEquals(
+            ZonedDateTime.of(2026, 10, 29, 5, 0, 0, 0, ZoneId.of("UTC")).toInstant().toEpochMilli(),
+            TimeCodec.decode(byteArrayOf(*le16(2026), 10, 29, 6, 0, 0, 4), 0, zone),
+        )
+    }
+
+    @Test
     fun parsesHeartRateMeasurement() {
         val h = Harness(key, now)
         h.protocol.onHeartRateMeasurement(byteArrayOf(0x10, 72, 0x00, 0x04))
