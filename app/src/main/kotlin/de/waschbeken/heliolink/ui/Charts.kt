@@ -1,10 +1,25 @@
 package de.waschbeken.heliolink.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -15,6 +30,8 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -51,34 +68,127 @@ private fun niceStep(range: Float, lines: Int = 4): Float {
     return steps.firstOrNull { it >= raw } ?: raw
 }
 
-/** Time axis labels (hours) below a chart area of width [w] starting at [left]. */
+/** Time axis labels below a chart area of width [w] starting at [left]; the step follows the zoom. */
 private fun DrawScope.timeAxis(m: TextMeasurer, from: Long, to: Long, left: Float, w: Float, y: Float, color: Color) {
     if (to <= from) return
     val zone = ZoneId.systemDefault()
-    val hours = (to - from) / 3600.0
-    val step = when {
-        hours > 36 -> 12
-        hours > 16 -> 6
-        hours > 8 -> 3
-        hours > 3 -> 1
-        else -> 0
+    val span = to - from
+    val steps = longArrayOf(60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400)
+    val step = steps.firstOrNull { span / it <= 6 } ?: 86400
+    val midnight = Instant.ofEpochSecond(from).atZone(zone).toLocalDate().atStartOfDay(zone).toEpochSecond()
+    var t = midnight + ((from - midnight + step - 1) / step) * step
+    while (t <= to) {
+        val local = Instant.ofEpochSecond(t).atZone(zone)
+        val txt = if (step >= 3600) "%02d".format(local.hour) else "%02d:%02d".format(local.hour, local.minute)
+        val px = left + (t - from).toFloat() / span * w
+        label(m, txt, px, y, color, center = true)
+        t += step
     }
-    if (step == 0) {
-        listOf(from, (from + to) / 2, to).forEachIndexed { i, t ->
-            val txt = Instant.ofEpochSecond(t).atZone(zone).toLocalTime().toString().take(5)
-            val px = left + (t - from).toFloat() / (to - from) * w
-            label(m, txt, px, y, color, alignRight = i == 2, center = i == 1)
+}
+
+/**
+ * Visible part of a time chart. Pinch with two fingers to zoom, drag sideways to move once zoomed,
+ * double tap to zoom in or back out – like the charts in Gadgetbridge.
+ */
+@Stable
+class TimeZoom(val from: Long, val to: Long, private val minSpan: Long = 600) {
+    var start by mutableLongStateOf(from)
+        private set
+    var end by mutableLongStateOf(to)
+        private set
+    val zoomed get() = end - start < to - from - 1
+
+    fun reset() {
+        start = from
+        end = to
+    }
+
+    /** Zooms by [factor] around [focus] (0 = left edge, 1 = right edge). */
+    fun zoom(factor: Float, focus: Float) {
+        if (to <= from || factor <= 0f) return
+        val span = (end - start).toDouble()
+        val newSpan = (span / factor).coerceIn(minOf(minSpan, to - from).toDouble(), (to - from).toDouble())
+        val center = start + span * focus
+        val s = (center - newSpan * focus).coerceIn(from.toDouble(), to - newSpan)
+        start = s.toLong()
+        end = (s + newSpan).toLong()
+    }
+
+    /** Moves by [fraction] of the visible width (positive = towards earlier). */
+    fun pan(fraction: Float) {
+        val span = end - start
+        val s = (start - (span * fraction).toLong()).coerceIn(from, to - span)
+        start = s
+        end = s + span
+    }
+}
+
+@Composable
+fun rememberTimeZoom(from: Long, to: Long, minSpan: Long = 600): TimeZoom = remember(from, to) { TimeZoom(from, to, minSpan) }
+
+/** Gestures for [TimeZoom]; vertical drags stay with the list so the page still scrolls. */
+fun Modifier.timeZoom(z: TimeZoom): Modifier = this
+    .pointerInput(z) {
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false)
+            var horizontal = false
+            var decided = false
+            var total = Offset.Zero
+            do {
+                val event = awaitPointerEvent()
+                val pressed = event.changes.count { it.pressed }
+                if (pressed >= 2) {
+                    val zoom = event.calculateZoom()
+                    val centroid = event.calculateCentroid(useCurrent = true)
+                    if (zoom != 1f && centroid != Offset.Unspecified) z.zoom(zoom, (centroid.x / size.width).coerceIn(0f, 1f))
+                    val pan = event.calculatePan()
+                    if (pan.x != 0f) z.pan(pan.x / size.width)
+                    event.changes.forEach { it.consume() }
+                    decided = true
+                    horizontal = true
+                } else if (pressed == 1 && z.zoomed) {
+                    val pan = event.calculatePan()
+                    if (!decided) {
+                        total += pan
+                        if (total.getDistance() > viewConfiguration.touchSlop) {
+                            decided = true
+                            horizontal = kotlin.math.abs(total.x) > kotlin.math.abs(total.y)
+                        }
+                    }
+                    if (decided && horizontal) {
+                        if (pan.x != 0f) z.pan(pan.x / size.width)
+                        event.changes.forEach { it.consume() }
+                    }
+                }
+            } while (event.changes.any { it.pressed })
         }
-        return
     }
-    var t = Instant.ofEpochSecond(from).atZone(zone).withMinute(0).withSecond(0).withNano(0).plusHours(1)
-    while (t.toEpochSecond() < to) {
-        if (t.hour % step == 0) {
-            val px = left + (t.toEpochSecond() - from).toFloat() / (to - from) * w
-            label(m, "%02d".format(t.hour), px, y, color, center = true)
+    .pointerInput(z) {
+        detectTapGestures(onDoubleTap = { o -> if (z.zoomed) z.reset() else z.zoom(4f, (o.x / size.width).coerceIn(0f, 1f)) })
+    }
+
+/** Points inside [from]..[to] (plus [margin]); dense data is thinned to the min and max per pixel column. */
+private fun visiblePoints(points: List<Pair<Long, Float>>, from: Long, to: Long, columns: Int, margin: Long): List<Pair<Long, Float>> {
+    val sorted = if (points.zipWithNext().all { (a, b) -> a.first <= b.first }) points else points.sortedBy { it.first }
+    val visible = sorted.filter { it.first in (from - margin)..(to + margin) }
+    if (visible.size <= columns * 2 || columns <= 0 || to <= from) return visible
+    val out = ArrayList<Pair<Long, Float>>(columns * 2)
+    val perColumn = (to - from).toDouble() / columns
+    var i = 0
+    while (i < visible.size) {
+        val col = ((visible[i].first - from) / perColumn).toLong()
+        var lo = visible[i]
+        var hi = visible[i]
+        var j = i
+        while (j < visible.size && ((visible[j].first - from) / perColumn).toLong() == col) {
+            if (visible[j].second < lo.second) lo = visible[j]
+            if (visible[j].second > hi.second) hi = visible[j]
+            j++
         }
-        t = t.plusHours(1)
+        if (lo.first <= hi.first) { out += lo; if (hi !== lo) out += hi } else { out += hi; out += lo }
+        i = j
     }
+    return out
 }
 
 /**
@@ -100,6 +210,8 @@ fun LineChart(
     areas: List<Triple<Float, Float, Color>> = emptyList(),
     /** Highlighted points with a short text, e.g. the minimum and maximum. */
     markers: List<Triple<Long, Float, String>> = emptyList(),
+    /** Colored band under the chart, one color per minute (see [minuteStrip]). */
+    strip: List<Pair<Long, Color>> = emptyList(),
 ) {
     val m = rememberTextMeasurer()
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -107,7 +219,8 @@ fun LineChart(
     val markerColor = MaterialTheme.colorScheme.onSurface
     Canvas(modifier) {
         if (to <= from) return@Canvas
-        val values = series.flatMap { s -> s.points.map { it.second } }
+        val values = series.flatMap { s -> s.points.filter { it.first in from..to }.map { it.second } }
+            .ifEmpty { series.flatMap { s -> s.points.map { it.second } } }
         if (values.isEmpty()) return@Canvas
         var lo = minY ?: values.min()
         var hi = maxY ?: values.max()
@@ -116,10 +229,19 @@ fun LineChart(
         lo = floor(lo / step) * step
         hi = ceil(hi / step) * step
         val axisH = 18.dp.toPx()
+        val stripH = if (strip.isEmpty()) 0f else 10.dp.toPx()
         val left = m.measure(format(hi), TextStyle(fontSize = 10.sp)).size.width + 6.dp.toPx()
         val w = size.width - left
-        val h = size.height - axisH
+        val h = size.height - axisH - stripH
         fun x(t: Long) = left + (t - from).toFloat() / (to - from) * w
+        if (strip.isNotEmpty()) {
+            clipRect(left, h, size.width, h + stripH) {
+                for ((t, c) in strip) {
+                    if (t + 60 < from || t > to) continue
+                    drawRect(c, Offset(x(t), h + 3.dp.toPx()), Size((x(t + 60) - x(t)).coerceAtLeast(1f), stripH - 3.dp.toPx()))
+                }
+            }
+        }
         fun y(v: Float) = h - (v - lo) / (hi - lo) * h
 
         for ((a, b, c) in areas) {
@@ -138,15 +260,16 @@ fun LineChart(
                 drawLine(c.copy(alpha = 0.7f), Offset(left, y(value)), Offset(size.width, y(value)), 2f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f)))
             }
         }
-        timeAxis(m, from, to, left, w, h + 3.dp.toPx(), labelColor)
+        timeAxis(m, from, to, left, w, h + stripH + 3.dp.toPx(), labelColor)
 
+        clipRect(left, 0f, size.width, h) {
         for (s in series) {
             val path = Path()
             val fillPath = Path()
             var last: Long? = null
             var segmentStart = 0f
             var lastX = 0f
-            for ((t, value) in s.points.sortedBy { it.first }) {
+            for ((t, value) in visiblePoints(s.points, from, to, w.toInt(), gapSeconds)) {
                 val px = x(t)
                 val py = y(value)
                 if (last == null || t - last > gapSeconds) {
@@ -175,6 +298,7 @@ fun LineChart(
                 drawPath(fillPath, Brush.verticalGradient(listOf(s.color.copy(alpha = 0.35f), s.color.copy(alpha = 0.02f)), 0f, h))
             }
             drawPath(path, s.color, style = Stroke(width = s.width, cap = StrokeCap.Round))
+        }
         }
         for ((t, value, text) in markers) {
             if (t < from || t > to) continue
@@ -559,5 +683,246 @@ fun Sparkline(values: List<Float>, color: Color, modifier: Modifier = Modifier.f
             if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
         }
         drawPath(path, color, style = Stroke(width = 2.5f, cap = StrokeCap.Round))
+    }
+}
+
+/** What the strap saw in a stretch of time; colors follow Gadgetbridge's activity charts. */
+enum class DayState { NO_DATA, NOT_WORN, IDLE, LIGHT, ACTIVE, AWAKE, SLEEP_LIGHT, SLEEP_DEEP, SLEEP_REM }
+
+fun dayState(samples: List<ActivitySample>, stages: Map<Long, SleepStage>): DayState {
+    if (samples.isEmpty()) return DayState.NO_DATA
+    val stage = samples.mapNotNull { stages[it.timestamp / 60 * 60] }.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
+    if (stage != null) {
+        return when (stage) {
+            SleepStage.DEEP -> DayState.SLEEP_DEEP
+            SleepStage.REM -> DayState.SLEEP_REM
+            SleepStage.AWAKE -> DayState.AWAKE
+            SleepStage.LIGHT -> DayState.SLEEP_LIGHT
+        }
+    }
+    if (samples.count { it.isSleep } * 2 > samples.size) return DayState.SLEEP_LIGHT
+    if (samples.count { it.notWorn } * 2 > samples.size) return DayState.NOT_WORN
+    val stepsPerMinute = samples.sumOf { it.steps }.toFloat() / samples.size
+    return when {
+        stepsPerMinute >= 60 -> DayState.ACTIVE
+        stepsPerMinute >= 10 || samples.any { it.intensity >= 60 } -> DayState.LIGHT
+        else -> DayState.IDLE
+    }
+}
+
+@Composable
+fun dayStateColor(s: DayState): Color = when (s) {
+    DayState.NO_DATA -> Color.Transparent
+    DayState.NOT_WORN -> MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
+    DayState.IDLE -> MaterialTheme.colorScheme.surfaceContainerHighest
+    DayState.LIGHT -> Palette.Steps.copy(alpha = 0.5f)
+    DayState.ACTIVE -> Palette.Steps
+    DayState.AWAKE -> Palette.Awake
+    DayState.SLEEP_LIGHT -> Palette.Light
+    DayState.SLEEP_DEEP -> Palette.Deep
+    DayState.SLEEP_REM -> Palette.Rem
+}
+
+@Composable
+private fun stateColors(): Map<DayState, Color> = DayState.entries.associateWith { dayStateColor(it) }
+
+/** Legend entries for [DayClock], [ActivityChart] and [DayStrip]. */
+@Composable
+fun dayStateLegend(): List<Pair<String, Color>> = listOf(
+    "Aktiv" to Palette.Steps,
+    "Leicht aktiv" to Palette.Steps.copy(alpha = 0.5f),
+    "Ruhig" to MaterialTheme.colorScheme.surfaceContainerHighest,
+    "Schlaf" to Palette.Light,
+    "Tief" to Palette.Deep,
+    "REM" to Palette.Rem,
+    "Nicht getragen" to MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
+)
+
+/**
+ * The day as a 24-hour clock (midnight at the top) like Gadgetbridge's dashboard: activity, sleep and
+ * the time the strap was not worn as colored ring, the current time as a dot. [center] is drawn inside.
+ */
+@Composable
+fun DayClock(
+    samples: List<ActivitySample>,
+    stages: Map<Long, SleepStage>,
+    dayStart: Long,
+    modifier: Modifier = Modifier.size(180.dp),
+    center: @Composable () -> Unit = {},
+) {
+    val colors = stateColors()
+    val track = MaterialTheme.colorScheme.surfaceContainerHigh
+    val tick = MaterialTheme.colorScheme.onSurfaceVariant
+    val now = MaterialTheme.colorScheme.onSurface
+    val m = rememberTextMeasurer()
+    val segments = remember(samples, stages, dayStart) {
+        val byBucket = samples.filter { it.timestamp >= dayStart && it.timestamp < dayStart + 86400 }.groupBy { ((it.timestamp - dayStart) / 300).toInt() }
+        Array(288) { i -> dayState(byBucket[i].orEmpty(), stages) }
+    }
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val stroke = size.minDimension * 0.11f
+            val inset = stroke / 2 + 2.dp.toPx()
+            val arcSize = Size(size.minDimension - inset * 2, size.minDimension - inset * 2)
+            val topLeft = Offset((size.width - arcSize.width) / 2, (size.height - arcSize.height) / 2)
+            drawArc(track, 0f, 360f, false, topLeft, arcSize, style = Stroke(stroke))
+            val sweep = 360f / 288
+            segments.forEachIndexed { i, st ->
+                if (st == DayState.NO_DATA) return@forEachIndexed
+                drawArc(colors.getValue(st), -90f + i * sweep, sweep + 0.4f, false, topLeft, arcSize, style = Stroke(stroke))
+            }
+            val c = Offset(size.width / 2, size.height / 2)
+            val rInner = arcSize.width / 2 - stroke / 2 - 4.dp.toPx()
+            for (h in 0 until 24) {
+                val a = Math.toRadians((-90 + h * 15).toDouble())
+                val len = if (h % 6 == 0) 6.dp.toPx() else 3.dp.toPx()
+                val p1 = Offset(c.x + (rInner * kotlin.math.cos(a)).toFloat(), c.y + (rInner * kotlin.math.sin(a)).toFloat())
+                val p2 = Offset(c.x + ((rInner - len) * kotlin.math.cos(a)).toFloat(), c.y + ((rInner - len) * kotlin.math.sin(a)).toFloat())
+                drawLine(tick.copy(alpha = 0.6f), p1, p2, 1.5f)
+                if (h % 6 == 0) {
+                    val layout = m.measure("$h", TextStyle(color = tick, fontSize = 10.sp))
+                    val rl = rInner - len - 9.dp.toPx()
+                    val lp = Offset(c.x + (rl * kotlin.math.cos(a)).toFloat() - layout.size.width / 2, c.y + (rl * kotlin.math.sin(a)).toFloat() - layout.size.height / 2)
+                    drawText(layout, topLeft = lp)
+                }
+            }
+            val nowSec = System.currentTimeMillis() / 1000
+            if (nowSec in dayStart until dayStart + 86400) {
+                val a = Math.toRadians(-90 + (nowSec - dayStart) / 86400.0 * 360)
+                val r = arcSize.width / 2
+                val p = Offset(c.x + (r * kotlin.math.cos(a)).toFloat(), c.y + (r * kotlin.math.sin(a)).toFloat())
+                drawCircle(now, radius = stroke * 0.45f, center = p)
+                drawCircle(track, radius = stroke * 0.25f, center = p)
+            }
+        }
+        center()
+    }
+}
+
+/**
+ * Gadgetbridge style day chart: one bar per few minutes colored by what you did (activity, sleep
+ * stage, not worn), the bar height is the movement intensity, the heart rate as red line on top.
+ * Zoomable with [zoom].
+ */
+@Composable
+fun ActivityChart(
+    samples: List<ActivitySample>,
+    heartRate: List<Pair<Long, Float>>,
+    stages: Map<Long, SleepStage>,
+    zoom: TimeZoom,
+    modifier: Modifier = Modifier.fillMaxWidth().height(220.dp),
+) {
+    val colors = stateColors()
+    val m = rememberTextMeasurer()
+    val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val grid = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+    val byMinute = remember(samples) { samples.associateBy { it.timestamp / 60 } }
+    val maxIntensity = remember(samples) { (samples.filter { !it.isSleep && !it.notWorn }.maxOfOrNull { it.intensity } ?: 0).coerceAtLeast(40) }
+    Canvas(modifier.timeZoom(zoom)) {
+        val from = zoom.start
+        val to = zoom.end
+        if (to <= from) return@Canvas
+        val axisH = 18.dp.toPx()
+        val right = 28.dp.toPx()
+        val h = size.height - axisH
+        val w = size.width - right
+        fun x(t: Long) = (t - from).toFloat() / (to - from) * w
+        drawLine(grid, Offset(0f, h), Offset(w, h), 1f)
+        val bucket = maxOf(60L, ((to - from) / (w / 3f)).toLong() / 60 * 60)
+        val bw = (bucket.toFloat() / (to - from) * w).coerceAtLeast(1f)
+        clipRect(0f, 0f, w, h) {
+            var t = from / bucket * bucket
+            while (t < to) {
+                val list = ArrayList<ActivitySample>()
+                var minute = t / 60
+                while (minute < (t + bucket) / 60) {
+                    byMinute[minute]?.let { list += it }
+                    minute++
+                }
+                val st = dayState(list, stages)
+                if (st != DayState.NO_DATA) {
+                    val height = when (st) {
+                        DayState.SLEEP_DEEP -> 0.18f
+                        DayState.SLEEP_LIGHT -> 0.26f
+                        DayState.SLEEP_REM -> 0.34f
+                        DayState.AWAKE -> 0.42f
+                        DayState.NOT_WORN -> 0.05f
+                        DayState.IDLE -> 0.07f
+                        else -> (list.maxOf { it.intensity }.toFloat() / maxIntensity).coerceIn(0.12f, 1f) * 0.92f
+                    } * h
+                    drawRect(colors.getValue(st), Offset(x(t), h - height), Size(bw * 0.92f, height))
+                }
+                t += bucket
+            }
+            val visible = visiblePoints(heartRate, from, to, w.toInt(), 600)
+            if (visible.isNotEmpty()) {
+                val lo = (visible.minOf { it.second } - 5f).coerceAtLeast(0f)
+                val hi = visible.maxOf { it.second } + 5f
+                fun y(v: Float) = h - (v - lo) / (hi - lo) * h
+                val path = Path()
+                var last: Long? = null
+                for ((ts, v) in visible) {
+                    if (last == null || ts - last > 600) path.moveTo(x(ts), y(v)) else path.lineTo(x(ts), y(v))
+                    last = ts
+                }
+                drawPath(path, Palette.Heart, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
+            }
+        }
+        val visible = visiblePoints(heartRate, from, to, w.toInt(), 600)
+        if (visible.isNotEmpty()) {
+            val lo = (visible.minOf { it.second } - 5f).coerceAtLeast(0f)
+            val hi = visible.maxOf { it.second } + 5f
+            label(m, "${(hi - 5).toInt()}", size.width, 0f, Palette.Heart, alignRight = true)
+            label(m, "${(lo + 5).toInt()}", size.width, h - 14.dp.toPx(), Palette.Heart, alignRight = true)
+        }
+        timeAxis(m, from, to, 0f, w, h + 3.dp.toPx(), labelColor)
+    }
+}
+
+/** Thin band with the state of every moment, to put under a time chart with the same [from]..[to]. */
+@Composable
+fun DayStrip(
+    samples: List<ActivitySample>,
+    stages: Map<Long, SleepStage>,
+    from: Long,
+    to: Long,
+    modifier: Modifier = Modifier.fillMaxWidth().height(10.dp),
+    leftInset: androidx.compose.ui.unit.Dp = 0.dp,
+) {
+    val colors = stateColors()
+    val byMinute = remember(samples) { samples.associateBy { it.timestamp / 60 } }
+    Canvas(modifier) {
+        if (to <= from) return@Canvas
+        val left = leftInset.toPx()
+        val w = size.width - left
+        val bucket = maxOf(60L, ((to - from) / (w / 2f)).toLong() / 60 * 60)
+        var t = from / bucket * bucket
+        while (t < to) {
+            val list = ArrayList<ActivitySample>()
+            var minute = t / 60
+            while (minute < (t + bucket) / 60) {
+                byMinute[minute]?.let { list += it }
+                minute++
+            }
+            val st = dayState(list, stages)
+            if (st != DayState.NO_DATA) {
+                val x0 = left + ((t - from).toFloat() / (to - from) * w).coerceAtLeast(0f)
+                val x1 = left + ((t + bucket - from).toFloat() / (to - from) * w).coerceAtMost(w)
+                if (x1 > x0) drawRect(colors.getValue(st), Offset(x0, 0f), Size(x1 - x0, size.height))
+            }
+            t += bucket
+        }
+    }
+}
+
+/** One color per minute for [LineChart]'s strip: activity, sleep or not worn. */
+@Composable
+fun minuteStrip(samples: List<ActivitySample>, stages: Map<Long, SleepStage>): List<Pair<Long, Color>> {
+    val colors = stateColors()
+    return remember(samples, stages, colors) {
+        samples.mapNotNull { s ->
+            val st = dayState(listOf(s), stages)
+            if (st == DayState.NO_DATA) null else s.timestamp / 60 * 60 to colors.getValue(st)
+        }
     }
 }

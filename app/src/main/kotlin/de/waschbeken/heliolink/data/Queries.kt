@@ -148,7 +148,7 @@ object Queries {
     }
 
     /** Diary tags offered on the sleep page. */
-    val SLEEP_TAGS = listOf("Sport", "Koffein", "Alkohol", "Stress", "Spät gegessen", "Bildschirm im Bett", "Krank", "Nickerchen", "Lesen", "Spät ins Bett")
+    val SLEEP_TAGS = listOf("Sport", "Koffein", "Nikotin", "Alkohol", "Stress", "Spät gegessen", "Bildschirm im Bett", "Krank", "Nickerchen", "Lesen", "Spät ins Bett")
 
     /** How a diary tag goes along with the sleep score: average with and without it. */
     data class TagEffect(val tag: String, val nightsWith: Int, val scoreWith: Int, val scoreWithout: Int, val minutesWith: Int, val minutesWithout: Int)

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
@@ -75,6 +77,7 @@ import de.waschbeken.heliolink.ui.formatDuration
 import de.waschbeken.heliolink.ui.formatMinutes
 import de.waschbeken.heliolink.ui.rememberSaveFile
 import de.waschbeken.heliolink.ui.shareFile
+import de.waschbeken.heliolink.ui.timeZoom
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -212,7 +215,10 @@ fun TrainingScreen(nav: NavHostController) {
                     item {
                         Panel(onClick = { nav.navigate(Routes.workout(w.id)) }) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Favorite, contentDescription = null, tint = Palette.Heart)
+                                Icon(
+                                    if (w.sport == de.waschbeken.heliolink.service.RECORDING_SPORT) Icons.Default.FiberManualRecord else Icons.Default.Favorite,
+                                    contentDescription = null, tint = Palette.Heart,
+                                )
                                 Spacer(Modifier.width(12.dp))
                                 Column(Modifier.weight(1f)) {
                                     Text("${w.sport} · ${dateTime(w.start)}", style = MaterialTheme.typography.titleSmall)
@@ -327,10 +333,26 @@ fun WorkoutDetailScreen(nav: NavHostController, id: Long) {
                 Panel {
                     Text("Pulsverlauf", style = MaterialTheme.typography.titleMedium)
                     val p = points.orEmpty()
-                    if (p.isEmpty()) Text("Keine Pulswerte gespeichert.") else LineChart(
-                        listOf(Series(p.map { it.timestamp to it.bpm.toFloat() }, Palette.Heart, fill = true)), w.start, w.end, gapSeconds = 30,
-                        bands = (1..4).map { HeartRateZones.lowerBpm(it, profile.maxHeartRate, null).toFloat() to Palette.zones[it] },
-                    )
+                    if (p.isEmpty()) Text("Keine Pulswerte gespeichert.") else {
+                        val zoom = de.waschbeken.heliolink.ui.rememberTimeZoom(w.start, maxOf(w.end, w.start + 60), minSpan = 30)
+                        val series = p.map { it.timestamp to it.bpm.toFloat() }
+                        val minP = series.minBy { it.second }
+                        val maxP = series.maxBy { it.second }
+                        val lower = IntArray(5) { HeartRateZones.lowerBpm(it, profile.maxHeartRate, null) }
+                        LineChart(
+                            listOf(Series(series, Palette.Heart, fill = true, width = 2f)), zoom.start, zoom.end,
+                            modifier = Modifier.fillMaxWidth().height(240.dp).timeZoom(zoom), gapSeconds = 30,
+                            areas = (0..4).map { i -> Triple(lower[i].toFloat(), if (i < 4) lower[i + 1].toFloat() else 260f, Palette.zones[i]) },
+                            markers = listOf(Triple(minP.first, minP.second, "${minP.second.toInt()}"), Triple(maxP.first, maxP.second, "${maxP.second.toInt()}")),
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                if (zoom.zoomed) "Ausschnitt ${formatDuration(zoom.start - w.start)} – ${formatDuration(zoom.end - w.start)}" else "${p.size} Werte · zwei Finger oder Doppeltipp zum Zoomen",
+                                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f),
+                            )
+                            if (zoom.zoomed) TextButton(onClick = { zoom.reset() }) { Text("Alles") }
+                        }
+                    }
                 }
             }
             if (w.zoneSeconds.size == 5) {

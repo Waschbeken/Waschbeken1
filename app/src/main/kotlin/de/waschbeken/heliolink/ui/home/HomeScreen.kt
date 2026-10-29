@@ -71,6 +71,7 @@ import de.waschbeken.heliolink.service.StrapUiState
 import de.waschbeken.heliolink.ui.CountPill
 import de.waschbeken.heliolink.ui.DayChart
 import de.waschbeken.heliolink.ui.Legend
+import de.waschbeken.heliolink.ui.Metric
 import de.waschbeken.heliolink.ui.Palette
 import de.waschbeken.heliolink.ui.Panel
 import de.waschbeken.heliolink.ui.ProgressRing
@@ -128,6 +129,7 @@ fun HomeScreen(nav: NavHostController) {
     val order = remember(tick) { app.prefs.tileOrder }
     val data by dbValue(state.dataVersion, tick, state.heartRateAt / 300_000) { HomeData.load(it, profile.stepGoal) }
     val controller = app.repo.controller
+    val startRecording = de.waschbeken.heliolink.ui.record.rememberRecordStarter(nav)
 
     Scaffold(
         topBar = {
@@ -203,25 +205,54 @@ fun HomeScreen(nav: NavHostController) {
             }
             val d = data
             item { HeroCard(state, d, profile.stepGoal) { nav.navigateToTab(Routes.SLEEP) } }
-            item { LiveHeartCard(state, profile.maxHeartRate, d?.resting?.let { profile.zoneRest(it) }) { controller?.setLiveHeartRate(it) } }
+            item { de.waschbeken.heliolink.ui.record.RecordingBanner(nav) }
+            item {
+                LiveHeartCard(state, profile.maxHeartRate, d?.resting?.let { profile.zoneRest(it) }, onRecord = startRecording) {
+                    controller?.setLiveHeartRate(it)
+                }
+            }
             if (d != null) {
                 item { SectionHeader("Heute im Überblick") }
                 item { TileGrid(d, state, profile.stepGoal, hidden, order, nav) }
                 item {
-                    Panel(onClick = { nav.navigate(Routes.metric("heart")) }) {
+                    Panel(onClick = { nav.navigateToTab(Routes.DATA) }) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Tagesverlauf", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                            Text("Tagesuhr", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                            Text("Alle Daten", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         }
                         val zone = ZoneId.systemDefault()
                         val from = d.date.atStartOfDay(zone).toEpochSecond()
-                        val to = minOf(d.date.plusDays(1).atStartOfDay(zone).toEpochSecond(), System.currentTimeMillis() / 1000 + 1800)
                         if (d.day.isEmpty()) {
                             Text("Noch keine Daten für heute – nach dem nächsten Abruf erscheinen sie hier.", style = MaterialTheme.typography.bodySmall)
                         } else {
-                            val stages = d.night?.stages?.toMap().orEmpty()
-                            DayChart(d.day, from, to, stages)
-                            Legend(listOf("Bewegung" to Palette.Steps, "Schlaf" to Palette.Light, "Puls" to Palette.Heart))
+                            val stages = remember(d) { d.night?.stages?.associate { (t, st) -> t / 60 * 60 to st }.orEmpty() }
+                            val counts = remember(d) {
+                                val c = HashMap<de.waschbeken.heliolink.ui.DayState, Int>()
+                                d.day.forEach { s -> c.merge(de.waschbeken.heliolink.ui.dayState(listOf(s), stages), 1, Int::plus) }
+                                c
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                de.waschbeken.heliolink.ui.DayClock(d.day, stages, from, Modifier.size(150.dp)) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")),
+                                            style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold,
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.width(16.dp))
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Metric("Aktiv", formatMinutes((counts[de.waschbeken.heliolink.ui.DayState.ACTIVE] ?: 0) + (counts[de.waschbeken.heliolink.ui.DayState.LIGHT] ?: 0)), color = Palette.Steps)
+                                    Metric(
+                                        "Schlaf",
+                                        formatMinutes(listOf(de.waschbeken.heliolink.ui.DayState.SLEEP_LIGHT, de.waschbeken.heliolink.ui.DayState.SLEEP_DEEP, de.waschbeken.heliolink.ui.DayState.SLEEP_REM).sumOf { counts[it] ?: 0 }),
+                                        color = Palette.Sleep,
+                                    )
+                                    Metric("Nicht getragen", formatMinutes(counts[de.waschbeken.heliolink.ui.DayState.NOT_WORN] ?: 0))
+                                }
+                            }
+                            Legend(de.waschbeken.heliolink.ui.dayStateLegend())
                         }
                     }
                 }
@@ -346,7 +377,7 @@ private fun HeroCard(state: StrapUiState, d: HomeData?, stepGoal: Int, openSleep
 }
 
 @Composable
-private fun LiveHeartCard(state: StrapUiState, maxHr: Int, rest: Int?, onToggle: (Boolean) -> Unit) {
+private fun LiveHeartCard(state: StrapUiState, maxHr: Int, rest: Int?, onRecord: () -> Unit, onToggle: (Boolean) -> Unit) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -357,7 +388,7 @@ private fun LiveHeartCard(state: StrapUiState, maxHr: Int, rest: Int?, onToggle:
     val fresh = state.heartRate != null && now - state.heartRateAt < 30_000
     val bpm = state.heartRate.takeIf { fresh }
     val zone = bpm?.let { HeartRateZones.zoneOf(it, maxHr, rest) } ?: -1
-    Panel {
+    Panel(onClick = onRecord) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.Favorite, contentDescription = null, tint = Palette.Heart)
             Spacer(Modifier.width(8.dp))
@@ -381,6 +412,8 @@ private fun LiveHeartCard(state: StrapUiState, maxHr: Int, rest: Int?, onToggle:
         }
         if (zone >= 0) StackedBar((0..4).map { (if (it == zone) 1f else 0.15f) to Palette.zones[it] }, Modifier.fillMaxWidth().height(6.dp))
         when {
+            state.workout != null -> Text("${state.workout.sport} läuft – tippen zum Ansehen", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            state.connected -> Text("Tippen, um den Puls jede Sekunde aufzuzeichnen", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             state.recordingHr -> Text("Puls-Aufzeichnung läuft", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             !state.liveHeartRate && !fresh -> Text(
                 "Einschalten, um den Puls in Echtzeit zu sehen.",

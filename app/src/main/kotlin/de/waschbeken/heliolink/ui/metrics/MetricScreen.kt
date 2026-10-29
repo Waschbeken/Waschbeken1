@@ -21,6 +21,11 @@ import de.waschbeken.heliolink.data.Workout
 import de.waschbeken.heliolink.ui.Legend
 import de.waschbeken.heliolink.ui.StackedBarChart
 import de.waschbeken.heliolink.ui.TrendChart
+import de.waschbeken.heliolink.ui.minuteStrip
+import de.waschbeken.heliolink.ui.rememberTimeZoom
+import de.waschbeken.heliolink.ui.timeZoom
+import de.waschbeken.heliolink.core.SleepStage
+import androidx.compose.material3.TextButton
 import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -152,6 +157,7 @@ private class MetricData(
     val heatmap: List<Pair<LocalDate, Float>> = emptyList(),
     val sleepHr: Pair<Int?, Int?>? = null,
     val workouts: List<Workout> = emptyList(),
+    val stages: Map<Long, SleepStage> = emptyMap(),
 )
 
 private fun zoneLower(profile: UserProfile, rest: Int?) = IntArray(5) { HeartRateZones.lowerBpm(it, profile.maxHeartRate, rest) }
@@ -177,9 +183,10 @@ private fun load(db: HealthDb, metric: Metric, period: Period, date: LocalDate, 
         heatmap: List<Pair<LocalDate, Float>> = emptyList(),
         sleepHr: Pair<Int?, Int?>? = null,
         workouts: List<Workout> = emptyList(),
+        stages: Map<Long, SleepStage> = emptyMap(),
     ) = MetricData(
         base.period, base.date, base.from, base.to, base.start, base.end, base.buckets,
-        activity, totals, values, stress, pai, hr, strapResting, restingBaseline, heatmap, sleepHr, workouts,
+        activity, totals, values, stress, pai, hr, strapResting, restingBaseline, heatmap, sleepHr, workouts, stages,
     )
     return when (metric) {
         Metric.HEART, Metric.STEPS -> {
@@ -203,6 +210,9 @@ private fun load(db: HealthDb, metric: Metric, period: Period, date: LocalDate, 
                     heatmap = heat,
                     sleepHr = if (metric == Metric.HEART) Queries.night(db, date, zone)?.let { it.avgHeartRate to it.minHeartRate } else null,
                     workouts = if (metric == Metric.HEART) db.workouts().filter { it.start in start until end } else emptyList(),
+                    stages = if (metric == Metric.HEART) {
+                        Queries.nights(db, date, date.plusDays(1), zone).values.flatMap { it.stages }.associate { (t, st) -> t / 60 * 60 to st }
+                    } else emptyMap(),
                 )
             } else {
                 copy(
@@ -244,6 +254,7 @@ fun MetricScreen(nav: NavHostController, key: String) {
     val date = LocalDate.ofEpochDay(dateEpoch)
     val profile = app.prefs.profile.also { tick }
     val data by dbValue(metric, period, date, state.dataVersion, tick) { load(it, metric, period, date, profile) }
+    val startRecording = de.waschbeken.heliolink.ui.record.rememberRecordStarter(nav)
 
     Scaffold(topBar = { BackTopBar(metric.title, onBack = { nav.popBackStack() }) }) { padding ->
         LazyColumn(
@@ -261,7 +272,11 @@ fun MetricScreen(nav: NavHostController, key: String) {
                 item {
                     when (metric) {
                         Metric.HEART -> if (d.period == Period.DAY) {
-                            HeartDay(d, profile, state.heartRate.takeIf { date == LocalDate.now() && System.currentTimeMillis() - state.heartRateAt < 120_000 })
+                            HeartDay(
+                                d, profile,
+                                state.heartRate.takeIf { date == LocalDate.now() && System.currentTimeMillis() - state.heartRateAt < 120_000 },
+                                onRecord = startRecording.takeIf { date == LocalDate.now() },
+                            )
                         } else HeartRange(d, profile)
                         Metric.STEPS -> StepsContent(d, profile)
                         Metric.STRESS -> StressContent(d)
@@ -298,8 +313,16 @@ private fun signed(v: Int) = if (v > 0) "+$v" else "$v"
 
 /** Big number with a caption, used at the top of the heart rate pages. */
 @Composable
-private fun HeartHero(value: String, unit: String, caption: String, side: List<Pair<String, String>>) {
-    Card(colors = CardDefaults.cardColors(containerColor = Palette.Heart.copy(alpha = 0.13f))) {
+private fun HeartHero(value: String, unit: String, caption: String, side: List<Pair<String, String>>, onClick: (() -> Unit)? = null) {
+    Card(
+        onClick = onClick ?: {},
+        enabled = onClick != null,
+        colors = CardDefaults.cardColors(
+            containerColor = Palette.Heart.copy(alpha = 0.13f),
+            disabledContainerColor = Palette.Heart.copy(alpha = 0.13f),
+            disabledContentColor = MaterialTheme.colorScheme.onSurface,
+        ),
+    ) {
         Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.Bottom) {
@@ -352,13 +375,17 @@ private fun ZonePanel(title: String, minutes: IntArray, lower: IntArray, daily: 
 }
 
 @Composable
-private fun HeartDay(d: MetricData, profile: UserProfile, live: Int?) {
+private fun HeartDay(d: MetricData, profile: UserProfile, live: Int?, onRecord: (() -> Unit)?) {
     val zone = ZoneId.systemDefault()
     val rest = profile.zoneRest(d.strapResting)
     val lower = zoneLower(profile, rest)
     val points = d.hr
+    var details by rememberSaveable { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (points.isEmpty()) {
+            if (onRecord != null) {
+                HeartHero("–", "bpm", "Tippen, um den Puls jede Sekunde aufzuzeichnen", emptyList(), onRecord)
+            }
             Panel { Text("Keine Pulswerte an diesem Tag.", style = MaterialTheme.typography.bodyMedium) }
             return@Column
         }
@@ -371,80 +398,88 @@ private fun HeartDay(d: MetricData, profile: UserProfile, live: Int?) {
         HeartHero(
             value = (live ?: last.second.toInt()).toString(),
             unit = "bpm",
-            caption = if (live != null) "Jetzt gemessen" else "Zuletzt um ${clock(last.first)}",
-            side = listOf(
-                "Ruhepuls" to (restingToday?.let { "$it" } ?: "–"),
-                "Ø Tag" to "$avg",
-                "Spanne" to "${minP.second.toInt()}–${maxP.second.toInt()}",
-            ),
+            caption = (if (live != null) "Jetzt" else "Zuletzt um ${clock(last.first)}") +
+                if (onRecord != null) " · Tippen zum Aufzeichnen" else "",
+            side = listOf("Ruhepuls" to (restingToday?.let { "$it" } ?: "–"), "Ø Tag" to "$avg"),
+            onClick = onRecord,
         )
         Panel {
-            Text("Verlauf", style = MaterialTheme.typography.titleMedium)
+            val dayZoom = rememberTimeZoom(d.start, d.end)
             LineChart(
-                listOf(Series(points, Palette.Heart, fill = true, width = 2f)), d.start, d.end,
-                modifier = Modifier.fillMaxWidth().height(220.dp),
+                listOf(Series(points, Palette.Heart, fill = true, width = 2f)), dayZoom.start, dayZoom.end,
+                modifier = Modifier.fillMaxWidth().height(260.dp).timeZoom(dayZoom),
                 areas = (0..4).map { i -> Triple(lower[i].toFloat(), if (i < 4) lower[i + 1].toFloat() else 260f, Palette.zones[i]) },
                 markers = listOf(
                     Triple(minP.first, minP.second, "${minP.second.toInt()}"),
                     Triple(maxP.first, maxP.second, "${maxP.second.toInt()}"),
                 ),
+                strip = minuteStrip(d.activity, d.stages),
             )
-            Legend((0..4).map { "Z${it + 1}" to Palette.zones[it] })
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    if (dayZoom.zoomed) "${clock(dayZoom.start)} – ${clock(dayZoom.end)}" else "Zwei Finger oder Doppeltipp zum Zoomen",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f),
+                )
+                if (dayZoom.zoomed) TextButton(onClick = { dayZoom.reset() }) { Text("Ganzer Tag") }
+            }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Panel {
+            Row {
+                de.waschbeken.heliolink.ui.Metric("Ruhe", restingToday?.toString() ?: "–", Modifier.weight(1f))
+                de.waschbeken.heliolink.ui.Metric("Ø", "$avg", Modifier.weight(1f))
+                de.waschbeken.heliolink.ui.Metric("Min ${clock(minP.first)}", "${minP.second.toInt()}", Modifier.weight(1f))
+                de.waschbeken.heliolink.ui.Metric("Max ${clock(maxP.first)}", "${maxP.second.toInt()}", Modifier.weight(1f), color = Palette.Heart)
+            }
             val diff = if (restingToday != null && d.restingBaseline != null) restingToday - d.restingBaseline else null
-            StatTile(
-                "Ruhepuls", restingToday?.let { "$it bpm" } ?: "–", Modifier.weight(1f),
-                caption = when {
-                    diff == null -> "vom Strap"
-                    diff <= -2 -> "${signed(diff)} unter deinem Schnitt"
-                    diff >= 3 -> "${signed(diff)} über deinem Schnitt"
-                    else -> "wie üblich (Ø ${d.restingBaseline})"
+            val lines = listOfNotNull(
+                diff?.let {
+                    when {
+                        it <= -2 -> "Ruhepuls ${signed(it)} unter deinem Schnitt (${d.restingBaseline})"
+                        it >= 3 -> "Ruhepuls ${signed(it)} über deinem Schnitt (${d.restingBaseline})"
+                        else -> "Ruhepuls wie üblich (Ø ${d.restingBaseline})"
+                    }
                 },
-                icon = Icons.Default.Favorite, tint = Palette.Heart,
+                d.sleepHr?.let { (a, mn) -> if (a != null) "Im Schlaf Ø $a, tiefster ${mn ?: "–"} bpm" else null },
             )
-            StatTile("Im Schlaf", d.sleepHr?.second?.let { "$it bpm" } ?: "–", Modifier.weight(1f), caption = d.sleepHr?.first?.let { "Ø $it bpm" } ?: "keine Nacht", icon = Icons.Default.Bedtime, tint = Palette.Sleep)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("Tiefster", "${minP.second.toInt()} bpm", Modifier.weight(1f), caption = "um ${clock(minP.first)}")
-            StatTile("Höchster", "${maxP.second.toInt()} bpm", Modifier.weight(1f), caption = "um ${clock(maxP.first)}")
+            if (lines.isNotEmpty()) Text(lines.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         d.totals[d.date]?.let { ZonePanel("Zeit in Pulszonen", it.zones, lower) }
-        // per hour: lowest, average and highest value
-        val byHour = points.groupBy { java.time.Instant.ofEpochSecond(it.first).atZone(zone).hour }
-        Panel {
-            Text("Stundenverlauf", style = MaterialTheme.typography.titleMedium)
-            RangeChart(
-                List(24) { h ->
-                    val v = byHour[h]?.map { it.second }
-                    if (v.isNullOrEmpty()) Triple(null, null, null) else Triple(v.min(), v.average().toFloat(), v.max())
-                },
-                List(24) { if (it % 3 == 0) "$it" else "" }, Palette.Heart,
-            )
-            Text("Balken: niedrigster bis höchster Wert der Stunde, Punkt: Durchschnitt", style = MaterialTheme.typography.labelSmall)
-        }
-        // distribution in 10 bpm steps
-        val bins = (40 until 200 step 10).toList()
-        val counts = bins.map { b -> values.count { it >= b && it < b + 10 }.toFloat() }
-        val first = counts.indexOfFirst { it > 0 }.coerceAtLeast(0)
-        val lastBin = counts.indexOfLast { it > 0 }.coerceAtLeast(first)
-        Panel {
-            Text("Verteilung", style = MaterialTheme.typography.titleMedium)
-            BarChart(
-                counts.subList(first, lastBin + 1), Palette.Heart,
-                colors = bins.subList(first, lastBin + 1).map { b -> HeartRateZones.zoneOf(b + 5, profile.maxHeartRate, rest).let { if (it >= 0) Palette.zones[it] else Palette.Heart.copy(alpha = 0.5f) } },
-                labels = bins.subList(first, lastBin + 1).mapIndexed { i, b -> if (i % 2 == 0) "$b" else "" },
-            )
-            val common = bins[counts.indices.maxBy { counts[it] }]
-            Text("Am häufigsten: $common–${common + 9} bpm", style = MaterialTheme.typography.bodySmall)
-        }
         if (d.workouts.isNotEmpty()) {
-            SectionHeader("Trainings an diesem Tag")
+            SectionHeader("Aufzeichnungen und Trainings")
             d.workouts.forEach { w ->
                 Panel {
                     Text("${w.sport} · ${clock(w.start)}", style = MaterialTheme.typography.titleSmall)
-                    Text("${formatMinutes(((w.end - w.start) / 60).toInt())} · Ø ${w.avgHr} · max. ${w.maxHr} bpm · ${w.calories} kcal", style = MaterialTheme.typography.bodySmall)
+                    Text("${formatMinutes(((w.end - w.start) / 60).toInt())} · Ø ${w.avgHr} · max. ${w.maxHr} bpm", style = MaterialTheme.typography.bodySmall)
                 }
+            }
+        }
+        TextButton(onClick = { details = !details }) { Text(if (details) "Weniger anzeigen" else "Mehr Details: Stundenverlauf und Verteilung") }
+        if (details) {
+            val byHour = points.groupBy { java.time.Instant.ofEpochSecond(it.first).atZone(zone).hour }
+            Panel {
+                Text("Stundenverlauf", style = MaterialTheme.typography.titleMedium)
+                RangeChart(
+                    List(24) { h ->
+                        val v = byHour[h]?.map { it.second }
+                        if (v.isNullOrEmpty()) Triple(null, null, null) else Triple(v.min(), v.average().toFloat(), v.max())
+                    },
+                    List(24) { if (it % 3 == 0) "$it" else "" }, Palette.Heart,
+                )
+                Text("Balken: niedrigster bis höchster Wert der Stunde, Punkt: Durchschnitt", style = MaterialTheme.typography.labelSmall)
+            }
+            val bins = (40 until 200 step 10).toList()
+            val counts = bins.map { b -> values.count { it >= b && it < b + 10 }.toFloat() }
+            val first = counts.indexOfFirst { it > 0 }.coerceAtLeast(0)
+            val lastBin = counts.indexOfLast { it > 0 }.coerceAtLeast(first)
+            Panel {
+                Text("Verteilung", style = MaterialTheme.typography.titleMedium)
+                BarChart(
+                    counts.subList(first, lastBin + 1), Palette.Heart,
+                    colors = bins.subList(first, lastBin + 1).map { b -> HeartRateZones.zoneOf(b + 5, profile.maxHeartRate, rest).let { if (it >= 0) Palette.zones[it] else Palette.Heart.copy(alpha = 0.5f) } },
+                    labels = bins.subList(first, lastBin + 1).mapIndexed { i, b -> if (i % 2 == 0) "$b" else "" },
+                )
+                val common = bins[counts.indices.maxBy { counts[it] }]
+                Text("Am häufigsten: $common–${common + 9} bpm", style = MaterialTheme.typography.bodySmall)
             }
         }
     }

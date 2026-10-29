@@ -9,10 +9,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
+/** Sport name of a heart rate recording started by tapping the current heart rate. */
+const val RECORDING_SPORT = "Pulsaufzeichnung"
+
 data class LiveWorkout(
     val id: Long,
     val sport: String,
     val start: Long, // epoch seconds
+    /** A recording stops by itself at this time (epoch seconds), null = until stopped. */
+    val plannedEnd: Long? = null,
     val samples: Int = 0,
     val avgHr: Int = 0,
     val maxHr: Int = 0,
@@ -68,6 +73,8 @@ interface StrapController {
     fun refresh()
     fun applySettings(values: Map<HealthSetting, Int>, lists: Map<HealthSetting, List<Int>> = emptyMap())
     fun startWorkout(sport: String)
+    /** Records the heart rate every second for [seconds] (null = until stopped) and saves it like a workout. */
+    fun startRecording(seconds: Int?)
     fun stopWorkout()
     fun reconnect()
     fun shutdown()

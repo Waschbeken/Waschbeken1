@@ -334,7 +334,16 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         }
     }
 
-    override fun startWorkout(sport: String) {
+    override fun startWorkout(sport: String) = begin(sport, null)
+
+    override fun startRecording(seconds: Int?) = begin(RECORDING_SPORT, seconds)
+
+    private val plannedStop = Runnable {
+        val w = repo.state.value.workout
+        if (w?.plannedEnd != null && System.currentTimeMillis() / 1000 >= w.plannedEnd - 1) stopWorkout()
+    }
+
+    private fun begin(sport: String, seconds: Int?) {
         handler.post {
             if (repo.state.value.workout != null) return@post
             val start = System.currentTimeMillis() / 1000
@@ -342,8 +351,11 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             lastWorkoutSecond = 0
             workoutHrSum = 0
             lastVibration = 0
-            prefs.defaultSport = sport
-            repo.update { it.copy(workout = LiveWorkout(id, sport, start)) }
+            if (sport != RECORDING_SPORT) prefs.defaultSport = sport
+            val end = seconds?.let { start + it }
+            repo.update { it.copy(workout = LiveWorkout(id, sport, start, plannedEnd = end)) }
+            handler.removeCallbacks(plannedStop)
+            if (seconds != null) handler.postDelayed(plannedStop, seconds * 1000L)
             updateHeartRateStreaming()
             updateNotification()
         }
@@ -351,6 +363,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
 
     override fun stopWorkout() {
         handler.post {
+            handler.removeCallbacks(plannedStop)
             val w = repo.state.value.workout ?: return@post
             val end = System.currentTimeMillis() / 1000
             db.finishWorkout(
@@ -554,6 +567,10 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         checkWorkoutLimits(event.bpm, now / 1000 - w.start)
         val second = now / 1000
         if (second == lastWorkoutSecond) return
+        if (w.plannedEnd != null && second >= w.plannedEnd) {
+            stopWorkout()
+            return
+        }
         val elapsed = if (lastWorkoutSecond == 0L) 1 else (second - lastWorkoutSecond).coerceIn(1, 10).toInt()
         lastWorkoutSecond = second
         db.addWorkoutHr(w.id, second, event.bpm)
