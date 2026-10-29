@@ -23,6 +23,7 @@ import de.waschbeken.heliolink.core.Calories
 import de.waschbeken.heliolink.core.DeviceInfo
 import de.waschbeken.heliolink.core.HealthSetting
 import de.waschbeken.heliolink.core.HeartRateMode
+import de.waschbeken.heliolink.core.IntervalPlan
 import de.waschbeken.heliolink.core.HeartRateZones
 import de.waschbeken.heliolink.core.SleepAnalyzer
 import de.waschbeken.heliolink.core.SleepStage
@@ -361,6 +362,8 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
 
     override fun startWorkout(sport: String) = begin(sport, null)
 
+    override fun startIntervals(sport: String, plan: IntervalPlan) = begin(sport, null, plan)
+
     override fun startRecording(seconds: Int?) = begin(RECORDING_SPORT, seconds)
 
     private val plannedStop = Runnable {
@@ -368,9 +371,10 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         if (w?.plannedEnd != null && System.currentTimeMillis() / 1000 >= w.plannedEnd - 1) stopWorkout()
     }
 
-    private fun begin(sport: String, seconds: Int?) {
+    private fun begin(sport: String, seconds: Int?, intervals: IntervalPlan? = null) {
         handler.post {
             if (repo.state.value.workout != null) return@post
+            endCooldown()
             val start = System.currentTimeMillis() / 1000
             val id = db.startWorkout(sport, start)
             lastWorkoutSecond = 0
@@ -378,9 +382,15 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             lastVibration = 0
             if (sport != RECORDING_SPORT) prefs.defaultSport = sport
             val end = seconds?.let { start + it }
-            repo.update { it.copy(workout = LiveWorkout(id, sport, start, plannedEnd = end)) }
+            repo.update { it.copy(workout = LiveWorkout(id, sport, start, plannedEnd = end, intervals = intervals)) }
             handler.removeCallbacks(plannedStop)
             if (seconds != null) handler.postDelayed(plannedStop, seconds * 1000L)
+            lastPhase = null
+            handler.removeCallbacks(intervalTick)
+            if (intervals != null) {
+                prefs.intervalPlan = intervals.encode()
+                handler.post(intervalTick)
+            }
             updateHeartRateStreaming()
             updateNotification()
         }
@@ -389,17 +399,83 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
     override fun stopWorkout() {
         handler.post {
             handler.removeCallbacks(plannedStop)
+            handler.removeCallbacks(intervalTick)
             val w = repo.state.value.workout ?: return@post
             val end = System.currentTimeMillis() / 1000
             db.finishWorkout(
                 Workout(w.id, w.sport, w.start, end, w.avgHr, w.maxHr, w.calories.roundToInt(), w.zoneSeconds)
             )
-            repo.update { it.copy(workout = null) }
+            // Heart rate recovery: keep measuring for a minute after a workout (not after a plain recording).
+            val state = repo.state.value
+            val hrEnd = state.heartRate?.takeIf { System.currentTimeMillis() - state.heartRateAt < 10_000 }
+            if (w.sport != RECORDING_SPORT && hrEnd != null && end - w.start >= 5 * 60) {
+                cooldown = Cooldown(w.id, end, hrEnd)
+                handler.postDelayed(cooldownTimeout, 100_000)
+            }
+            repo.update { it.copy(workout = null, cooldownUntil = cooldown?.let { c -> c.end + 60 }) }
             repo.dataChanged()
             suggestMaxHeartRate(w.maxHr)
             updateHeartRateStreaming()
             updateNotification()
         }
+    }
+
+    // ------------------------------------------------------------------ intervals and heart rate recovery
+
+    private var lastPhase: IntervalPlan.Phase? = null
+
+    /** Once a second during interval training: vibrates at every change and ends the workout after the last round. */
+    private val intervalTick = object : Runnable {
+        override fun run() {
+            val w = repo.state.value.workout ?: return
+            val plan = w.intervals ?: return
+            val phase = plan.phaseAt(System.currentTimeMillis() / 1000 - w.start)
+            val before = lastPhase
+            if (phase == null) {
+                buzz(3, 400)
+                repo.log("Intervalle fertig")
+                stopWorkout()
+                return
+            }
+            if (before == null || before.work != phase.work || before.round != phase.round) {
+                if (phase.work) buzz(2, 450) else buzz(1, 1_300)
+            }
+            lastPhase = phase
+            handler.postDelayed(this, 1_000)
+        }
+    }
+
+    /** Lets the strap vibrate [count] times for [onMs] each. */
+    private fun buzz(count: Int, onMs: Long) {
+        for (i in 0 until count) {
+            val at = i * (onMs + 450)
+            handler.postDelayed({ connection?.protocol?.findStrap(true) }, at)
+            handler.postDelayed({ connection?.protocol?.findStrap(false) }, at + onMs)
+        }
+    }
+
+    private class Cooldown(val workout: Long, val end: Long, val hrEnd: Int)
+
+    private var cooldown: Cooldown? = null
+
+    private val cooldownTimeout = Runnable { endCooldown() }
+
+    private fun endCooldown() {
+        handler.removeCallbacks(cooldownTimeout)
+        if (cooldown == null && repo.state.value.cooldownUntil == null) return
+        cooldown = null
+        repo.update { it.copy(cooldownUntil = null) }
+        updateHeartRateStreaming()
+    }
+
+    /** A minute after the end of a workout: saves how far the pulse dropped. */
+    private fun checkCooldown(second: Long, bpm: Int) {
+        val c = cooldown ?: return
+        if (second < c.end + 60) return
+        db.setWorkoutHrr(c.workout, c.hrEnd - bpm)
+        repo.log("Puls-Erholung: ${c.hrEnd} → $bpm in 1 min")
+        endCooldown()
+        repo.dataChanged()
     }
 
     override fun reconnect() {
@@ -423,7 +499,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
 
     private fun updateHeartRateStreaming() {
         val c = connection ?: return
-        val wanted = (liveRequested || repo.state.value.workout != null || prefs.continuousHrSeconds > 0) &&
+        val wanted = (liveRequested || repo.state.value.workout != null || cooldown != null || prefs.continuousHrSeconds > 0) &&
             c.state == LinkState.READY
         repo.update { it.copy(recordingHr = prefs.continuousHrSeconds > 0 && c.state == LinkState.READY) }
         if (wanted && !hrStreaming) {
@@ -587,12 +663,33 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         hrvRr.addAll(rr)
     }
 
+    private val rhythmRr = ArrayList<Int>()
+    private var rhythmLast = 0L
+
+    /**
+     * Heart rhythm check: every 64 beats at rest (no workout, pulse 40–110) are checked for an
+     * irregular rhythm and saved. Gaps in the stream start a new stretch.
+     */
+    private fun collectRhythm(now: Long, bpm: Int, rr: List<Int>) {
+        val w = repo.state.value.workout
+        val resting = bpm in 40..110 && (w == null || w.sport == RECORDING_SPORT)
+        if (!resting || now - rhythmLast > 5_000) rhythmRr.clear()
+        if (!resting || rr.isEmpty()) return
+        rhythmLast = now
+        rhythmRr.addAll(rr)
+        if (rhythmRr.size < de.waschbeken.heliolink.core.RhythmCheck.BEATS + 8) return
+        de.waschbeken.heliolink.core.RhythmCheck.analyze(rhythmRr)?.let { db.insertRhythm(now / 1000, it) }
+        rhythmRr.clear()
+    }
+
     private fun onHeartRate(event: StrapEvent.HeartRate) {
         if (event.bpm <= 0) return
         val now = System.currentTimeMillis()
         rrBuffer.addAll(event.rrIntervalsMs)
         while (rrBuffer.size > 60) rrBuffer.removeAt(0)
         collectMinuteHrv(now / 1000, event.rrIntervalsMs)
+        collectRhythm(now, event.bpm, event.rrIntervalsMs)
+        checkCooldown(now / 1000, event.bpm)
         val hrv = rmssd(rrBuffer)
         repo.update { it.copy(heartRate = event.bpm, heartRateAt = now, hrv = hrv ?: it.hrv) }
 

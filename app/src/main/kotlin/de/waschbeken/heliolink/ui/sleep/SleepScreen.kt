@@ -189,9 +189,70 @@ fun SleepScreen(nav: NavHostController) {
                         }
                     }
                 }
+                item { BedtimePanel(state.dataVersion) }
                 item { TagEffects(state.dataVersion) }
             }
         }
+    }
+}
+
+/** Oxygen drops during the night, a hint for breathing pauses. */
+@Composable
+private fun OxygenPanel(o: de.waschbeken.heliolink.core.OxygenDrops.Result) {
+    Panel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Sauerstoff-Abfälle", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            Text(o.rating, style = MaterialTheme.typography.labelLarge, color = if (o.perHour >= 15) MaterialTheme.colorScheme.error else Palette.Spo2)
+        }
+        Text(
+            "${o.drops} Abfälle um mindestens ${de.waschbeken.heliolink.core.OxygenDrops.DROP} % · " + "%.1f".format(o.perHour) +
+                " pro Stunde · niedrigster Wert ${o.lowest} %" + if (o.minutesBelow90 > 0) " · ${o.minutesBelow90} min unter 90 %" else "",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            (if (o.perHour >= 15) "Viele Abfälle können auf Atemaussetzer (Schlafapnoe) hindeuten – vor allem mit Schnarchen oder Müdigkeit am Tag. Wenn das öfter so ist, sprich ärztlich darüber. " else "") +
+                "Gemessen etwa alle ${o.spacingMinutes.roundToInt().coerceAtLeast(1)} min, kurze Abfälle können fehlen" +
+                (if (o.spacingMinutes > 4) " – genauer wird es mit „Atmungsqualität“ unter Einstellungen → Messungen" else "") + ". Keine Diagnose.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/** When falling asleep goes along with the best nights (last 90 days). */
+@Composable
+private fun BedtimePanel(dataVersion: Int) {
+    val zone = ZoneId.systemDefault()
+    val result by dbValue(dataVersion) { db ->
+        val today = LocalDate.now()
+        val nights = Queries.nightSummaries(db, today.minusDays(90), today, zone).values
+        nights.size to de.waschbeken.heliolink.core.BedtimeInsight.analyze(
+            nights.map { Instant.ofEpochSecond(it.start).atZone(zone).toLocalTime().let { t -> t.hour * 60 + t.minute } to it.score },
+        )
+    }
+    val (count, r) = result ?: return
+    Panel {
+        Text("Beste Zeit zum Einschlafen", style = MaterialTheme.typography.titleMedium)
+        if (r == null) {
+            Text(
+                if (count < 10) "Ab 10 Nächten zeigt sich hier, zu welcher Uhrzeit deine besten Nächte beginnen." else
+                    "Bisher kein klarer Unterschied – deine Nächte sind unabhängig von der Uhrzeit ähnlich gut.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            return@Panel
+        }
+        fun hm(m: Int) = "%02d:%02d".format(m / 60, m % 60)
+        Text("${hm(r.from)}–${hm(r.to)} Uhr", style = MaterialTheme.typography.headlineSmall, color = Palette.Sleep)
+        Text(
+            "Score Ø ${r.score.roundToInt()} statt ${r.otherScore.roundToInt()} in den übrigen Nächten (${r.nights} von ${r.total} Nächten der letzten 90 Tage).",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            "Ein Zusammenhang, kein Beweis: Späte Nächte haben oft auch andere Gründe (Wochenende, Ausgehen).",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -368,6 +429,9 @@ private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(
             )
             StatTile("Atemfrequenz", d.breath.map { it.value }.takeIf { it.isNotEmpty() }?.average()?.roundToInt()?.let { "$it /min" } ?: "–", Modifier.weight(1f))
         }
+    }
+    de.waschbeken.heliolink.core.OxygenDrops.analyze(Queries.during(d.spo2, n), n.asleepMinutes)?.let { o ->
+        item { OxygenPanel(o) }
     }
     val tempAvg = d.temperature.map { it.value / 100.0 }.takeIf { it.isNotEmpty() }?.average()
     if (tempAvg != null) {

@@ -23,6 +23,8 @@ data class LiveWorkout(
     val maxHr: Int = 0,
     val calories: Double = 0.0,
     val zoneSeconds: List<Int> = List(5) { 0 },
+    /** Interval training: the strap vibrates at every change between effort and rest. */
+    val intervals: de.waschbeken.heliolink.core.IntervalPlan? = null,
 )
 
 data class StrapUiState(
@@ -55,6 +57,8 @@ data class StrapUiState(
     val firmware: String? = null,
     val serial: String? = null,
     val workout: LiveWorkout? = null,
+    /** After a workout the pulse keeps being measured until then (epoch seconds) for the heart rate recovery. */
+    val cooldownUntil: Long? = null,
     val dataVersion: Int = 0,
     val log: List<String> = emptyList(),
 ) {
@@ -73,6 +77,8 @@ interface StrapController {
     fun refresh()
     fun applySettings(values: Map<HealthSetting, Int>, lists: Map<HealthSetting, List<Int>> = emptyMap())
     fun startWorkout(sport: String)
+    /** A workout with intervals; the strap vibrates at each change and the workout ends after the last round. */
+    fun startIntervals(sport: String, plan: de.waschbeken.heliolink.core.IntervalPlan)
     /** Records the heart rate every second for [seconds] (null = until stopped) and saves it like a workout. */
     fun startRecording(seconds: Int?)
     /** Pauses the connection so another app (Zepp, e.g. for a firmware update) can use the strap. */

@@ -302,6 +302,7 @@ fun MetricScreen(nav: NavHostController, key: String) {
                         de.waschbeken.heliolink.ui.events.EntryEffectsList(state.dataVersion)
                     }
                 }
+                item { RhythmPanel(state.dataVersion) }
             }
             if (metric == Metric.HRV) item { HrvStatusPanel(state.dataVersion) }
             item {
@@ -311,6 +312,45 @@ fun MetricScreen(nav: NavHostController, key: String) {
                 }
             }
         }
+    }
+}
+
+/** Heart rhythm checks of the last 30 days (from the beat intervals while the pulse is streamed). */
+@Composable
+private fun RhythmPanel(dataVersion: Int) {
+    val rows by dbValue(dataVersion) { db ->
+        val now = System.currentTimeMillis() / 1000
+        db.rhythm(now - 30 * 86_400L, now + 60)
+    }
+    val list = rows ?: return
+    Panel {
+        Text("Herzrhythmus", style = MaterialTheme.typography.titleMedium)
+        if (list.isEmpty()) {
+            Text(
+                "Wird geprüft, sobald der Puls live läuft (Live-Puls, Puls-Aufzeichnung, Morgenmessung) und du ruhig bist: " +
+                    "je 64 Herzschläge auf einen unregelmäßigen Rhythmus.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            return@Panel
+        }
+        val irregular = list.filter { it.irregular }
+        Text(
+            if (irregular.isEmpty()) "Regelmäßig" else "${irregular.size} von ${list.size} Abschnitten unregelmäßig",
+            style = MaterialTheme.typography.headlineSmall,
+            color = if (irregular.isEmpty()) Color(0xFF30A46C) else MaterialTheme.colorScheme.error,
+        )
+        Text(
+            "${list.size} Abschnitte à 64 Schläge in den letzten 30 Tagen geprüft" +
+                (irregular.lastOrNull()?.let { " · zuletzt unregelmäßig am " + java.time.Instant.ofEpochSecond(it.timestamp).atZone(ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("d.M. 'um' HH:mm")) } ?: ""),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            "Der optische Sensor stört sich an Bewegung und lockerem Sitz – einzelne Treffer heißen wenig. Kommt es öfter vor oder " +
+                "spürst du Herzstolpern, Schwindel oder Atemnot, lass es ärztlich mit einem EKG prüfen. Keine Diagnose.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

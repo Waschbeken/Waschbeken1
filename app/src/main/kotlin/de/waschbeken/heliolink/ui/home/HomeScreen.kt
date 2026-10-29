@@ -211,6 +211,13 @@ fun HomeScreen(nav: NavHostController) {
             d?.bodyCheck?.takeIf { it.level != de.waschbeken.heliolink.core.BodyCheck.Level.NORMAL }?.let { check ->
                 item { BodyCheckCard(check, d.bodyCheckHints) }
             }
+            d?.irregularRhythm?.takeIf { rows -> rows.isNotEmpty() && rows.last().timestamp > app.prefs.rhythmHintSeen }?.let { rows ->
+                item {
+                    RhythmHintCard(rows, onSeen = { app.prefs.rhythmHintSeen = rows.last().timestamp }) {
+                        nav.navigate(Routes.metric("heart"))
+                    }
+                }
+            }
             item { de.waschbeken.heliolink.ui.record.RecordingBanner(nav) }
             item {
                 LiveHeartCard(state, profile.maxHeartRate, d?.resting?.let { profile.zoneRest(it) }, onRecord = startRecording) {

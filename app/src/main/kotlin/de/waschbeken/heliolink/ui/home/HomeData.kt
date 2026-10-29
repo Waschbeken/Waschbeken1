@@ -50,6 +50,8 @@ class HomeData(
     /** Entries of yesterday that can explain unusual night values (alcohol, sport …). */
     val bodyCheckHints: List<String>,
     val hrvStatus: HrvStatus.Result?,
+    /** Irregular heart rhythm stretches of the last 14 days, when they repeat (see RhythmCheck.worthAHint). */
+    val irregularRhythm: List<HealthDb.RhythmRow>,
 ) {
     companion object {
         fun load(db: HealthDb, stepGoal: Int): HomeData {
@@ -118,6 +120,9 @@ class HomeData(
                 bodyCheck = bodyCheck,
                 bodyCheckHints = hints,
                 hrvStatus = hrvStatus,
+                irregularRhythm = db.rhythm(dayEnd - 15 * 86_400L, dayEnd).filter { it.irregular }.let { list ->
+                    if (de.waschbeken.heliolink.core.RhythmCheck.worthAHint(list.map { (it.timestamp + 3600) / 86_400 })) list else emptyList()
+                },
             )
         }
 

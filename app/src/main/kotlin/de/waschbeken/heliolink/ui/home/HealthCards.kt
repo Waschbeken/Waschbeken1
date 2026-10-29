@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Coffee
 import androidx.compose.material.icons.filled.HealthAndSafety
+import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -172,3 +173,25 @@ fun SubstancesSection(dataVersion: Int) {
 /** Short German HRV status for the tile. */
 fun hrvCaption(d: HomeData): String = d.hrvStatus?.let { "${it.status.label} · 7 Tage ${it.weekAverage.toInt()} ms" }
     ?: if (d.hrvNight != null && d.hrvBaseline != null) "Schnitt ${d.hrvBaseline.toInt()} ms" else "Herzfrequenzvariabilität"
+
+/** Hint when an irregular heart rhythm was measured repeatedly; "Verstanden" hides it until a new one comes. */
+@Composable
+fun RhythmHintCard(rows: List<de.waschbeken.heliolink.data.HealthDb.RhythmRow>, onSeen: () -> Unit, onOpen: () -> Unit) {
+    val days = rows.map { Instant.ofEpochSecond(it.timestamp).atZone(ZoneId.systemDefault()).toLocalDate() }.toSet().size
+    Card(onClick = onOpen, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.MonitorHeart, contentDescription = null)
+                Spacer(Modifier.width(10.dp))
+                Text("Herzschlag mehrmals unregelmäßig", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            }
+            Text(
+                "An $days Tagen wirkte dein Herzschlag in Ruhe unregelmäßig (${rows.size} Abschnitte). Das kann an der Messung " +
+                    "liegen – Bewegung oder ein lockerer Sitz stören den Sensor. Kommt es öfter vor oder spürst du Herzstolpern, " +
+                    "Schwindel oder Atemnot, lass es ärztlich mit einem EKG abklären. Keine Diagnose.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            androidx.compose.material3.TextButton(onClick = onSeen) { Text("Verstanden") }
+        }
+    }
+}
