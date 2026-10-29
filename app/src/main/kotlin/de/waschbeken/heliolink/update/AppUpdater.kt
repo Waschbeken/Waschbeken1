@@ -20,13 +20,21 @@ sealed interface UpdateState {
     data class Downloading(val info: UpdateInfo, val progress: Float) : UpdateState
     data class Ready(val info: UpdateInfo, val apk: File) : UpdateState
 
+    /** Silent install through Shizuku; the app closes when it is done. */
+    data class Installing(val info: UpdateInfo) : UpdateState
+
     /** The update is signed with a different key (the new password protected one): reinstall needed. */
     data class KeyChanged(val info: UpdateInfo, val apk: File) : UpdateState
     data class Failed(val message: String) : UpdateState
 }
 
 /** App-wide update state shared by the settings, the dialog and the start screen. */
-class AppUpdater(val manager: UpdateManager, private val skipped: () -> String, private val skip: (String) -> Unit) {
+class AppUpdater(
+    val manager: UpdateManager,
+    private val skipped: () -> String,
+    private val skip: (String) -> Unit,
+    private val useShizuku: () -> Boolean = { false },
+) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private val _state = MutableStateFlow<UpdateState>(UpdateState.Idle)
@@ -84,6 +92,27 @@ class AppUpdater(val manager: UpdateManager, private val skipped: () -> String, 
     }
 
     fun install(apk: File) {
+        if (useShizuku() && ShizukuInstaller.status() == ShizukuInstaller.Status.READY) {
+            val info = (_state.value as? UpdateState.Ready)?.info
+            scope.launch {
+                try {
+                    if (info != null) _state.value = UpdateState.Installing(info)
+                    ShizukuInstaller.install(manager.context, apk)
+                    // Normally not reached: Android restarts the app with the new version.
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    _messages.tryEmit("Shizuku-Installation fehlgeschlagen: ${e.message} – öffne den Android-Installer")
+                    if (info != null) _state.value = UpdateState.Ready(info, apk)
+                    installWithSystem(apk)
+                }
+            }
+            return
+        }
+        installWithSystem(apk)
+    }
+
+    private fun installWithSystem(apk: File) {
         if (!manager.canInstallPackages()) {
             _messages.tryEmit("Bitte erlaube HelioLink einmal, Apps zu installieren, und tippe dann erneut auf „Installieren“.")
             manager.openInstallPermissionSettings()
@@ -98,6 +127,24 @@ class AppUpdater(val manager: UpdateManager, private val skipped: () -> String, 
         if (skipVersion && s is UpdateState.Available) {
             skip(s.info.version)
             _state.value = UpdateState.Idle
+        }
+    }
+
+    /**
+     * Background install through Shizuku while the app is not open. Returns true when the install
+     * was started (the app then closes and restarts).
+     */
+    suspend fun installSilently(info: UpdateInfo): Boolean {
+        if (ShizukuInstaller.awaitStatus() != ShizukuInstaller.Status.READY) return false
+        return try {
+            val apk = manager.download(info) {}
+            if (manager.sameSignature(apk) == false) return false
+            ShizukuInstaller.install(manager.context, apk)
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            false
         }
     }
 

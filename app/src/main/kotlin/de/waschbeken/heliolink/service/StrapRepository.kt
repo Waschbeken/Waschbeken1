@@ -40,6 +40,10 @@ data class StrapUiState(
     val rejectedSettings: Set<HealthSetting> = emptySet(),
     /** Heart rate values the app recorded today (continuous recording). */
     val recordingHr: Boolean = false,
+    /** The strap answered with its alarms at least once. */
+    val alarmsLoaded: Boolean = false,
+    /** A workout went above the maximum heart rate: offer this value. */
+    val maxHrSuggestion: Int? = null,
     val syncing: Boolean = false,
     val syncText: String? = null,
     val lastSync: Long = 0,
@@ -56,6 +60,9 @@ data class StrapUiState(
 interface StrapController {
     fun syncNow()
     fun probeSleepCode()
+    fun saveAlarm(alarm: de.waschbeken.heliolink.core.StrapAlarm, label: String)
+    fun deleteAlarm(position: Int)
+    fun refreshAlarms()
     fun setLiveHeartRate(enabled: Boolean)
     fun findStrap()
     fun refresh()

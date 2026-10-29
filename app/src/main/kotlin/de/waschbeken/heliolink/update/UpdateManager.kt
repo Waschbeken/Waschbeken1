@@ -31,7 +31,7 @@ data class UpdateInfo(
  * Looks for a newer APK in the GitHub releases of the update repository (tags `app-vX.Y.Z`),
  * downloads it and hands it to the system installer. The repository is public, so no token is needed.
  */
-class UpdateManager(private val context: Context, private val prefs: Prefs) {
+class UpdateManager(val context: Context, private val prefs: Prefs) {
     val currentVersion: String = BuildConfig.VERSION_NAME.substringBefore("-")
 
     suspend fun check(): UpdateInfo? {

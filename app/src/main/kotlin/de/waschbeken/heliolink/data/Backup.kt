@@ -35,12 +35,16 @@ class Backup(private val context: Context, private val prefs: Prefs, private val
             zip.putNextEntry(ZipEntry("info.txt"))
             zip.write(info.toByteArray())
             zip.closeEntry()
+            CrashReporter.read(context)?.let { crash ->
+                zip.putNextEntry(ZipEntry("absturz.txt"))
+                zip.write(crash.toByteArray())
+                zip.closeEntry()
+            }
         }
     }
 
     /** Everything needed to set up the app again: database and settings (incl. auth key). */
     fun createBackup(uri: Uri) {
-        db.close() // flushes the write-ahead log into the database file
         val out = context.contentResolver.openOutputStream(uri) ?: throw BackupException("Datei lässt sich nicht schreiben")
         ZipOutputStream(out.buffered()).use { zip ->
             zip.putNextEntry(ZipEntry("heliolink-backup.json"))
@@ -54,7 +58,7 @@ class Backup(private val context: Context, private val prefs: Prefs, private val
             zip.write(prefs.exportAll().toString(2).toByteArray())
             zip.closeEntry()
             zip.putNextEntry(ZipEntry("health.db"))
-            db.databaseFile().inputStream().use { it.copyTo(zip) }
+            db.backupTo(zip)
             zip.closeEntry()
         }
     }
@@ -82,10 +86,7 @@ class Backup(private val context: Context, private val prefs: Prefs, private val
             }
             val db2 = dbFile
             if (!isBackup || db2 == null) throw BackupException("Das ist keine HelioLink-Sicherung.")
-            db.close()
-            val target = db.databaseFile()
-            listOf("-wal", "-shm", "-journal").forEach { File(target.path + it).delete() }
-            db2.copyTo(target, overwrite = true)
+            db.restoreFrom(db2)
             settings?.let { prefs.importAll(it) }
         } finally {
             tmp.deleteRecursively()

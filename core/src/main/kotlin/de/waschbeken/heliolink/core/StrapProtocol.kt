@@ -75,6 +75,12 @@ class StrapProtocol(
 
     fun findStrap(start: Boolean) = sendChunked(Endpoint.FIND_DEVICE, byteArrayOf(if (start) 0x03 else 0x06))
 
+    fun requestAlarms() = sendChunked(AlarmCodec.ENDPOINT, AlarmCodec.request())
+
+    fun setAlarm(alarm: StrapAlarm) = sendChunked(AlarmCodec.ENDPOINT, AlarmCodec.set(alarm))
+
+    fun deleteAlarm(position: Int) = sendChunked(AlarmCodec.ENDPOINT, AlarmCodec.delete(position))
+
     fun requestHealthSettings() = HealthConfigCodec.requests().forEach { sendChunked(HealthConfigCodec.ENDPOINT, it) }
 
     /** Group versions reported by the strap, needed to encode some values. */
@@ -134,6 +140,7 @@ class StrapProtocol(
             Endpoint.STEPS -> handleSteps(payload)
             Endpoint.FIND_DEVICE -> handleFind(payload)
             HealthConfigCodec.ENDPOINT -> handleConfig(payload)
+            AlarmCodec.ENDPOINT -> handleAlarms(payload)
             else -> emit(StrapEvent.Log("Unbekannte Nachricht ${"%04x".format(endpoint)}: ${payload.toHex()}"))
         }
     }
@@ -187,6 +194,7 @@ class StrapProtocol(
         emit(StrapEvent.Ready(encryptedEndpoints.toSet()))
         requestHealthSettings()
         requestSteps()
+        requestAlarms()
     }
 
     private fun handleBattery(payload: ByteArray) {
@@ -226,6 +234,13 @@ class StrapProtocol(
         }
     }
 
+    private fun handleAlarms(payload: ByteArray) {
+        when (payload.u8(0)) {
+            AlarmCodec.CMD_RESPONSE -> AlarmCodec.parse(payload)?.let { emit(StrapEvent.Alarms(it)) }
+            AlarmCodec.CMD_NOTIFY_CHANGE, AlarmCodec.CMD_CREATE_ACK, AlarmCodec.CMD_DELETE_ACK, AlarmCodec.CMD_UPDATE_ACK -> requestAlarms()
+        }
+    }
+
     private fun handleConfig(payload: ByteArray) {
         when (payload.u8(0)) {
             HealthConfigCodec.CMD_RESPONSE -> HealthConfigCodec.parse(payload)?.let {
@@ -258,6 +273,13 @@ class StrapProtocol(
     private var defaultHistory: Duration = Duration.ofDays(30)
     private var syncOk = true
     private var probing = false
+    private var probeTotal = 0
+    private var probeTried = 0
+
+    private fun probeStep(f: Fetch, detail: String) {
+        probeTried++
+        emit(StrapEvent.SleepProbeProgress(probeTried, probeTotal, f.code, detail))
+    }
 
     /** Byte offset of the first sleep record inside the fetched data (found by probing). */
     var sleepRecordOffset = 0
@@ -299,6 +321,8 @@ class StrapProtocol(
         defaultHistory = Duration.ofDays(7)
         syncOk = true
         probing = true
+        probeTotal = candidates.size
+        probeTried = 0
         queue.clear()
         candidates.forEach { queue.addLast(Fetch(FetchType.SLEEP, it, probe = true)) }
         nextFetch()
@@ -343,7 +367,7 @@ class StrapProtocol(
         when (value.u8(1)) {
             0x01 -> {
                 if (!success || value.size < 14) {
-                    if (!f.probe) emit(StrapEvent.Log("${f.type.label}: vom Strap nicht unterstützt (${value.toHex()})"))
+                    if (f.probe) probeStep(f, "abgelehnt") else emit(StrapEvent.Log("${f.type.label}: vom Strap nicht unterstützt (${value.toHex()})"))
                     nextFetch()
                     return
                 }
@@ -351,6 +375,7 @@ class StrapProtocol(
                 f.start = TimeCodec.decode(value, 7, clock().zone)
                 if (!f.probe) emit(StrapEvent.SyncProgress(f.type, f.start, f.expected, 0))
                 if (f.expected == 0L || (f.probe && f.expected > PROBE_MAX_BYTES)) {
+                    if (f.probe) probeStep(f, if (f.expected == 0L) "leer" else "${f.expected} Bytes, zu groß")
                     f.skipped = true
                     sendFetchAck(keepOnStrap = true)
                 } else {
@@ -366,9 +391,8 @@ class StrapProtocol(
                 }
                 val data = f.buffer.toByteArray()
                 if (f.probe) {
-                    val offset = listOf(0, 1).firstOrNull {
-                        SleepRecordParser.looksLikeRecords(data, it, clock().toEpochSecond())
-                    }
+                    val offset = SleepRecordParser.findOffset(data, clock().toEpochSecond())
+                    probeStep(f, "${data.size} Bytes, Anfang ${data.copyOf(minOf(16, data.size)).toHex()}" + if (offset != null) " – Schlafdaten!" else "")
                     if (offset == null) {
                         f.skipped = true
                         sendFetchAck(keepOnStrap = true)
@@ -473,6 +497,52 @@ class StrapProtocol(
                 val samples = (0 until data.size / 6).map { n -> ValueSample(data.u32(n * 6), data.u8(n * 6 + 5)) }
                     .filter { it.value in 25..150 }
                 if (samples.isNotEmpty()) emit(StrapEvent.RestingHeartRateData(samples))
+                end = samples.maxOfOrNull { it.timestamp }?.plus(60)
+            }
+            FetchType.PAI -> {
+                // 102 byte records: type 5, timestamp(4), utc offset(1), 31 unknown, low/moderate/high (float),
+                // minutes low/moderate/high (short), today, total (float), 39 unknown
+                val buf = java.nio.ByteBuffer.wrap(data).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                val samples = ArrayList<PaiSample>()
+                while (buf.remaining() >= 102) {
+                    if (buf.get().toInt() != 5) break
+                    val ts = buf.int.toLong() and 0xffffffffL
+                    buf.get()
+                    buf.position(buf.position() + 31)
+                    buf.float; buf.float; buf.float
+                    val low = buf.short.toInt()
+                    val moderate = buf.short.toInt()
+                    val high = buf.short.toInt()
+                    val today = buf.float
+                    val total = buf.float
+                    buf.position(buf.position() + 39)
+                    samples += PaiSample(ts, today, total, low, moderate, high)
+                }
+                if (samples.isNotEmpty()) emit(StrapEvent.PaiData(samples))
+                end = samples.maxOfOrNull { it.timestamp }?.plus(60)
+            }
+            FetchType.TEMPERATURE -> {
+                // one 8 byte record per minute: temperature in 1/100 °C (2), 6 unknown
+                if (data.size % 8 != 0) {
+                    emit(StrapEvent.Log("Hauttemperatur: unbekanntes Format (${data.size} Bytes)"))
+                    return false
+                }
+                val samples = (0 until data.size / 8).mapNotNull { n ->
+                    val v = data.u16(n * 8).toShort().toInt()
+                    if (v in 2000..4500) ValueSample(startSec + n * 60L, v) else null
+                }
+                if (samples.isNotEmpty()) emit(StrapEvent.TemperatureData(samples))
+                end = startSec + data.size / 8 * 60L
+            }
+            FetchType.RESPIRATION -> {
+                // timestamp(4) utc offset(1) breaths per minute(1) 2 unknown
+                if (data.size % 8 != 0) {
+                    emit(StrapEvent.Log("Atemfrequenz: unbekanntes Format (${data.size} Bytes)"))
+                    return false
+                }
+                val samples = (0 until data.size / 8).map { n -> ValueSample(data.u32(n * 8), data.u8(n * 8 + 5)) }
+                    .filter { it.value in 4..60 }
+                if (samples.isNotEmpty()) emit(StrapEvent.RespirationData(samples))
                 end = samples.maxOfOrNull { it.timestamp }?.plus(60)
             }
             FetchType.SLEEP -> {

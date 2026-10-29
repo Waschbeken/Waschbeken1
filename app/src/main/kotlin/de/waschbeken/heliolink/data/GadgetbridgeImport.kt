@@ -5,6 +5,8 @@ import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
 import de.waschbeken.heliolink.core.ActivitySample
 import de.waschbeken.heliolink.core.FetchType
+import de.waschbeken.heliolink.core.PaiSample
+import de.waschbeken.heliolink.core.StrapAlarm
 import de.waschbeken.heliolink.core.SleepRecordParser
 import de.waschbeken.heliolink.core.StressSample
 import de.waschbeken.heliolink.core.ValueSample
@@ -29,12 +31,17 @@ class GadgetbridgeImport(private val context: Context, private val prefs: Prefs,
         val spo2: Int,
         val restingHr: Int,
         val hrv: Int,
+        val pai: Int = 0,
+        val temperature: Int = 0,
+        val respiration: Int = 0,
+        val alarms: Int = 0,
     ) {
         val summary: String
             get() = buildString {
                 append(if (keyFound) "Auth-Key und Strap übernommen. " else "Kein Auth-Key gefunden. ")
                 append("$activityMinutes Minuten Aktivität, $nights Nächte mit Schlafphasen, ")
-                append("$stress Stresswerte, $spo2 SpO₂-Messungen, $restingHr Ruhepuls-Werte und $hrv HRV-Werte importiert.")
+                append("$stress Stresswerte, $spo2 SpO₂-Messungen, $restingHr Ruhepuls-Werte, $hrv HRV-Werte, ")
+                append("$pai PAI-Tage, $temperature Temperaturwerte, $respiration Atemfrequenz-Werte und $alarms Wecker importiert.")
             }
     }
 
@@ -88,6 +95,12 @@ class GadgetbridgeImport(private val context: Context, private val prefs: Prefs,
                 val spo2 = importValues(g, deviceId, "HUAMI_SPO2_SAMPLE", "SPO2", HealthDb.SPO2)
                 val resting = importValues(g, deviceId, "HUAMI_HEART_RATE_RESTING_SAMPLE", "HEART_RATE", HealthDb.RESTING_HR)
                 val hrv = importValues(g, deviceId, "GENERIC_HRV_VALUE_SAMPLE", "VALUE", HealthDb.HRV)
+                progress("Importiere PAI, Temperatur und Wecker …")
+                val pai = importPai(g, deviceId)
+                val temperature = importTemperature(g, deviceId)
+                val respiration = importValues(g, deviceId, "HUAMI_SLEEP_RESPIRATORY_RATE_SAMPLE", "RATE", HealthDb.RESPIRATION)
+                importBattery(g, deviceId)
+                val alarms = importAlarms(g, deviceId)
 
                 // Continue where Gadgetbridge stopped, so the next sync only fetches what is new.
                 fun cursor(type: FetchType, key: String) {
@@ -99,8 +112,11 @@ class GadgetbridgeImport(private val context: Context, private val prefs: Prefs,
                 cursor(FetchType.SPO2, "lastSpo2normalTimeMillis")
                 cursor(FetchType.RESTING_HEART_RATE, "lastHeartRateRestingTimeMillis")
                 cursor(FetchType.SLEEP, "lastSleepSessionTimeMillis")
+                cursor(FetchType.PAI, "lastPaiTimeMillis")
+                cursor(FetchType.TEMPERATURE, "lastTemperatureTimeMillis")
+                cursor(FetchType.RESPIRATION, "lastSleepRespiratoryRateTimeMillis")
 
-                return Result(name, address, key != null, activity, nights, stress, spo2, resting, hrv)
+                return Result(name, address, key != null, activity, nights, stress, spo2, resting, hrv, pai, temperature, respiration, alarms)
             }
         } finally {
             dir.deleteRecursively()
@@ -175,6 +191,67 @@ class GadgetbridgeImport(private val context: Context, private val prefs: Prefs,
         }
         db.insertStress(samples)
         return samples.size
+    }
+
+    private fun importPai(g: SQLiteDatabase, device: Long): Int {
+        if (!hasTable(g, "HUAMI_PAI_SAMPLE")) return 0
+        val samples = ArrayList<PaiSample>()
+        g.rawQuery(
+            "SELECT TIMESTAMP, PAI_TODAY, PAI_TOTAL, TIME_LOW, TIME_MODERATE, TIME_HIGH FROM HUAMI_PAI_SAMPLE WHERE DEVICE_ID = ?",
+            arrayOf(device.toString()),
+        ).use { c ->
+            while (c.moveToNext()) {
+                samples += PaiSample(c.getLong(0) / 1000, c.getFloat(1), c.getFloat(2), c.getInt(3), c.getInt(4), c.getInt(5))
+            }
+        }
+        db.insertPai(samples)
+        return samples.size
+    }
+
+    private fun importTemperature(g: SQLiteDatabase, device: Long): Int {
+        if (!hasTable(g, "GENERIC_TEMPERATURE_SAMPLE")) return 0
+        val samples = ArrayList<ValueSample>()
+        g.rawQuery("SELECT TIMESTAMP, TEMPERATURE FROM GENERIC_TEMPERATURE_SAMPLE WHERE DEVICE_ID = ?", arrayOf(device.toString())).use { c ->
+            while (c.moveToNext()) {
+                val v = (c.getDouble(1) * 100).toInt()
+                if (v in 2000..4500) samples += ValueSample(c.getLong(0) / 1000, v)
+                if (samples.size >= 20_000) {
+                    db.insertValues(HealthDb.TEMPERATURE, samples)
+                    samples.clear()
+                }
+            }
+        }
+        db.insertValues(HealthDb.TEMPERATURE, samples)
+        return g.rawQuery("SELECT COUNT(*) FROM GENERIC_TEMPERATURE_SAMPLE WHERE DEVICE_ID = ?", arrayOf(device.toString()))
+            .use { if (it.moveToFirst()) it.getInt(0) else 0 }
+    }
+
+    private fun importBattery(g: SQLiteDatabase, device: Long) {
+        if (!hasTable(g, "BATTERY_LEVEL")) return
+        val samples = ArrayList<ValueSample>()
+        g.rawQuery("SELECT TIMESTAMP, LEVEL FROM BATTERY_LEVEL WHERE DEVICE_ID = ?", arrayOf(device.toString())).use { c ->
+            while (c.moveToNext()) samples += ValueSample(c.getLong(0), c.getInt(1))
+        }
+        db.insertValues(HealthDb.BATTERY, samples)
+    }
+
+    /** Gadgetbridge keeps the alarm names, the strap does not. */
+    private fun importAlarms(g: SQLiteDatabase, device: Long): Int {
+        if (!hasTable(g, "ALARM")) return 0
+        var count = 0
+        g.rawQuery(
+            "SELECT POSITION, ENABLED, SMART_WAKEUP, HOUR, MINUTE, REPETITION, UNUSED, TITLE FROM ALARM WHERE DEVICE_ID = ?",
+            arrayOf(device.toString()),
+        ).use { c ->
+            while (c.moveToNext()) {
+                if (c.getInt(6) == 1) continue
+                val alarm = StrapAlarm(c.getInt(0), c.getInt(1) == 1, c.getInt(2) == 1, c.getInt(3), c.getInt(4), c.getInt(5))
+                // Not pending: the strap already has these alarms, only the names are new.
+                db.saveAlarm(alarm, c.getString(7).orEmpty().trim(), pending = false)
+                count++
+            }
+        }
+        return count
     }
 
     /** Tables with TIMESTAMP in milliseconds and one integer value. */

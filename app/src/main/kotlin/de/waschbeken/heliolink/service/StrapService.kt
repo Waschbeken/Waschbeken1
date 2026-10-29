@@ -24,7 +24,19 @@ import de.waschbeken.heliolink.core.DeviceInfo
 import de.waschbeken.heliolink.core.HealthSetting
 import de.waschbeken.heliolink.core.HeartRateMode
 import de.waschbeken.heliolink.core.HeartRateZones
+import de.waschbeken.heliolink.core.SleepAnalyzer
+import de.waschbeken.heliolink.core.SleepStage
+import de.waschbeken.heliolink.core.StrapAlarm
 import de.waschbeken.heliolink.core.StrapEvent
+import de.waschbeken.heliolink.core.StrapProtocol
+import de.waschbeken.heliolink.core.ValueSample
+import de.waschbeken.heliolink.core.nextAlarm
+import de.waschbeken.heliolink.AppVisibility
+import de.waschbeken.heliolink.widget.HelioWidget
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import de.waschbeken.heliolink.core.rmssd
 import de.waschbeken.heliolink.data.HealthDb
 import de.waschbeken.heliolink.data.Workout
@@ -45,12 +57,12 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
 
     companion object {
         private const val CHANNEL = "strap"
-        private const val CHANNEL_ALERTS = "alerts"
-        private const val CHANNEL_UPDATES = "updates"
+        private const val CHANNEL_ALERTS = Notifications.CHANNEL_ALERTS
+        private const val CHANNEL_UPDATES = Notifications.CHANNEL_UPDATES
         private const val NOTIFICATION_ID = 1
-        private const val NOTIFICATION_BATTERY = 2
-        private const val NOTIFICATION_SYNC = 3
-        private const val NOTIFICATION_UPDATE = 4
+        private const val NOTIFICATION_BATTERY = Notifications.ID_BATTERY
+        private const val NOTIFICATION_SYNC = Notifications.ID_SYNC
+        private const val NOTIFICATION_UPDATE = Notifications.ID_UPDATE
         private const val ACTION_STOP = "de.waschbeken.heliolink.STOP"
 
         fun start(context: Context) {
@@ -69,6 +81,9 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private var liveRequested = false
+    private var probeOffset = 0
+    private var lastBatteryStored = 0L
+    private var lastWidgetUpdate = 0L
     private var hrStreaming = false
     private val rrBuffer = ArrayList<Int>()
 
@@ -100,6 +115,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 if (minutes > 0 && System.currentTimeMillis() - prefs.lastSync > minutes * 60_000L) syncNow()
             }
             checkForUpdateInBackground()
+            checkBedtime()
             handler.postDelayed(this, 5 * 60_000L)
         }
     }
@@ -187,7 +203,50 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         handler.post {
             repo.update { it.copy(syncing = true, syncText = "Suche Schlafphasen-Daten auf dem Strap …") }
             repo.log("Suche, unter welchem Code der Strap Schlafphasen liefert …")
-            connection?.startSync { probeSleepCode(prefs) }
+            val tried = prefs.sleepProbeTried.coerceIn(0, StrapProtocol.SLEEP_CODE_CANDIDATES.size)
+            probeOffset = tried
+            connection?.startSync { probeSleepCode(prefs, StrapProtocol.SLEEP_CODE_CANDIDATES.drop(tried)) }
+        }
+    }
+
+    override fun saveAlarm(alarm: StrapAlarm, label: String) {
+        handler.post {
+            val ready = connection?.state == LinkState.READY
+            db.saveAlarm(alarm, label, pending = !ready)
+            if (ready) connection?.protocol?.setAlarm(alarm)
+            repo.dataChanged()
+        }
+    }
+
+    override fun deleteAlarm(position: Int) {
+        handler.post {
+            if (connection?.state == LinkState.READY) {
+                connection?.protocol?.deleteAlarm(position)
+                db.removeAlarm(position)
+            } else {
+                db.alarms().firstOrNull { it.alarm.position == position }?.let {
+                    db.saveAlarm(it.alarm, it.label, pending = true, deleted = true)
+                }
+            }
+            repo.dataChanged()
+        }
+    }
+
+    override fun refreshAlarms() {
+        handler.post { connection?.protocol?.requestAlarms() }
+    }
+
+    /** Sends alarm changes made while the strap was not connected. */
+    private fun pushPendingAlarms() {
+        val p = connection?.protocol ?: return
+        for (row in db.alarms().filter { it.pending }) {
+            if (row.deleted) {
+                p.deleteAlarm(row.alarm.position)
+                db.removeAlarm(row.alarm.position)
+            } else {
+                p.setAlarm(row.alarm)
+                db.saveAlarm(row.alarm, row.label, pending = false)
+            }
         }
     }
 
@@ -289,6 +348,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             )
             repo.update { it.copy(workout = null) }
             repo.dataChanged()
+            suggestMaxHeartRate(w.maxHr)
             updateHeartRateStreaming()
             updateNotification()
         }
@@ -338,6 +398,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         if (detail != null) repo.log(detail)
         if (state == LinkState.READY) {
             updateHeartRateStreaming()
+            pushPendingAlarms()
             handler.postDelayed({ syncNow() }, 3_000)
         }
         updateNotification()
@@ -356,6 +417,12 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 repo.update { it.copy(battery = event.level, charging = event.charging) }
                 updateNotification()
                 checkBattery(event.level, event.charging)
+                val now = System.currentTimeMillis() / 1000
+                if (now - lastBatteryStored > 1800 || db.latestValue(HealthDb.BATTERY)?.value != event.level) {
+                    lastBatteryStored = now
+                    db.insertValues(HealthDb.BATTERY, listOf(ValueSample(now, event.level)))
+                }
+                updateWidget(force = true)
             }
             is StrapEvent.Steps -> repo.update {
                 it.copy(steps = event.steps, distanceMeters = event.distanceMeters, calories = event.calories)
@@ -396,6 +463,30 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 repo.log("${event.records.size} Nächte mit Schlafphasen gespeichert")
                 repo.dataChanged()
             }
+            is StrapEvent.PaiData -> {
+                db.insertPai(event.samples)
+                repo.log("${event.samples.size} PAI-Werte gespeichert")
+            }
+            is StrapEvent.TemperatureData -> {
+                db.insertValues(HealthDb.TEMPERATURE, event.samples)
+                repo.log("${event.samples.size} Temperaturwerte gespeichert")
+            }
+            is StrapEvent.RespirationData -> {
+                db.insertValues(HealthDb.RESPIRATION, event.samples)
+                repo.log("${event.samples.size} Atemfrequenz-Werte gespeichert")
+            }
+            is StrapEvent.Alarms -> {
+                db.mergeStrapAlarms(event.alarms)
+                repo.update { it.copy(alarmsLoaded = true) }
+                repo.dataChanged()
+            }
+            is StrapEvent.SleepProbeProgress -> {
+                val tried = probeOffset + event.tried
+                prefs.sleepProbeTried = tried
+                val total = StrapProtocol.SLEEP_CODE_CANDIDATES.size
+                repo.update { it.copy(syncing = true, syncText = "Suche Schlafphasen: $tried von $total Codes") }
+                repo.log("Schlafphasen-Suche 0x%02x: %s".format(event.code, event.detail))
+            }
             is StrapEvent.SleepCodeProbed -> {
                 val code = event.code
                 if (code != null) {
@@ -418,6 +509,10 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 repo.log(if (event.success) "Synchronisierung abgeschlossen" else "Synchronisierung abgebrochen: ${event.message}")
                 repo.dataChanged()
                 if (event.success && prefs.sleepCode == -1) probeSleepCode()
+                if (event.success) {
+                    afterSync()
+                    updateWidget(force = true)
+                }
                 if (!event.success && prefs.notifySyncErrors) {
                     alert(NOTIFICATION_SYNC, CHANNEL_ALERTS, "Abruf vom Strap abgebrochen", event.message ?: "Unbekannter Fehler")
                 }
@@ -439,6 +534,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             lastRecordedSecond = now / 1000
             db.insertHr(lastRecordedSecond, event.bpm)
         }
+        updateWidget(force = false)
         if (prefs.notificationShowsHr && now - lastHrNotification > 10_000) {
             lastHrNotification = now
             updateNotification()
@@ -471,6 +567,83 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             )
         }
         if (samples % 15 == 0) updateNotification()
+    }
+
+    private fun updateWidget(force: Boolean) {
+        val now = System.currentTimeMillis()
+        if (!force && now - lastWidgetUpdate < 60_000) return
+        lastWidgetUpdate = now
+        val s = repo.state.value
+        HelioWidget.update(applicationContext, s.heartRate, s.steps, lastNightText(), s.battery)
+    }
+
+    private fun lastNightText(): String? {
+        val zone = ZoneId.systemDefault()
+        val today = LocalDate.now()
+        val from = today.minusDays(1).atTime(18, 0).atZone(zone).toEpochSecond()
+        val to = today.atTime(18, 0).atZone(zone).toEpochSecond()
+        val night = db.sleepRecords(from, to).maxByOrNull { it.end }?.toSession()
+            ?: SleepAnalyzer.nightOf(today, SleepAnalyzer.sessions(db.activity(from, to)), zone)
+            ?: return null
+        return "${night.asleepMinutes / 60}:%02d h".format(night.asleepMinutes % 60)
+    }
+
+    /** Reminds to go to bed so the sleep goal fits before the next alarm. */
+    private fun checkBedtime() {
+        val before = prefs.bedtimeReminder
+        if (before <= 0) return
+        val next = nextAlarm(db.alarms().filter { !it.deleted }.map { it.alarm }) ?: return
+        val bedtime = next.minusMinutes(prefs.profile.sleepGoalMinutes.toLong())
+        val now = ZonedDateTime.now()
+        val remind = bedtime.minusMinutes(before.toLong())
+        val day = bedtime.toLocalDate().toEpochDay()
+        if (now.isAfter(remind) && now.isBefore(bedtime) && prefs.bedtimeNotifiedDay != day) {
+            prefs.bedtimeNotifiedDay = day
+            Notifications.show(
+                this, Notifications.ID_BEDTIME, Notifications.CHANNEL_HEALTH,
+                "Bald Schlafenszeit",
+                "Wecker um %02d:%02d – für %s Schlaf ab %02d:%02d ins Bett.".format(
+                    next.hour, next.minute, de.waschbeken.heliolink.ui.formatMinutes(prefs.profile.sleepGoalMinutes), bedtime.hour, bedtime.minute,
+                ),
+            )
+        }
+    }
+
+    /** Morning summary after the first successful sync of the day. */
+    private fun afterSync() {
+        val today = LocalDate.now()
+        if (!prefs.morningSummary || prefs.morningSummaryDay == today.toEpochDay() || LocalTime.now().hour < 5) return
+        val zone = ZoneId.systemDefault()
+        val from = today.minusDays(1).atTime(18, 0).atZone(zone).toEpochSecond()
+        val to = today.atTime(14, 0).atZone(zone).toEpochSecond()
+        val records = db.sleepRecords(from, to)
+        val night = records.maxByOrNull { it.end }?.toSession()
+            ?: SleepAnalyzer.nightOf(today, SleepAnalyzer.sessions(db.activity(from, to)), zone)
+            ?: return
+        if (night.end > System.currentTimeMillis() / 1000 - 15 * 60) return // probably still in bed
+        prefs.morningSummaryDay = today.toEpochDay()
+        val text = buildString {
+            append("${de.waschbeken.heliolink.ui.formatMinutes(night.asleepMinutes)} geschlafen, Score ${night.score}")
+            if (!night.estimated) {
+                append(" · Tief ${de.waschbeken.heliolink.ui.formatMinutes(night.minutes(SleepStage.DEEP))}")
+                append(" · REM ${de.waschbeken.heliolink.ui.formatMinutes(night.minutes(SleepStage.REM))}")
+            }
+            night.minHeartRate?.let { append(" · Puls min. $it") }
+        }
+        Notifications.show(this, Notifications.ID_MORNING, Notifications.CHANNEL_HEALTH, "Guten Morgen! Deine Nacht", text)
+    }
+
+    /** Offers a higher maximum heart rate when a workout went above it. */
+    private fun suggestMaxHeartRate(measured: Int) {
+        val profile = prefs.profile
+        if (measured <= profile.maxHeartRate || measured <= prefs.suggestedMaxHr || measured > 230) return
+        prefs.suggestedMaxHr = measured
+        repo.update { it.copy(maxHrSuggestion = measured) }
+        Notifications.show(
+            this, Notifications.ID_MAX_HR, Notifications.CHANNEL_HEALTH,
+            "Neuer Höchstpuls: $measured bpm",
+            "Dein Training lag über dem eingestellten Maximalpuls (${profile.maxHeartRate}). In der App kannst du ihn übernehmen, damit die Pulszonen stimmen.",
+        )
     }
 
     private var cachedResting: Pair<Long, Int?>? = null
@@ -507,6 +680,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             nm.createNotificationChannel(NotificationChannel(CHANNEL_ALERTS, "Warnungen", NotificationManager.IMPORTANCE_DEFAULT))
             nm.createNotificationChannel(NotificationChannel(CHANNEL_UPDATES, "App-Updates", NotificationManager.IMPORTANCE_DEFAULT))
         }
+        Notifications.createChannels(this)
     }
 
     private fun checkBattery(level: Int, charging: Boolean) {
@@ -524,6 +698,10 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
     private fun checkForUpdateInBackground() {
         scope.launch {
             val info = app.updater.manager.checkInBackground() ?: return@launch
+            if (prefs.shizukuInstall && prefs.autoInstallUpdates && !AppVisibility.inForeground) {
+                repo.log("Installiere Update ${info.version} im Hintergrund (Shizuku)")
+                if (app.updater.installSilently(info)) return@launch
+            }
             app.updater.announce(info)
             val intent = Intent(this@StrapService, MainActivity::class.java)
                 .putExtra(MainActivity.EXTRA_SHOW_UPDATE, true)
