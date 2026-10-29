@@ -80,7 +80,9 @@ object ShizukuInstaller {
         check(status() == Status.READY) { "Shizuku ist nicht bereit" }
         markSilentInstall(context, true)
         try {
-            val process = newProcess(arrayOf("pm", "install", "-r", "-S", apk.length().toString()))
+            // "--user current": without it pm installs for every user on the phone (e.g. Xiaomi's hidden
+            // dual apps user), and a normal uninstall later leaves a copy there that blocks reinstalling.
+            val process = newProcess(arrayOf("pm", "install", "-r", "--user", "current", "-S", apk.length().toString()))
             process.outputStream.use { out -> apk.inputStream().use { it.copyTo(out) } }
             val output = process.inputStream.bufferedReader().readText().trim()
             val error = process.errorStream.bufferedReader().readText().trim()
