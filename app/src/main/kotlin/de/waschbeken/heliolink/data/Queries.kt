@@ -41,7 +41,7 @@ object Queries {
                 ?.let { SleepEditor.ignoreShortAwake(it, tuning.ignoreAwakeMinutes) }
             val edit = edits[d.toEpochDay()]
             if (edit != null) night = SleepEditor.apply(night, edit, samples)
-            night?.let { out[d] = it }
+            night?.let { out[d] = it.copy(goalMinutes = prefs.profile.sleepGoalMinutes) }
             d = d.plusDays(1)
         }
         return out
