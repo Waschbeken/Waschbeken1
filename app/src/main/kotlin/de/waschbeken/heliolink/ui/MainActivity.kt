@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
@@ -71,6 +72,8 @@ import de.waschbeken.heliolink.update.UpdateState
 
 object Routes {
     const val HOME = "home"
+    const val DATA = "data"
+    const val RECORDING = "recording"
     const val SLEEP = "sleep"
     const val TRAINING = "training"
     const val ALARMS = "alarms"
@@ -86,10 +89,11 @@ private data class Tab(val route: String, val label: String, val icon: ImageVect
 
 private val tabs = listOf(
     Tab(Routes.HOME, "Heute", Icons.Filled.MonitorHeart),
+    Tab(Routes.DATA, "Daten", Icons.Filled.Insights),
     Tab(Routes.SLEEP, "Schlaf", Icons.Filled.Bedtime),
     Tab(Routes.TRAINING, "Training", Icons.Filled.FitnessCenter),
     Tab(Routes.ALARMS, "Wecker", Icons.Filled.Alarm),
-    Tab(Routes.SETTINGS, "Einstellungen", Icons.Filled.Settings),
+    Tab(Routes.SETTINGS, "Optionen", Icons.Filled.Settings),
 )
 
 fun NavHostController.navigateToTab(route: String) {
@@ -289,6 +293,8 @@ private fun AppContent(pendingRoute: String?, onRouteShown: () -> Unit, onForget
         val bottom = if (showBar) PaddingValues(bottom = padding.calculateBottomPadding()) else PaddingValues()
         NavHost(nav, startDestination = Routes.HOME, modifier = Modifier.padding(bottom).consumeWindowInsets(bottom)) {
             composable(Routes.HOME) { HomeScreen(nav) }
+            composable(Routes.DATA) { de.waschbeken.heliolink.ui.data.DataScreen(nav) }
+            composable(Routes.RECORDING) { de.waschbeken.heliolink.ui.record.RecordingScreen(nav) }
             composable(Routes.SLEEP) { SleepScreen(nav) }
             composable(Routes.TRAINING) { TrainingScreen(nav) }
             composable(Routes.ALARMS) { AlarmsScreen(nav) }
