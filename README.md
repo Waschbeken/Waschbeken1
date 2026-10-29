@@ -11,18 +11,50 @@ aber ganz auf einen Strap ohne Display zugeschnitten.
 | **Heute** | Verbindungsstatus, Akku, Live-Puls mit Pulszonen und HRV (RMSSD), Schritte mit Tagesziel und Stundenverlauf, Herzfrequenz-Tageskurve mit Ruhepuls, Stress-Verlauf |
 | **Schlaf** | Hypnogramm (Wach/REM/Leicht/Tief), Schlaf-Score, Puls im Schlaf, 7-Nächte-Übersicht |
 | **Training** | Puls-Training mit sekündlicher Messung, 5 Zonen, Kalorien (Keytel-Formel), Verlauf, Export als **TCX** (z. B. Strava) |
-| **Strap** | Messintervall des Pulses, Puls-Broadcast an Laufband/Radcomputer/Zwift, Schlaf mit hoher Genauigkeit, Stress, SpO₂, Pulswarnungen, „Strap vibrieren“, Profil, CSV-Export |
+| **Einstellungen** | Nach Kategorien geordnet, jede mit kurzer Beschreibung (siehe unten). „Nach Updates suchen“ sitzt direkt ganz unten |
 
 Im Hintergrund hält ein Dienst die Verbindung, verbindet sich automatisch neu und lädt den
 Verlauf (Puls, Schritte, Schlaf, Stress minutengenau) regelmäßig vom Strap.
 
+## Einstellungen
+
+| Kategorie | Inhalt |
+|---|---|
+| **Strap** | Status, Akku, Firmware, „Strap vibrieren lassen“, neu verbinden, Auth-Key, Strap entfernen |
+| **Messungen** | Puls rund um die Uhr (Intervall), Puls an andere Geräte senden (Laufband, Radcomputer, Zwift), Schlaf mit hoher Genauigkeit, Stress, SpO₂, Puls- und SpO₂-Warnungen – wird direkt auf dem Strap gespeichert |
+| **Profil & Zonen** | Alter, Geschlecht, Gewicht, Größe, max. Puls, Schrittziel, Übersicht deiner 5 Pulszonen |
+| **Synchronisierung** | Automatischer Abruf (Intervall), Zeitraum beim ersten Abruf, jetzt synchronisieren, Verlauf neu laden |
+| **Benachrichtigungen** | Akku-Warnung, Sync-Fehler melden, Android-Benachrichtigungseinstellungen |
+| **Darstellung** | Hell/Dunkel/System, Material You |
+| **App-Updates** | Automatisch prüfen, Vorabversionen, Update-Quelle |
+| **Daten** | CSV-Export, Verbindungsprotokoll, alle Daten löschen |
+
 ## Installation
 
-Jeder Push baut die App per GitHub Actions. Die fertige APK liegt unter
-**Actions → letzter Lauf „Build“ → Artifacts → HelioLink-apk**. `app-release.apk` installieren
-(„Installation aus unbekannten Quellen“ erlauben).
+Unter **Releases** liegt die neueste `heliolink-X.Y.Z.apk`. Auf dem Handy herunterladen und öffnen
+(„Installation aus unbekannten Quellen“ einmal erlauben).
 
+Ohne Release: Jeder Push baut die App, die APK liegt im Lauf „Build“ unter *Artifacts*.
 Selbst bauen: Android SDK installieren, dann `./gradlew :app:assembleRelease`.
+
+## Updates
+
+**Automatisch:** Sobald sich die App auf dem Standard-Branch (`main`) ändert, baut der Workflow
+„Build“ nach grünen Tests die nächste Version (1.0.0 → 1.0.1) und veröffentlicht sie als Release.
+Die allererste Version wird automatisch 1.0.0. Die App prüft im Hintergrund alle paar Stunden und
+meldet sich mit „HelioLink 1.0.1 ist da“. Ein Tipp darauf öffnet das Update, die Installation
+bestätigst du einmal. Deine Daten und der Auth-Key bleiben erhalten.
+
+- Doku-Änderungen (`*.md`) lösen kein Update aus.
+- Ausschalten: im Repo unter **Settings → Secrets and variables → Actions → Variables** die
+  Variable `AUTO_RELEASE` mit dem Wert `false` anlegen.
+- Größere Versionssprünge (z. B. `1.1.0`) über **Actions → „Release“ → Run workflow**. Danach
+  zählen die automatischen Updates von dort weiter.
+- Manuell suchen: in der App **Einstellungen → Nach Updates suchen**.
+
+Alle Versionen sind mit demselben Schlüssel (`app/debug.keystore`) signiert, deshalb lassen sie sich
+immer über die installierte App installieren. Das Repository ist öffentlich, die App braucht für
+Updates also kein Token.
 
 ## Einrichtung: der Auth-Key
 

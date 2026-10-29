@@ -2,14 +2,57 @@ name: Build
 
 on:
   push:
+    # Docs alone don't need a new app build.
+    paths-ignore:
+      - "**.md"
   pull_request:
   workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+# Needed to publish the automatic release.
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags and history for the automatic version and its notes
+
+      # Automatic update: when the app changed on the default branch, the next patch version
+      # (1.0.0 → 1.0.1) is built and released after the tests pass; the app installs it from there.
+      # Off with the repository variable AUTO_RELEASE = false. Bigger steps (1.1.0) via "Release".
+      - name: Version bestimmen
+        id: version
+        if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch && vars.AUTO_RELEASE != 'false'
+        run: |
+          echo "release=false" >> "$GITHUB_OUTPUT"
+          LAST=$(git tag -l 'app-v*' | sed 's/^app-v//' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
+          if [ -z "$LAST" ]; then
+            NEXT="1.0.0"
+            RANGE=""
+          else
+            if git diff --quiet "app-v$LAST" HEAD -- app core gradle build.gradle.kts settings.gradle.kts gradle.properties; then
+              echo "::notice::Keine Änderung an der App seit $LAST – kein neues Update."
+              exit 0
+            fi
+            IFS=. read -r MAJOR MINOR PATCH <<< "$LAST"
+            NEXT="$MAJOR.$MINOR.$((PATCH + 1))"
+            RANGE="app-v$LAST..HEAD"
+          fi
+          {
+            echo "release=true"
+            echo "version=$NEXT"
+            echo "range=$RANGE"
+            echo "last=$LAST"
+          } >> "$GITHUB_OUTPUT"
+          echo "APP_VERSION_NAME=$NEXT" >> "$GITHUB_ENV"
+          echo "Neue Version: $NEXT (vorher ${LAST:-keine})"
 
       - uses: actions/setup-java@v4
         with:
@@ -18,16 +61,42 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Test protocol module
-        run: ./gradlew :core:test
+      - name: Tests
+        run: ./gradlew --no-daemon :core:test
 
-      - name: Build APKs
-        run: ./gradlew :app:assembleDebug :app:assembleRelease
+      - name: APKs bauen
+        run: ./gradlew --no-daemon :app:assembleDebug :app:assembleRelease
 
-      - name: Upload APKs
+      - name: Update veröffentlichen
+        if: steps.version.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          RANGE: ${{ steps.version.outputs.range }}
+          LAST: ${{ steps.version.outputs.last }}
+        run: |
+          APK="heliolink-${VERSION}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$APK"
+          if [ -n "$RANGE" ]; then
+            CHANGES=$(git log --no-merges --pretty='- %s' "$RANGE" -- app core gradle build.gradle.kts settings.gradle.kts gradle.properties | head -30)
+            NOTES=$(printf 'Automatisches Update. Änderungen seit %s:\n\n%s' "$LAST" "${CHANGES:-- Kleine Verbesserungen}")
+          else
+            NOTES="Erste Version von HelioLink."
+          fi
+          gh release create "app-v$VERSION" "$APK" --title "HelioLink $VERSION" --notes "$NOTES" --target "$GITHUB_SHA"
+          echo "### HelioLink $VERSION veröffentlicht" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: APKs hochladen
         uses: actions/upload-artifact@v4
         with:
           name: HelioLink-apk
           path: |
             app/build/outputs/apk/release/*.apk
             app/build/outputs/apk/debug/*.apk
+
+      - name: Testberichte hochladen
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: core/build/reports/

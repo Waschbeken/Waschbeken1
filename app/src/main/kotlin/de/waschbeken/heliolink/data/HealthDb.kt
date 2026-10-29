@@ -177,6 +177,11 @@ class HealthDb(context: Context) : SQLiteOpenHelper(context, "health.db", null, 
         return sb.toString()
     }
 
+    /** Deletes all health data and workouts. */
+    fun clearAll() = transaction { db ->
+        listOf("activity", "stress", "workout", "workout_hr").forEach { db.delete(it, null, null) }
+    }
+
     private inline fun transaction(block: (SQLiteDatabase) -> Unit) {
         val db = writableDatabase
         db.beginTransaction()

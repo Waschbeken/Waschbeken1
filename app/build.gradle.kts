@@ -4,6 +4,13 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose") version "2.1.0"
 }
 
+// Versions come from the release workflow (tag app-vX.Y.Z); local builds use the default.
+val appVersionName: String = System.getenv("APP_VERSION_NAME")?.takeIf { it.isNotBlank() } ?: "0.1.0"
+val appVersionCode: Int = run {
+    val p = appVersionName.split('.').map { it.toIntOrNull() ?: 0 } + listOf(0, 0, 0)
+    p[0] * 1_000_000 + p[1] * 1_000 + p[2]
+}
+
 android {
     namespace = "de.waschbeken.heliolink"
     compileSdk = 35
@@ -12,8 +19,8 @@ android {
         applicationId = "de.waschbeken.heliolink"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
     }
 
     signingConfigs {
@@ -31,6 +38,7 @@ android {
         debug {
             signingConfig = signingConfigs.getByName("shared")
             applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
         }
         release {
             isMinifyEnabled = true
@@ -51,6 +59,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -65,7 +74,7 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-core")
+    implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui-tooling-preview")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

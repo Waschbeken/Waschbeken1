@@ -1,0 +1,73 @@
+name: Release
+
+# Creates a GitHub release with the APK. The in-app updater picks up releases tagged app-vX.Y.Z.
+# Start it via "Run workflow" or by pushing a tag: git tag app-v1.1.0 && git push origin app-v1.1.0
+on:
+  push:
+    tags:
+      - "app-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version, z. B. 1.1.0"
+        required: true
+      notes:
+        description: "Was ist neu? (optional)"
+        required: false
+        default: ""
+      prerelease:
+        description: "Als Vorabversion markieren"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version bestimmen
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            VERSION="${GITHUB_REF_NAME#app-v}"
+          else
+            VERSION="${INPUT_VERSION#v}"
+          fi
+          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Ungültige Version '$VERSION' – erwartet X.Y.Z, z. B. 1.1.0"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "APP_VERSION_NAME=$VERSION" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Tests und Release-APK
+        run: ./gradlew --no-daemon :core:test :app:assembleRelease
+
+      - name: GitHub-Release erstellen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          NOTES: ${{ inputs.notes }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          APK="heliolink-${VERSION}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "$APK"
+          TAG="app-v${VERSION}"
+          ARGS=(--title "HelioLink ${VERSION}")
+          if [ -n "$NOTES" ]; then ARGS+=(--notes "$NOTES"); else ARGS+=(--generate-notes); fi
+          if [ "$PRERELEASE" = "true" ]; then ARGS+=(--prerelease); fi
+          if [ "${GITHUB_REF_TYPE}" != "tag" ]; then ARGS+=(--target "$GITHUB_SHA"); fi
+          gh release create "$TAG" "$APK" "${ARGS[@]}"

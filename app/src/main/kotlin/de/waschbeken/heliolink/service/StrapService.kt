@@ -29,6 +29,11 @@ import de.waschbeken.heliolink.core.rmssd
 import de.waschbeken.heliolink.data.Workout
 import de.waschbeken.heliolink.ui.MainActivity
 import java.time.Duration
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
@@ -39,7 +44,12 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
 
     companion object {
         private const val CHANNEL = "strap"
+        private const val CHANNEL_ALERTS = "alerts"
+        private const val CHANNEL_UPDATES = "updates"
         private const val NOTIFICATION_ID = 1
+        private const val NOTIFICATION_BATTERY = 2
+        private const val NOTIFICATION_SYNC = 3
+        private const val NOTIFICATION_UPDATE = 4
         private const val ACTION_STOP = "de.waschbeken.heliolink.STOP"
 
         fun start(context: Context) {
@@ -54,6 +64,8 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
     private val repo get() = app.repo
     private val prefs get() = app.prefs
     private val db get() = app.db
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private var liveRequested = false
     private var hrStreaming = false
@@ -79,6 +91,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 val minutes = prefs.autoSyncMinutes
                 if (minutes > 0 && System.currentTimeMillis() - prefs.lastSync > minutes * 60_000L) syncNow()
             }
+            checkForUpdateInBackground()
             handler.postDelayed(this, 5 * 60_000L)
         }
     }
@@ -112,6 +125,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
     }
 
     override fun onDestroy() {
+        scope.cancel()
         repo.controller = null
         handler.post {
             connection?.close()
@@ -140,7 +154,8 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
 
     override fun syncNow() {
         handler.post {
-            connection?.startSync { startSync(prefs, defaultHistory = Duration.ofDays(30)) }
+            val days = prefs.historyDays.toLong()
+            connection?.startSync { startSync(prefs, defaultHistory = Duration.ofDays(days)) }
         }
     }
 
@@ -266,6 +281,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             is StrapEvent.Battery -> {
                 repo.update { it.copy(battery = event.level, charging = event.charging) }
                 updateNotification()
+                checkBattery(event.level, event.charging)
             }
             is StrapEvent.Steps -> repo.update {
                 it.copy(steps = event.steps, distanceMeters = event.distanceMeters, calories = event.calories)
@@ -296,6 +312,9 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 }
                 repo.log(if (event.success) "Synchronisierung abgeschlossen" else "Synchronisierung abgebrochen: ${event.message}")
                 repo.dataChanged()
+                if (!event.success && prefs.notifySyncErrors) {
+                    alert(NOTIFICATION_SYNC, CHANNEL_ALERTS, "Abruf vom Strap abgebrochen", event.message ?: "Unbekannter Fehler")
+                }
             }
             is StrapEvent.Log -> repo.log(event.message)
         }
@@ -343,6 +362,48 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         val nm = getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             nm.createNotificationChannel(NotificationChannel(CHANNEL, "Strap-Verbindung", NotificationManager.IMPORTANCE_LOW))
+            nm.createNotificationChannel(NotificationChannel(CHANNEL_ALERTS, "Warnungen", NotificationManager.IMPORTANCE_DEFAULT))
+            nm.createNotificationChannel(NotificationChannel(CHANNEL_UPDATES, "App-Updates", NotificationManager.IMPORTANCE_DEFAULT))
+        }
+    }
+
+    private fun checkBattery(level: Int, charging: Boolean) {
+        val threshold = prefs.lowBatteryAlert
+        if (threshold <= 0 || charging || level > threshold + 5) {
+            if (prefs.lowBatteryNotified) prefs.lowBatteryNotified = false
+            return
+        }
+        if (level <= threshold && !prefs.lowBatteryNotified) {
+            prefs.lowBatteryNotified = true
+            alert(NOTIFICATION_BATTERY, CHANNEL_ALERTS, "Helio Strap: Akku bei $level %", "Lade den Strap bald auf, damit Schlaf und Puls weiter aufgezeichnet werden.")
+        }
+    }
+
+    private fun checkForUpdateInBackground() {
+        scope.launch {
+            val info = app.updater.manager.checkInBackground() ?: return@launch
+            app.updater.announce(info)
+            val intent = Intent(this@StrapService, MainActivity::class.java)
+                .putExtra(MainActivity.EXTRA_SHOW_UPDATE, true)
+                .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            alert(NOTIFICATION_UPDATE, CHANNEL_UPDATES, "HelioLink ${info.version} ist da", "Tippen, um das Update zu installieren", intent)
+        }
+    }
+
+    private fun alert(id: Int, channel: String, title: String, text: String, intent: Intent = Intent(this, MainActivity::class.java)) {
+        val pending = PendingIntent.getActivity(this, id, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val notification = NotificationCompat.Builder(this, channel)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .build()
+        try {
+            getSystemService(NotificationManager::class.java).notify(id, notification)
+        } catch (_: SecurityException) {
+            // Notifications not permitted.
         }
     }
 

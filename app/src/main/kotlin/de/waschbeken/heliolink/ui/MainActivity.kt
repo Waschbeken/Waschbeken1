@@ -16,8 +16,6 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.Composable
@@ -29,7 +27,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import android.content.Intent
+import android.widget.Toast
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.FitnessCenter
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import de.waschbeken.heliolink.ui.settings.SettingsScreen
+import de.waschbeken.heliolink.update.UpdateState
 import de.waschbeken.heliolink.app
 import de.waschbeken.heliolink.service.StrapService
 
@@ -49,8 +56,18 @@ class MainActivity : ComponentActivity() {
         configured = app.prefs.isConfigured
         permissionGranted = hasBluetoothPermission()
         requestPermissions()
+        handleIntent(intent)
+        if (app.updater.manager.isAutoCheckDue()) app.updater.check(silent = true)
         setContent {
-            HelioTheme {
+            val tick by app.prefs.changes.collectAsState()
+            val themeMode = remember(tick) { app.prefs.themeMode }
+            val dynamic = remember(tick) { app.prefs.dynamicColor }
+            val context = LocalContext.current
+            LaunchedEffect(Unit) {
+                app.updater.messages.collect { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+            }
+            HelioTheme(themeMode, dynamic) {
+                UpdateDialog(app.updater)
                 if (configured) {
                     MainScreen(onForget = {
                         app.repo.controller?.shutdown()
@@ -69,6 +86,22 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_SHOW_UPDATE, false) == true) {
+            val s = app.updater.state.value
+            if (s is UpdateState.Available || s is UpdateState.Ready) app.updater.showDialog.value = true else app.updater.check()
+        }
+    }
+
+    companion object {
+        const val EXTRA_SHOW_UPDATE = "show_update"
     }
 
     override fun onResume() {
@@ -106,9 +139,9 @@ class MainActivity : ComponentActivity() {
 
 private enum class Tab(val label: String, val icon: ImageVector) {
     TODAY("Heute", Icons.Filled.Home),
-    SLEEP("Schlaf", Icons.Filled.DateRange),
-    WORKOUT("Training", Icons.Filled.Favorite),
-    SETTINGS("Strap", Icons.Filled.Settings),
+    SLEEP("Schlaf", Icons.Filled.Bedtime),
+    WORKOUT("Training", Icons.Filled.FitnessCenter),
+    SETTINGS("Einstellungen", Icons.Filled.Settings),
 }
 
 @Composable
