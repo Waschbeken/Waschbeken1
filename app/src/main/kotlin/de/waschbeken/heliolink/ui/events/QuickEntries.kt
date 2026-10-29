@@ -1,18 +1,21 @@
 package de.waschbeken.heliolink.ui.events
 
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Checkbox
@@ -66,6 +69,32 @@ fun TagPicker(options: List<String>, selected: Set<String>, onToggle: (String) -
 }
 
 /**
+ * A [TagPicker] under a header that opens and closes (remembered under [key]). When closed, the header
+ * shows what is selected, so the choice stays visible without the chips taking up room.
+ */
+@Composable
+fun CollapsibleTagPicker(
+    key: String,
+    title: String,
+    options: List<String>,
+    selected: Set<String>,
+    hint: String? = null,
+    onToggle: (String) -> Unit,
+) {
+    val sections = rememberSections()
+    val open = sections.isOpen(key)
+    val chosen = options.filter { it in selected }
+    CollapsibleHeader(
+        title, open, count = chosen.size.takeIf { it > 0 },
+        summary = chosen.joinToString(", ").ifEmpty { "Nichts ausgewählt – tippen zum Auswählen" },
+    ) { sections.toggle(key) }
+    if (open) {
+        hint?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        TagPicker(options, selected, onToggle)
+    }
+}
+
+/**
  * "Schnell eintragen": one tap notes caffeine, nicotine, food … at this moment. The entries show up in
  * the day charts and count for the following night in the sleep evaluation.
  */
@@ -95,12 +124,22 @@ fun QuickEntryCard(dataVersion: Int) {
         }
     }
 
+    val buttonsOpen = sections.isOpen("home-quick", default = true)
     Panel {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Schnell eintragen", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            TextButton(onClick = { editing = true }) { Text("Knöpfe") }
+            Row(
+                Modifier.weight(1f).clickable { sections.toggle("home-quick", default = true) }.padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Schnell eintragen", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                Icon(
+                    if (buttonsOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (buttonsOpen) "Zuklappen" else "Aufklappen",
+                )
+            }
+            if (buttonsOpen) TextButton(onClick = { editing = true }) { Text("Knöpfe") }
         }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (buttonsOpen) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             app.prefs.quickTags.forEach { tag -> AssistChip(onClick = { add(tag) }, label = { Text(tag) }) }
             AssistChip(
                 onClick = { custom = true },
@@ -212,12 +251,10 @@ fun RecordingNotes(workoutId: Long, initialTags: List<String>, initialNote: Stri
         app.repo.dataChanged()
     }
     val taken = (app.prefs.quickTags + tags.filter { it !in Prefs.ACTIVITY_TAGS && it !in app.prefs.quickTags }).distinct()
+    val toggle: (String) -> Unit = { t -> tags = if (t in tags) tags - t else tags + t; dirty++ }
     Panel {
-        Text("Was machst du gerade?", style = MaterialTheme.typography.titleSmall)
-        TagPicker(Prefs.ACTIVITY_TAGS, tags) { t -> tags = if (t in tags) tags - t else tags + t; dirty++ }
-        Spacer(Modifier.size(4.dp))
-        Text("Hast du etwas genommen oder gegessen?", style = MaterialTheme.typography.titleSmall)
-        TagPicker(taken, tags) { t -> tags = if (t in tags) tags - t else tags + t; dirty++ }
+        CollapsibleTagPicker("rec-activity", "Was machst du gerade?", Prefs.ACTIVITY_TAGS, tags, onToggle = toggle)
+        CollapsibleTagPicker("rec-taken", "Hast du etwas genommen oder gegessen?", taken, tags, onToggle = toggle)
         OutlinedTextField(
             note, { note = it.take(300); dirty++ },
             label = { Text("Notiz (z. B. „nach dem Treppensteigen“)") },

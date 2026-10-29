@@ -1,10 +1,6 @@
 package de.waschbeken.heliolink.ui.sleep
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,11 +13,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 import de.waschbeken.heliolink.app
 import de.waschbeken.heliolink.data.Queries
 import de.waschbeken.heliolink.ui.Panel
 import de.waschbeken.heliolink.ui.dbValue
+import de.waschbeken.heliolink.ui.events.CollapsibleTagPicker
 import de.waschbeken.heliolink.ui.formatMinutes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -30,7 +26,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /** Diary tags for the night ending on [date]: what happened the day before. */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SleepDiary(date: LocalDate) {
     val app = LocalContext.current.app
@@ -43,11 +38,6 @@ fun SleepDiary(date: LocalDate) {
     val current = tags ?: loaded ?: return
     Panel {
         Text("Tagebuch", style = MaterialTheme.typography.titleMedium)
-        Text(
-            "Was war am Tag davor? Nach ein paar Wochen zeigt die Wochen- und Monatsansicht, was deinem Schlaf guttut.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
         entries?.takeIf { it.isNotEmpty() }?.let { list ->
             Text(
                 "Schnell eingetragen (zählt automatisch): " + list.joinToString(", ") {
@@ -57,18 +47,13 @@ fun SleepDiary(date: LocalDate) {
                 color = MaterialTheme.colorScheme.tertiary,
             )
         }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Queries.SLEEP_TAGS.forEach { tag ->
-                val on = tag in current
-                FilterChip(
-                    selected = on,
-                    onClick = {
-                        tags = if (on) current - tag else current + tag
-                        scope.launch { withContext(Dispatchers.IO) { app.db.setSleepTag(day, tag, !on) } }
-                    },
-                    label = { Text(tag) },
-                )
-            }
+        CollapsibleTagPicker(
+            "sleep-diary", "Was war am Tag davor?", Queries.SLEEP_TAGS, current,
+            hint = "Nach ein paar Wochen zeigt die Wochen- und Monatsansicht, was deinem Schlaf guttut.",
+        ) { tag ->
+            val on = tag in current
+            tags = if (on) current - tag else current + tag
+            scope.launch { withContext(Dispatchers.IO) { app.db.setSleepTag(day, tag, !on) } }
         }
     }
 }
