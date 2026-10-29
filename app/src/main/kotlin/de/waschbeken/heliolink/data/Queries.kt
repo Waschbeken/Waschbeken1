@@ -63,6 +63,32 @@ object Queries {
         return kotlin.math.round(onset.average()).toInt() to (if (wake.isEmpty()) 0 else kotlin.math.round(wake.average()).toInt())
     }
 
+    /** Diary tags offered on the sleep page. */
+    val SLEEP_TAGS = listOf("Sport", "Koffein", "Alkohol", "Stress", "Spät gegessen", "Bildschirm im Bett", "Krank", "Nickerchen", "Lesen", "Spät ins Bett")
+
+    /** How a diary tag goes along with the sleep score: average with and without it. */
+    data class TagEffect(val tag: String, val nightsWith: Int, val scoreWith: Int, val scoreWithout: Int, val minutesWith: Int, val minutesWithout: Int)
+
+    fun tagEffects(db: HealthDb, zone: ZoneId, days: Long = 90): List<TagEffect> {
+        val today = LocalDate.now()
+        val from = today.minusDays(days)
+        val tags = db.sleepTags(from.toEpochDay(), today.toEpochDay())
+        if (tags.isEmpty()) return emptyList()
+        val nights = nights(db, from, today, zone)
+        val out = ArrayList<TagEffect>()
+        for (tag in tags.values.flatten().toSet()) {
+            val with = nights.filter { (d, _) -> tag in tags[d.toEpochDay()].orEmpty() }.values
+            val without = nights.filter { (d, _) -> tag !in tags[d.toEpochDay()].orEmpty() }.values
+            if (with.size < 2 || without.size < 2) continue
+            out += TagEffect(
+                tag, with.size,
+                with.map { it.score }.average().toInt(), without.map { it.score }.average().toInt(),
+                with.map { it.asleepMinutes }.average().toInt(), without.map { it.asleepMinutes }.average().toInt(),
+            )
+        }
+        return out.sortedByDescending { kotlin.math.abs(it.scoreWith - it.scoreWithout) }
+    }
+
     /** Average per day of a value table, null for days without values. */
     fun dailyAverage(samples: List<ValueSample>, from: LocalDate, to: LocalDate, zone: ZoneId, scale: Double = 1.0): List<Float?> {
         val byDay = samples.groupBy { Instant.ofEpochSecond(it.timestamp).atZone(zone).toLocalDate() }

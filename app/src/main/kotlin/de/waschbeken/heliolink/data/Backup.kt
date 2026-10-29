@@ -49,11 +49,13 @@ class Backup(private val context: Context, private val prefs: Prefs, private val
     private fun writeNights(zip: ZipOutputStream, days: Long) {
         val zone = ZoneId.systemDefault()
         val today = LocalDate.now()
-        val nights = Queries.nights(db, today.minusDays(days.coerceAtMost(730)), today, zone)
+        val first = today.minusDays(days.coerceAtMost(730))
+        val nights = Queries.nights(db, first, today, zone)
+        val tags = db.sleepTags(first.toEpochDay(), today.toEpochDay())
         val time = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
         fun fmt(epoch: Long) = java.time.Instant.ofEpochSecond(epoch).atZone(zone).format(time)
         zip.putNextEntry(ZipEntry("schlaf_naechte.csv"))
-        val summary = StringBuilder("datum;eingeschlafen;aufgewacht;schlaf_min;tief_min;leicht_min;rem_min;wach_min;score;quelle\n")
+        val summary = StringBuilder("datum;eingeschlafen;aufgewacht;schlaf_min;tief_min;leicht_min;rem_min;wach_min;score;quelle;tagebuch\n")
         for ((date, n) in nights) {
             val source = when {
                 n.edited -> "korrigiert"
@@ -62,7 +64,8 @@ class Backup(private val context: Context, private val prefs: Prefs, private val
             }
             summary.append(
                 "$date;${fmt(n.start)};${fmt(n.end)};${n.asleepMinutes};${n.minutes(SleepStage.DEEP)};${n.minutes(SleepStage.LIGHT)};" +
-                    "${n.minutes(SleepStage.REM)};${n.minutes(SleepStage.AWAKE)};${n.score};$source\n",
+                    "${n.minutes(SleepStage.REM)};${n.minutes(SleepStage.AWAKE)};${n.score};$source;" +
+                    tags[date.toEpochDay()].orEmpty().sorted().joinToString(",") + "\n",
             )
         }
         zip.write(summary.toString().toByteArray())

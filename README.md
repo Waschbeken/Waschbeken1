@@ -11,9 +11,11 @@ aber ganz auf einen Strap ohne Display zugeschnitten.
 | **Heute** | Begrüßung, Erholungswert (aus Schlaf, Ruhepuls, HRV und Stress), Kacheln für Schritte, Schlaf, Ruhepuls, Stress, SpO₂, HRV, PAI, Hauttemperatur, Atemfrequenz und Akku – jede mit Mini-Verlauf, antippen öffnet die Detailansicht. Live-Puls mit Zone, Ziel-Serie in Tagen |
 | **Details** | Jede Messgröße als Tag, Woche oder Monat: Kurven, Balken, Min/Max, Durchschnitt und Vergleich zum eigenen Normalwert |
 | **Schlaf** | Hypnogramm (Wach/REM/Leicht/Tief), Score, Phasen in Minuten und Prozent, Einschlaf- und Aufwachzeit, Wachphasen, Puls/SpO₂/HRV/Atmung/Temperatur in der Nacht. Woche und Monat mit gestapelten Balken, Regelmäßigkeit und Schlafdefizit |
+| **Schlaf korrigieren** | Stift oben rechts oder Hypnogramm antippen: Einschlaf-/Aufwachzeit ändern, Phase eines Abschnitts oder eines Zeitraums ändern, Schlaf selbst eintragen, „Das war kein Schlaf“. Morgens fragt die App „Stimmt deine Nacht?“. Aus deinen Korrekturen schlägt sie eine Kalibrierung für alle Nächte vor |
+| **Schlaf-Tagebuch** | Pro Nacht Sport, Koffein, Alkohol, Stress … markieren; Woche/Monat zeigt, wie sich das auf Score und Schlafdauer auswirkt |
 | **Training** | Training starten mit Sportart, sekündlicher Puls, Zone in Farbe, Kalorien, Zeit in Zonen. Automatisch erkannte Spaziergänge und Läufe, aktive Minuten der Woche, Verlauf mit Detailansicht und **TCX**-Export (Strava, Garmin & Co.) |
 | **Wecker** | Bis zu 10 Vibrationswecker auf dem Strap mit **Smart Wake** (bis 30 min früher im Leichtschlaf), Wochentage, Name, Countdown, Schlafenszeit-Hinweis, Schnellwecker (Powernap, „jetzt + Schlafziel“). Änderungen ohne Verbindung werden später übertragen |
-| **Widget** | Puls, Schritte, Schlaf und Akku auf dem Startbildschirm |
+| **Widget & Kachel** | Puls, Schritte, Schlaf und Akku auf dem Startbildschirm; Schnelleinstellungs-Kachel „Strap finden“ |
 | **Einstellungen** | Getrennt nach **Strap** und **App** (siehe unten). „Nach Updates suchen“ sitzt direkt auf der Übersicht |
 
 Im Hintergrund hält ein Dienst die Verbindung, startet nach einem Neustart des Handys von selbst,
@@ -39,11 +41,12 @@ sie beim nächsten Start einen Bericht zum Kopieren.
 | **Startseite** | Kacheln auf „Heute“ ein- und ausblenden |
 | **Benachrichtigungen** | Akku-Warnung, Schlafenszeit-Erinnerung (nächster Wecker minus Schlafziel), Morgenbericht, Puls in der Benachrichtigung, Sync-Fehler |
 | **Puls-Aufzeichnung** | Puls öfter als einmal pro Minute: jede Sekunde, alle 5/10/30 s (Live-Werte, solange verbunden) |
+| **Schlaf** | Schlafziel, „Stimmt deine Nacht?“, kurze Wachphasen ignorieren, Wachzeit innerhalb einer Nacht, kürzester Schlaf (Nickerchen), Einschlafen später / Aufwachen früher werten, Phasen immer schätzen, Korrekturen verwalten |
 | **Profil** | Alter, Geschlecht, Gewicht, Größe, Schritt- und Schlafziel |
 | **Training & Zonen** | Max. Puls (mit Vorschlag, wenn ein Training höher ging), Ruhepuls, Zonen nach % HFmax oder Karvonen, Standard-Sportart, Strap vibriert über/unter einer Pulsgrenze |
 | **Synchronisierung** | Automatischer Abruf, Zeitraum beim ersten Abruf, Verlauf neu laden, Schlafphasen-Suche mit Stand und Zurücksetzen |
 | **App-Updates** | Automatisch prüfen, Vorabversionen, **Shizuku** (Status, Erlaubnis, Installieren ohne Nachfrage, im Hintergrund installieren), Update-Quelle |
-| **Daten & Sicherung** | Export als Zip mit CSV (speichern oder teilen, Zeitraum wählbar), Sicherung erstellen/wiederherstellen, Gadgetbridge-Import, Protokoll anzeigen/kopieren |
+| **Daten & Sicherung** | Export als Zip mit CSV (speichern oder teilen, Zeitraum wählbar, inkl. `schlaf_naechte.csv` und `schlaf_phasen.csv` mit deinen Korrekturen), Sicherung erstellen/wiederherstellen, Gadgetbridge-Import, Protokoll anzeigen/kopieren |
 
 Strap-Einstellungen werden direkt auf dem Strap gespeichert. Die App prüft danach, ob der Strap sie
 übernommen hat, und zeigt sonst „Vom Strap nicht übernommen“ an.

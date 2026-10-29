@@ -74,6 +74,32 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
     /** Version 5: sleep corrections by hand. */
     private fun createV5(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE IF NOT EXISTS sleep_edit (night INTEGER PRIMARY KEY, start INTEGER, end INTEGER, ranges TEXT, deleted INTEGER)")
+        db.execSQL("CREATE TABLE IF NOT EXISTS sleep_tag (night INTEGER, tag TEXT, PRIMARY KEY (night, tag))")
+    }
+
+    // ------------------------------------------------------------------ sleep diary
+
+    /** Diary tags per night (epoch day of the morning). */
+    fun sleepTags(fromDay: Long, toDay: Long): Map<Long, Set<String>> {
+        val out = HashMap<Long, MutableSet<String>>()
+        readableDatabase.rawQuery(
+            "SELECT night, tag FROM sleep_tag WHERE night >= ? AND night <= ?",
+            arrayOf(fromDay.toString(), toDay.toString()),
+        ).use { c ->
+            while (c.moveToNext()) out.getOrPut(c.getLong(0)) { HashSet() } += c.getString(1)
+        }
+        return out
+    }
+
+    fun setSleepTag(night: Long, tag: String, on: Boolean) {
+        if (on) {
+            val cv = ContentValues()
+            cv.put("night", night)
+            cv.put("tag", tag)
+            writableDatabase.insertWithOnConflict("sleep_tag", null, cv, SQLiteDatabase.CONFLICT_IGNORE)
+        } else {
+            writableDatabase.delete("sleep_tag", "night = ? AND tag = ?", arrayOf(night.toString(), tag))
+        }
     }
 
     // ------------------------------------------------------------------ sleep corrections
@@ -413,7 +439,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         private val VALUE_TABLES = setOf(SPO2, RESTING_HR, HRV, TEMPERATURE, RESPIRATION, BATTERY)
         private val ALL_TABLES = listOf(
             "activity", "stress", "workout", "workout_hr", "sleep_record", SPO2, RESTING_HR, HRV, "hr",
-            "pai", TEMPERATURE, RESPIRATION, BATTERY, "alarm", "sleep_edit",
+            "pai", TEMPERATURE, RESPIRATION, BATTERY, "alarm", "sleep_edit", "sleep_tag",
         )
     }
 

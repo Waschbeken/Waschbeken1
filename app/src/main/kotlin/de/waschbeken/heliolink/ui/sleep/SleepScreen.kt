@@ -159,17 +159,24 @@ fun SleepScreen(nav: NavHostController) {
                 val n = night
                 when {
                     n == null -> item { Text("Lade …") }
-                    n.night == null -> item { NoSleep { nav.navigate(Routes.sleepEdit(date.toEpochDay())) } }
-                    else -> nightItems(
-                        n, n.night, goal,
-                        onEstimatedInfo = { nav.navigate(Routes.settings("sleep")) },
-                        onEdit = { nav.navigate(Routes.sleepEdit(date.toEpochDay())) },
-                        askCheck = askCheck && date == LocalDate.now() && !n.night.edited,
-                        onConfirm = { app.prefs.sleepCheckedDay = LocalDate.now().toEpochDay() },
-                    )
+                    n.night == null -> {
+                        item { NoSleep { nav.navigate(Routes.sleepEdit(date.toEpochDay())) } }
+                        item { SleepDiary(date) }
+                    }
+                    else -> {
+                        nightItems(
+                            n, n.night, goal,
+                            onEstimatedInfo = { nav.navigate(Routes.settings("sleep")) },
+                            onEdit = { nav.navigate(Routes.sleepEdit(date.toEpochDay())) },
+                            askCheck = askCheck && date == LocalDate.now() && !n.night.edited,
+                            onConfirm = { app.prefs.sleepCheckedDay = LocalDate.now().toEpochDay() },
+                        )
+                        item { SleepDiary(date) }
+                    }
                 }
             } else {
                 range?.let { r -> item { RangeContent(r, period, goal) } }
+                item { TagEffects(state.dataVersion) }
             }
         }
     }
