@@ -214,6 +214,7 @@ fun HomeScreen(nav: NavHostController) {
                     controller?.setLiveHeartRate(it)
                 }
             }
+            item { de.waschbeken.heliolink.ui.events.QuickEntryCard(state.dataVersion) }
             if (d != null) {
                 item { SectionHeader("Heute im Überblick") }
                 item { TileGrid(d, state, profile.stepGoal, hidden, order, nav) }
@@ -255,7 +256,7 @@ fun HomeScreen(nav: NavHostController) {
                                     Metric("Nicht getragen", formatMinutes(counts[de.waschbeken.heliolink.ui.DayState.NOT_WORN] ?: 0))
                                 }
                             }
-                            Legend(de.waschbeken.heliolink.ui.dayStateLegend())
+                            Legend(de.waschbeken.heliolink.ui.clockLegend())
                         }
                     }
                 }
@@ -277,7 +278,8 @@ fun HomeScreen(nav: NavHostController) {
                                     is de.waschbeken.heliolink.data.Workout -> ActivityRow(
                                         if (row.sport == de.waschbeken.heliolink.service.RECORDING_SPORT) Icons.Default.FiberManualRecord else Icons.Default.Favorite,
                                         row.sport,
-                                        "${formatDuration(row.end - row.start)} · Ø ${row.avgHr} bpm · ${row.calories} kcal",
+                                        "${formatDuration(row.end - row.start)} · Ø ${row.avgHr} bpm · ${row.calories} kcal" +
+                                            (de.waschbeken.heliolink.ui.events.notesText(row.tags, row.note)?.let { "\n$it" } ?: ""),
                                         Instant.ofEpochSecond(row.start),
                                     ) { nav.navigate(Routes.workout(row.id)) }
                                     is DetectedActivity -> ActivityRow(
@@ -332,7 +334,11 @@ private fun ConnectionCard(state: StrapUiState) {
     val controller = LocalContext.current.app.repo.controller
     Panel(color = MaterialTheme.colorScheme.errorContainer) {
         Text(
-            if (state.link == LinkState.AUTH_FAILED) "Der Strap hat den Auth-Key abgelehnt" else "Strap nicht verbunden",
+            when {
+                state.link == LinkState.AUTH_FAILED -> "Der Strap hat den Auth-Key abgelehnt"
+                LocalContext.current.app.prefs.connectionPaused -> "Verbindung pausiert"
+                else -> "Strap nicht verbunden"
+            },
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onErrorContainer,
         )
@@ -342,7 +348,12 @@ private fun ConnectionCard(state: StrapUiState) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onErrorContainer,
         )
-        FilledTonalButton(onClick = { controller?.reconnect() }) { Text("Neu verbinden") }
+        val paused = LocalContext.current.app.prefs.connectionPaused
+        if (paused) {
+            FilledTonalButton(onClick = { controller?.setPaused(false) }) { Text("Wieder verbinden") }
+        } else {
+            FilledTonalButton(onClick = { controller?.reconnect() }) { Text("Neu verbinden") }
+        }
     }
 }
 
@@ -363,7 +374,7 @@ private fun HeroCard(state: StrapUiState, d: HomeData?, stepGoal: Int, openSleep
                         Text("Erholung", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
                         Text(readiness.label, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                         Text(
-                            readiness.parts.joinToString(" · ") { "${it.first} ${it.second}" },
+                            "Punkte von 100: " + readiness.parts.joinToString(" · ") { "${it.first} ${it.second}" },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
                         )

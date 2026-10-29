@@ -91,9 +91,9 @@ private val tabs = listOf(
     Tab(Routes.HOME, "Heute", Icons.Filled.MonitorHeart),
     Tab(Routes.DATA, "Daten", Icons.Filled.Insights),
     Tab(Routes.SLEEP, "Schlaf", Icons.Filled.Bedtime),
-    Tab(Routes.TRAINING, "Training", Icons.Filled.FitnessCenter),
+    Tab(Routes.TRAINING, "Sport", Icons.Filled.FitnessCenter),
     Tab(Routes.ALARMS, "Wecker", Icons.Filled.Alarm),
-    Tab(Routes.SETTINGS, "Optionen", Icons.Filled.Settings),
+    Tab(Routes.SETTINGS, "Mehr", Icons.Filled.Settings),
 )
 
 fun NavHostController.navigateToTab(route: String) {

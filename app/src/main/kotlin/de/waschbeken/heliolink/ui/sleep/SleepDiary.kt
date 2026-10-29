@@ -37,6 +37,7 @@ fun SleepDiary(date: LocalDate) {
     val scope = rememberCoroutineScope()
     val day = date.toEpochDay()
     val loaded by dbValue(day) { it.sleepTags(day, day)[day].orEmpty() }
+    val entries by dbValue(day) { Queries.eventsForNight(it, date, ZoneId.systemDefault()) }
     var tags by remember(day) { mutableStateOf<Set<String>?>(null) }
     LaunchedEffect(loaded) { if (tags == null && loaded != null) tags = loaded }
     val current = tags ?: loaded ?: return
@@ -47,6 +48,15 @@ fun SleepDiary(date: LocalDate) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        entries?.takeIf { it.isNotEmpty() }?.let { list ->
+            Text(
+                "Schnell eingetragen (zählt automatisch): " + list.joinToString(", ") {
+                    it.tag + " " + java.time.Instant.ofEpochSecond(it.timestamp).atZone(ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.tertiary,
+            )
+        }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Queries.SLEEP_TAGS.forEach { tag ->
                 val on = tag in current

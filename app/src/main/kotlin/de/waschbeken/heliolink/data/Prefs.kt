@@ -240,6 +240,16 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getStringSet("hidden_tiles", emptySet()).orEmpty()
         set(v) = edit { putStringSet("hidden_tiles", v) }
 
+    /** Buttons for quick entries on the start page (caffeine, nicotine, …), editable by the user. */
+    var quickTags: List<String>
+        get() = sp.getString("quick_tags", null)?.split('\n')?.filter { it.isNotBlank() } ?: DEFAULT_QUICK_TAGS
+        set(v) = edit { putString("quick_tags", v.distinct().joinToString("\n")) }
+
+    /** The connection is paused so the Zepp app can use the strap (e.g. for a firmware update). */
+    var connectionPaused: Boolean
+        get() = sp.getBoolean("connection_paused", false)
+        set(v) = edit { putBoolean("connection_paused", v) }
+
     /** Opened or closed lists ("key=1" / "key=0"), so they stay as the user left them. */
     private var sectionStates: Set<String>
         get() = sp.getStringSet("section_states", emptySet()).orEmpty()
@@ -399,5 +409,9 @@ class Prefs(context: Context) : SyncCursor {
 
     companion object {
         const val DEFAULT_UPDATE_REPO = "Waschbeken/Waschbeken1"
+        val DEFAULT_QUICK_TAGS = listOf("Koffein", "Nikotin", "Alkohol", "Essen", "Medikament", "Sport", "Stress", "Kopfschmerzen", "Müde")
+
+        /** What you are doing during a heart rate recording. */
+        val ACTIVITY_TAGS = listOf("Sitzen", "Liegen", "Stehen", "Gehen", "Laufen", "Radfahren", "Sport", "Lernen/Arbeit", "Zocken", "Entspannen", "Aufgeregt")
     }
 }

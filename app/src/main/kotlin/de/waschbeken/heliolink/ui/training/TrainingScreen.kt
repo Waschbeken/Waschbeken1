@@ -247,6 +247,9 @@ fun TrainingScreen(nav: NavHostController) {
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         )
+                                        de.waschbeken.heliolink.ui.events.notesText(w.tags, w.note)?.let {
+                                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                                        }
                                         if (w.zoneSeconds.size == 5) {
                                             StackedBar(w.zoneSeconds.mapIndexed { i, s -> s.toFloat() to Palette.zones[i] }, Modifier.fillMaxWidth().padding(top = 6.dp))
                                         }
@@ -375,6 +378,7 @@ fun WorkoutDetailScreen(nav: NavHostController, id: Long) {
                     }
                 }
             }
+            item { de.waschbeken.heliolink.ui.events.RecordingNotes(w.id, w.tags, w.note) }
             if (w.zoneSeconds.size == 5) {
                 item {
                     Panel {

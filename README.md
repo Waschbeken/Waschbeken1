@@ -10,10 +10,12 @@ aber ganz auf einen Strap ohne Display zugeschnitten.
 |---|---|
 | **Heute** | Begrüßung, Erholungswert (aus Schlaf, Ruhepuls, HRV und Stress), Kacheln für Schritte, Schlaf, Ruhepuls, Stress, SpO₂, HRV, PAI, Hauttemperatur, Atemfrequenz und Akku – jede mit Mini-Verlauf, antippen öffnet die Detailansicht. Live-Puls mit Zone, Ziel-Serie in Tagen |
 | **Daten** | Eigener Tab wie in Gadgetbridge: ein Datum für alle Seiten, wischen zwischen Aktivität, Puls, Schlaf, Schritte, Stress, SpO₂, HRV, Temperatur, Atmung, PAI und Akku. Tagesuhr (24 h) mit Aktivität, Schlaf und „nicht getragen“, Aktivitätsdiagramm mit Balken und Pulslinie. Seiten „Schlaf-Woche“ und „Schritte-Woche“. Alle Zeitdiagramme lassen sich mit zwei Fingern zoomen und verschieben, Doppeltipp zoomt hinein oder zurück; weit hineingezoomt stehen die Werte an den Punkten. **Finger halten** zeigt Zeit und Wert – im Schlaf, im Aktivitätsdiagramm und auf der Tagesuhr die Phase mit Beginn, Ende und Dauer |
-| **Pulsaufzeichnung** | Auf den aktuellen Puls tippen, Dauer wählen (1 min bis 2 h oder bis zum Stoppen): jede Sekunde wird aufgezeichnet, automatisch beendet und gespeichert – mit Live-Ansicht und zoombarer Auswertung |
+| **Schnell eintragen** | Auf „Heute“ mit einem Tipp Koffein, Nikotin, Alkohol, Essen, Medikament … notieren (Knöpfe frei änderbar). Die Einträge erscheinen als Markierung in den Tagesdiagrammen und zählen automatisch für die folgende Nacht in „Was deinem Schlaf guttut“ |
+| **Pulsaufzeichnung** | Auf den aktuellen Puls tippen, Dauer wählen (1 min bis 2 h oder bis zum Stoppen): jede Sekunde wird aufgezeichnet, automatisch beendet und gespeichert – mit Live-Ansicht und zoombarer Auswertung. Dazu „Was machst du gerade?“, „Hast du etwas genommen?“ und eine Notiz |
 | **Details** | Jede Messgröße als Tag, Woche, Monat, 3 Monate, 6 Monate, 1 Jahr oder 3 Jahre (ab 3 Monaten pro Woche, ab 1 Jahr pro Monat): Kurven, Balken, Min/Max, Trend und Vergleich zum eigenen Normalwert |
 | **Puls** | Aktueller Puls groß, Verlauf mit farbigen Zonenflächen und markiertem Tiefst-/Höchstwert, Ruhepuls im Vergleich zu deinem Schnitt, Puls im Schlaf, Zeit in Zonen mit bpm-Bereichen, Stundenverlauf, Verteilung, Trainings des Tages. Über längere Zeit: Ruhepuls-Trend, Spanne, intensive Minuten, Rekorde |
 | **Schlaf** | Hypnogramm (Wach/REM/Leicht/Tief), Score, Phasen in Minuten und Prozent, Einschlaf- und Aufwachzeit, Wachphasen, Puls/SpO₂/HRV/Atmung/Temperatur in der Nacht. Nickerchen am Tag. Woche und Monat mit gestapelten Balken, Regelmäßigkeit, Schlafdefizit und Liste der Nächte |
+| **Nachtverlauf** | Hauttemperatur, Atmung, Puls, SpO₂ und HRV über die Nacht mit Schlafphasen-Leiste, gemeinsam zoombar |
 | **Schlaf korrigieren** | Stift oben rechts oder Hypnogramm antippen: Einschlaf-/Aufwachzeit ändern, Phase eines Abschnitts oder eines Zeitraums ändern, Schlaf selbst eintragen, „Das war kein Schlaf“. Morgens fragt die App „Stimmt deine Nacht?“. Aus deinen Korrekturen schlägt sie eine Kalibrierung für alle Nächte vor |
 | **Schlaf-Tagebuch** | Pro Nacht Sport, Koffein, Nikotin, Alkohol, Stress … markieren; Woche/Monat zeigt, wie sich das auf Score und Schlafdauer auswirkt |
 | **Training** | Verlauf nach Monaten, erkannte Aktivitäten – alles auf- und zuklappbar. Training starten mit Sportart, sekündlicher Puls, Zone in Farbe, Kalorien, Zeit in Zonen. Automatisch erkannte Spaziergänge und Läufe, aktive Minuten der Woche, Verlauf mit Detailansicht und **TCX**-Export (Strava, Garmin & Co.) |
@@ -31,7 +33,7 @@ sie beim nächsten Start einen Bericht zum Kopieren.
 
 | Kategorie | Inhalt |
 |---|---|
-| **Gerät & Verbindung** | Status, Akku, Firmware, Seriennummer, „Strap vibrieren lassen“, Live-Puls, Einstellungen neu laden, neu verbinden, Auth-Key, Strap entfernen |
+| **Gerät & Verbindung** | Status, Akku, Firmware (Update über die Zepp-App: HelioLink pausiert, Zepp öffnet, danach wieder verbinden), Seriennummer, „Strap vibrieren lassen“, Live-Puls, Einstellungen neu laden, neu verbinden, Auth-Key, Strap entfernen |
 | **Messungen** | Puls-Messintervall (Intelligent, jede Minute … 30 min, aus), bei Aktivität häufiger messen, Puls an andere Geräte senden, Pulswarnungen hoch/niedrig, Schlaf mit hoher Genauigkeit, Atmungsqualität, Stress + Entspannungs-Erinnerung, SpO₂ ganztägig + Warnung |
 | **Bewegung & Ziele** | Bewegungserinnerung mit Zeitraum und Pause, Schrittziel auf dem Strap, Vibration bei erreichtem Ziel, automatische Trainingserkennung mit Empfindlichkeit |
 | **Wecker** | führt direkt zum Wecker-Tab |

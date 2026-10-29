@@ -67,6 +67,7 @@ internal fun DevicePage(state: StrapUiState, onForget: () -> Unit) {
     val controller = context.app.repo.controller
     prefsTick()
     var confirmForget by remember { mutableStateOf(false) }
+    var confirmZepp by remember { mutableStateOf(false) }
 
     SettingsHeader("Gerät")
     SettingRow("Name", prefs.deviceName ?: "Amazfit Helio Strap")
@@ -74,6 +75,32 @@ internal fun DevicePage(state: StrapUiState, onForget: () -> Unit) {
     SettingRow("Akku", state.battery?.let { "$it %" + if (state.charging) " · lädt" else "" } ?: "unbekannt")
     SettingRow("MAC-Adresse", prefs.deviceAddress ?: "–")
     state.firmware?.let { SettingRow("Firmware", it) }
+
+    SettingsHeader("Firmware-Update")
+    SettingsNote(
+        "Ob es neue Firmware gibt, weiß nur der Zepp-Server – dafür braucht es dein Zepp-Konto. Auch Gadgetbridge sucht " +
+            "nicht selbst nach Updates. So geht's: HelioLink pausiert die Verbindung, du öffnest die Zepp-App, sie verbindet " +
+            "sich mit dem Strap und bietet ein Update an, falls es eins gibt. Danach hier „Wieder verbinden“ tippen.",
+    )
+    if (prefs.connectionPaused) {
+        SettingRow("Wieder verbinden", "HelioLink ist pausiert – tippen, wenn die Zepp-App fertig ist") { controller?.setPaused(false) }
+    } else {
+        SettingRow("Mit der Zepp-App aktualisieren", "Pausiert HelioLink und öffnet die Zepp-App") { confirmZepp = true }
+    }
+    if (confirmZepp) {
+        ConfirmDialog(
+            "Zur Zepp-App wechseln?",
+            "HelioLink trennt die Verbindung, damit sich die Zepp-App mit dem Strap verbinden kann. Lass dort das Update " +
+                "vollständig durchlaufen (Strap nah am Handy, nicht abbrechen). Danach in HelioLink „Wieder verbinden“ tippen – " +
+                "Startseite oder hier. Deine Daten bleiben erhalten; was der Strap in der Zeit an Zepp gibt, fehlt hier eventuell.",
+            "Pausieren und öffnen",
+            onConfirm = {
+                controller?.setPaused(true)
+                openZepp(context)
+            },
+            onDismiss = { confirmZepp = false },
+        )
+    }
     state.serial?.let { SettingRow("Seriennummer", it) }
     if (state.lastSync > 0) SettingRow("Zuletzt synchronisiert", formatDate(state.lastSync))
 
@@ -563,5 +590,17 @@ internal fun SleepSettingsPage(nav: androidx.navigation.NavHostController) {
             },
             onDismiss = { confirmClear = false },
         )
+    }
+}
+
+/** Opens the Zepp app (or Zepp Life); if neither is installed, its page in the Play Store. */
+internal fun openZepp(context: android.content.Context) {
+    val pm = context.packageManager
+    val launch = listOf("com.huami.watch.hmwatchmanager", "com.xiaomi.hm.health").firstNotNullOfOrNull { pm.getLaunchIntentForPackage(it) }
+    val intent = launch ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.huami.watch.hmwatchmanager"))
+    try {
+        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    } catch (e: ActivityNotFoundException) {
+        Toast.makeText(context, "Zepp-App nicht gefunden", Toast.LENGTH_SHORT).show()
     }
 }

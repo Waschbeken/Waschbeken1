@@ -75,6 +75,8 @@ interface StrapController {
     fun startWorkout(sport: String)
     /** Records the heart rate every second for [seconds] (null = until stopped) and saves it like a workout. */
     fun startRecording(seconds: Int?)
+    /** Pauses the connection so another app (Zepp, e.g. for a firmware update) can use the strap. */
+    fun setPaused(paused: Boolean)
     fun stopWorkout()
     fun reconnect()
     fun shutdown()

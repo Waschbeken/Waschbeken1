@@ -22,11 +22,14 @@ data class Workout(
     val maxHr: Int,
     val calories: Int,
     val zoneSeconds: List<Int>,
+    /** What the user did or took (recordings), e.g. "Sitzen", "Koffein". */
+    val tags: List<String> = emptyList(),
+    val note: String = "",
 )
 
 data class HrPoint(val timestamp: Long, val bpm: Int)
 
-class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME, null, 5) {
+class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME, null, 6) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -44,6 +47,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         createV3(db)
         createV4(db)
         createV5(db)
+        createV6(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -51,6 +55,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         if (oldVersion < 3) createV3(db)
         if (oldVersion < 4) createV4(db)
         if (oldVersion < 5) createV5(db)
+        if (oldVersion < 6) createV6(db)
     }
 
     /** Version 4: PAI, skin temperature, breathing rate, battery history and alarms. */
@@ -75,6 +80,41 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
     private fun createV5(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE IF NOT EXISTS sleep_edit (night INTEGER PRIMARY KEY, start INTEGER, end INTEGER, ranges TEXT, deleted INTEGER)")
         db.execSQL("CREATE TABLE IF NOT EXISTS sleep_tag (night INTEGER, tag TEXT, PRIMARY KEY (night, tag))")
+    }
+
+    /** Version 6: notes on recordings and quick entries (caffeine, nicotine, …) at any time. */
+    private fun createV6(db: SQLiteDatabase) {
+        db.execSQL("ALTER TABLE workout ADD COLUMN tags TEXT")
+        db.execSQL("ALTER TABLE workout ADD COLUMN note TEXT")
+        db.execSQL("CREATE TABLE IF NOT EXISTS event (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER, tag TEXT, note TEXT)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS event_ts ON event (ts)")
+    }
+
+    // ------------------------------------------------------------------ quick entries
+
+    data class Event(val id: Long, val timestamp: Long, val tag: String, val note: String)
+
+    fun addEvent(ts: Long, tag: String, note: String = ""): Long {
+        val cv = ContentValues()
+        cv.put("ts", ts)
+        cv.put("tag", tag)
+        cv.put("note", note)
+        return writableDatabase.insert("event", null, cv)
+    }
+
+    fun deleteEvent(id: Long) {
+        writableDatabase.delete("event", "id = ?", arrayOf(id.toString()))
+    }
+
+    fun events(from: Long, to: Long): List<Event> {
+        val out = ArrayList<Event>()
+        readableDatabase.rawQuery(
+            "SELECT id, ts, tag, note FROM event WHERE ts >= ? AND ts < ? ORDER BY ts",
+            arrayOf(from.toString(), to.toString()),
+        ).use { c ->
+            while (c.moveToNext()) out += Event(c.getLong(0), c.getLong(1), c.getString(2).orEmpty(), c.getString(3).orEmpty())
+        }
+        return out
     }
 
     // ------------------------------------------------------------------ sleep diary
@@ -316,8 +356,9 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
             Triple("ruhepuls.csv", "SELECT ts, value FROM resting_hr WHERE ts >= ? ORDER BY ts", "zeit,unix,ruhepuls"),
             Triple("hrv.csv", "SELECT ts, value FROM hrv WHERE ts >= ? ORDER BY ts", "zeit,unix,hrv_ms"),
             Triple("schlaf.csv", "SELECT start, end, score, segments FROM sleep_record WHERE end >= ? ORDER BY start", "zeit,unix_start,unix_ende,score,phasen"),
-            Triple("trainings.csv", "SELECT start, end, sport, avg_hr, max_hr, kcal, zones, id FROM workout WHERE end > start AND start >= ? ORDER BY start",
-                "zeit,unix_start,unix_ende,sport,puls_avg,puls_max,kcal,zonen_sekunden,id"),
+            Triple("trainings.csv", "SELECT start, end, sport, avg_hr, max_hr, kcal, zones, id, tags, note FROM workout WHERE end > start AND start >= ? ORDER BY start",
+                "zeit,unix_start,unix_ende,sport,puls_avg,puls_max,kcal,zonen_sekunden,id,stichwoerter,notiz"),
+            Triple("eintraege.csv", "SELECT ts, tag, note FROM event WHERE ts >= ? ORDER BY ts", "zeit,unix,eintrag,notiz"),
             Triple("pai.csv", "SELECT ts, today, total, low, moderate, high FROM pai WHERE ts >= ? ORDER BY ts",
                 "zeit,unix,pai_heute,pai_gesamt,min_leicht,min_mittel,min_hoch"),
             Triple("hauttemperatur.csv", "SELECT ts, value FROM temperature WHERE ts >= ? ORDER BY ts", "zeit,unix,temperatur_hundertstel_grad"),
@@ -338,7 +379,8 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
                     for (i in 0 until c.columnCount) {
                         w.write(",")
                         val v = c.getString(i).orEmpty()
-                        w.write(if (v.contains(',') || v.contains(';')) "\"$v\"" else v)
+                        val clean = v.replace('\n', ' ')
+                        w.write(if (clean.contains(',') || clean.contains(';') || clean.contains('"')) "\"" + clean.replace("\"", "\"\"") + "\"" else clean)
                     }
                     w.write("\n")
                 }
@@ -439,7 +481,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         private val VALUE_TABLES = setOf(SPO2, RESTING_HR, HRV, TEMPERATURE, RESPIRATION, BATTERY)
         private val ALL_TABLES = listOf(
             "activity", "stress", "workout", "workout_hr", "sleep_record", SPO2, RESTING_HR, HRV, "hr",
-            "pai", TEMPERATURE, RESPIRATION, BATTERY, "alarm", "sleep_edit", "sleep_tag",
+            "pai", TEMPERATURE, RESPIRATION, BATTERY, "alarm", "sleep_edit", "sleep_tag", "event",
         )
     }
 
@@ -567,6 +609,20 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         writableDatabase.update("workout", cv, "id = ?", arrayOf(w.id.toString()))
     }
 
+    /** What the user did or took during a recording, and a free note. */
+    fun setWorkoutNote(id: Long, tags: List<String>, note: String) {
+        val cv = ContentValues()
+        cv.put("tags", tags.joinToString(","))
+        cv.put("note", note)
+        writableDatabase.update("workout", cv, "id = ?", arrayOf(id.toString()))
+    }
+
+    /** Tags and note of a workout, also while it is still running. */
+    fun workoutNote(id: Long): Pair<List<String>, String> =
+        readableDatabase.rawQuery("SELECT tags, note FROM workout WHERE id = ?", arrayOf(id.toString())).use { c ->
+            if (c.moveToFirst()) c.getString(0).orEmpty().split(",").filter { it.isNotBlank() } to c.getString(1).orEmpty() else emptyList<String>() to ""
+        }
+
     fun deleteWorkout(id: Long) = transaction { db ->
         db.delete("workout_hr", "workout = ?", arrayOf(id.toString()))
         db.delete("workout", "id = ?", arrayOf(id.toString()))
@@ -575,7 +631,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
     fun workouts(): List<Workout> {
         val out = ArrayList<Workout>()
         readableDatabase.rawQuery(
-            "SELECT id, sport, start, end, avg_hr, max_hr, kcal, zones FROM workout WHERE end > start ORDER BY start DESC",
+            "SELECT id, sport, start, end, avg_hr, max_hr, kcal, zones, tags, note FROM workout WHERE end > start ORDER BY start DESC",
             null,
         ).use { c ->
             while (c.moveToNext()) {
@@ -588,6 +644,8 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
                     maxHr = c.getInt(5),
                     calories = c.getInt(6),
                     zoneSeconds = c.getString(7).split(",").mapNotNull { it.toIntOrNull() },
+                    tags = c.getString(8).orEmpty().split(",").filter { it.isNotBlank() },
+                    note = c.getString(9).orEmpty(),
                 )
             }
         }
