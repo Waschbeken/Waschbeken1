@@ -197,6 +197,11 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getStringSet("hidden_tiles", emptySet()).orEmpty()
         set(v) = edit { putStringSet("hidden_tiles", v) }
 
+    /** Order of the dashboard tiles (names), tiles not in the list follow in their default order. */
+    var tileOrder: List<String>
+        get() = sp.getString("tile_order", "").orEmpty().split(',').filter { it.isNotBlank() }
+        set(v) = edit { putString("tile_order", v.joinToString(",")) }
+
     var use24h: Boolean
         get() = sp.getBoolean("use_24h", true)
         set(v) = edit { putBoolean("use_24h", v) }

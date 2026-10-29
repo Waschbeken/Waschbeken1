@@ -175,7 +175,14 @@ fun SleepScreen(nav: NavHostController) {
                     }
                 }
             } else {
-                range?.let { r -> item { RangeContent(r, period, goal) } }
+                range?.let { r ->
+                    item {
+                        RangeContent(r, period, goal) { d ->
+                            periodName = Period.DAY.name
+                            dateEpoch = d.toEpochDay()
+                        }
+                    }
+                }
                 item { TagEffects(state.dataVersion) }
             }
         }
@@ -358,7 +365,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(
 }
 
 @Composable
-private fun RangeContent(r: RangeData, period: Period, goal: Int) {
+private fun RangeContent(r: RangeData, period: Period, goal: Int, onOpen: (LocalDate) -> Unit) {
     val zone = ZoneId.systemDefault()
     val days = generateSequence(r.from) { it.plusDays(1) }.takeWhile { !it.isAfter(r.to) }.toList()
     val nights = r.nights.values.toList()
@@ -410,6 +417,29 @@ private fun RangeContent(r: RangeData, period: Period, goal: Int) {
             )
             val debt = nights.sumOf { (goal - it.asleepMinutes).coerceAtLeast(0) }
             if (debt > 0) Text("Schlafdefizit zum Ziel: ${formatMinutes(debt)}", style = MaterialTheme.typography.bodyMedium)
+        }
+        Text("Nächte", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        r.nights.entries.sortedByDescending { it.key }.forEach { (d, n) ->
+            Panel(onClick = { onOpen(d) }) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(d.format(java.time.format.DateTimeFormatter.ofPattern("EEE d. MMM", German)), style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "${clock(n.start)} – ${clock(n.end)}" + when {
+                                n.edited -> " · korrigiert"
+                                n.estimated -> " · geschätzt"
+                                else -> ""
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(formatHours(n.asleepMinutes), style = MaterialTheme.typography.titleSmall)
+                        Text("Score ${n.score}", style = MaterialTheme.typography.labelSmall, color = scoreColor(n.score))
+                    }
+                }
+            }
         }
     }
 }

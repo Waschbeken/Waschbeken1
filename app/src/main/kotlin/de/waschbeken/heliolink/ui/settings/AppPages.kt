@@ -14,15 +14,20 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -302,13 +307,32 @@ internal fun HomeTilesPage() {
     val prefs = LocalContext.current.app.prefs
     prefsTick()
     SettingsHeader("Kacheln auf „Heute“")
+    SettingsNote("Schalter blendet eine Kachel ein oder aus, die Pfeile ändern die Reihenfolge.")
     val hidden = prefs.hiddenTiles
-    Tile.entries.forEach { tile ->
-        SwitchSetting(tile.title, null, tile.name !in hidden) { show ->
-            prefs.hiddenTiles = if (show) hidden - tile.name else hidden + tile.name
-        }
+    val saved = prefs.tileOrder
+    val order = Tile.entries.sortedBy { t -> saved.indexOf(t.name).let { if (it < 0) 100 + t.ordinal else it } }
+    fun move(i: Int, by: Int) {
+        val list = order.map { it.name }.toMutableList()
+        val j = i + by
+        if (j !in list.indices) return
+        list[i] = list[j].also { list[j] = list[i] }
+        prefs.tileOrder = list
     }
-    SettingRow("Alle anzeigen", "Setzt die Auswahl zurück") { prefs.hiddenTiles = emptySet() }
+    order.forEachIndexed { i, tile ->
+        SettingRow(tile.title, if (tile.name in hidden) "ausgeblendet" else null, trailing = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { move(i, -1) }, enabled = i > 0) { Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Nach oben") }
+                IconButton(onClick = { move(i, 1) }, enabled = i < order.lastIndex) { Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Nach unten") }
+                Switch(checked = tile.name !in hidden, onCheckedChange = { show ->
+                    prefs.hiddenTiles = if (show) hidden - tile.name else hidden + tile.name
+                })
+            }
+        })
+    }
+    SettingRow("Zurücksetzen", "Alle Kacheln in der ursprünglichen Reihenfolge anzeigen") {
+        prefs.hiddenTiles = emptySet()
+        prefs.tileOrder = emptyList()
+    }
     SettingsNote("Ausgeblendete Werte werden weiter gespeichert und erscheinen im Export.")
 }
 

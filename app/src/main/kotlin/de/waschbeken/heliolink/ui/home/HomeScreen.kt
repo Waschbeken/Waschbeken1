@@ -125,6 +125,7 @@ fun HomeScreen(nav: NavHostController) {
     val tick by app.prefs.changes.collectAsStateWithLifecycle()
     val profile = remember(tick) { app.prefs.profile }
     val hidden = remember(tick) { app.prefs.hiddenTiles }
+    val order = remember(tick) { app.prefs.tileOrder }
     val data by dbValue(state.dataVersion, tick, state.heartRateAt / 300_000) { HomeData.load(it, profile.stepGoal) }
     val controller = app.repo.controller
 
@@ -205,7 +206,7 @@ fun HomeScreen(nav: NavHostController) {
             item { LiveHeartCard(state, profile.maxHeartRate, d?.resting?.let { profile.zoneRest(it) }) { controller?.setLiveHeartRate(it) } }
             if (d != null) {
                 item { SectionHeader("Heute im Überblick") }
-                item { TileGrid(d, state, profile.stepGoal, hidden, nav) }
+                item { TileGrid(d, state, profile.stepGoal, hidden, order, nav) }
                 item {
                     Panel(onClick = { nav.navigate(Routes.metric("heart")) }) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -392,10 +393,10 @@ private fun LiveHeartCard(state: StrapUiState, maxHr: Int, rest: Int?, onToggle:
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun TileGrid(d: HomeData, state: StrapUiState, stepGoal: Int, hidden: Set<String>, nav: NavHostController) {
-    val tiles = ArrayList<@Composable (Modifier) -> Unit>()
+private fun TileGrid(d: HomeData, state: StrapUiState, stepGoal: Int, hidden: Set<String>, order: List<String>, nav: NavHostController) {
+    val added = ArrayList<Pair<Tile, @Composable (Modifier) -> Unit>>()
     fun add(tile: Tile, content: @Composable (Modifier) -> Unit) {
-        if (tile.name !in hidden) tiles += content
+        if (tile.name !in hidden) added += tile to content
     }
     val todaySteps = (state.steps?.toInt() ?: d.week.lastOrNull()?.steps ?: 0)
     add(Tile.STEPS) { m ->
@@ -494,6 +495,7 @@ private fun TileGrid(d: HomeData, state: StrapUiState, stepGoal: Int, hidden: Se
             onClick = { nav.navigate(Routes.metric("battery")) },
         )
     }
+    val tiles = added.sortedBy { (t, _) -> order.indexOf(t.name).let { if (it < 0) 100 + t.ordinal else it } }.map { it.second }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         tiles.chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
