@@ -139,14 +139,11 @@ fun AlarmsScreen(nav: NavHostController) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Wecker") },
-                actions = {
-                    IconButton(onClick = { app.repo.controller?.refreshAlarms() }, enabled = state.connected) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Vom Strap laden")
-                    }
-                },
-            )
+            BackTopBar("Wecker", onBack = { nav.popBackStack() }) {
+                IconButton(onClick = { app.repo.controller?.refreshAlarms() }, enabled = state.connected) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Vom Strap laden")
+                }
+            }
         },
         floatingActionButton = {
             if (free != null) {

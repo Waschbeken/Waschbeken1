@@ -33,7 +33,7 @@ data class Workout(
 
 data class HrPoint(val timestamp: Long, val bpm: Int)
 
-class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME, null, 8) {
+class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME, null, 9) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -54,6 +54,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         createV6(db)
         createV7(db)
         createV8(db)
+        createV9(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -64,6 +65,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         if (oldVersion < 6) createV6(db)
         if (oldVersion < 7) createV7(db)
         if (oldVersion < 8) createV8(db)
+        if (oldVersion < 9) createV9(db)
     }
 
     /** Version 4: PAI, skin temperature, breathing rate, battery history and alarms. */
@@ -128,6 +130,30 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         val out = ArrayList<OdiNight>()
         readableDatabase.rawQuery("SELECT day, valid, odi, score, drops FROM odi WHERE day >= ? AND day < ? ORDER BY day", arrayOf(from.toString(), to.toString())).use { c ->
             while (c.moveToNext()) out += OdiNight(c.getLong(0), c.getLong(1), c.getLong(2), if (c.isNull(3)) null else c.getInt(3), c.getInt(4))
+        }
+        return out
+    }
+
+    /** Version 9: how the user feels each day (1–5) with a note. */
+    private fun createV9(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS feeling (day INTEGER PRIMARY KEY, score INTEGER, note TEXT)")
+    }
+
+    data class Feeling(val day: Long, val score: Int, val note: String)
+
+    /** [day] is the epoch day; score 1 (schlecht) to 5 (super), 0 = only a note. */
+    fun setFeeling(day: Long, score: Int, note: String) {
+        val cv = ContentValues()
+        cv.put("day", day)
+        cv.put("score", score)
+        cv.put("note", note)
+        writableDatabase.insertWithOnConflict("feeling", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    fun feelings(fromDay: Long, toDay: Long): Map<Long, Feeling> {
+        val out = HashMap<Long, Feeling>()
+        readableDatabase.rawQuery("SELECT day, score, note FROM feeling WHERE day >= ? AND day <= ?", arrayOf(fromDay.toString(), toDay.toString())).use { c ->
+            while (c.moveToNext()) out[c.getLong(0)] = Feeling(c.getLong(0), c.getInt(1), c.getString(2).orEmpty())
         }
         return out
     }
@@ -546,7 +572,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         private val VALUE_TABLES = setOf(SPO2, RESTING_HR, HRV, TEMPERATURE, RESPIRATION, BATTERY, SDNN)
         private val ALL_TABLES = listOf(
             "activity", "stress", "workout", "workout_hr", "sleep_record", SPO2, RESTING_HR, HRV, "hr",
-            "pai", TEMPERATURE, RESPIRATION, BATTERY, "alarm", "sleep_edit", "sleep_tag", "event", "rhythm", SDNN, "odi",
+            "pai", TEMPERATURE, RESPIRATION, BATTERY, "alarm", "sleep_edit", "sleep_tag", "event", "rhythm", SDNN, "odi", "feeling",
         )
     }
 

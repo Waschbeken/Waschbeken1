@@ -224,11 +224,7 @@ fun HomeScreen(nav: NavHostController) {
                     controller?.setLiveHeartRate(it)
                 }
             }
-            item {
-                de.waschbeken.heliolink.ui.events.QuickEntryCard(state.dataVersion) {
-                    de.waschbeken.heliolink.ui.tools.HelperRow(nav)
-                }
-            }
+            item { de.waschbeken.heliolink.ui.events.QuickEntryCard(state.dataVersion) }
             if (d != null) {
                 item { SectionHeader("Heute im Überblick") }
                 item { TileGrid(d, state, profile.stepGoal, hidden, order, nav) }
@@ -308,7 +304,7 @@ fun HomeScreen(nav: NavHostController) {
                         }
                     }
                 }
-                item { AlarmCard(d) { nav.navigateToTab(Routes.ALARMS) } }
+                item { AlarmCard(d) { nav.navigate(Routes.ALARMS) } }
             }
             item {
                 val last = if (state.lastSync > 0) DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(state.lastSync)) else "nie"

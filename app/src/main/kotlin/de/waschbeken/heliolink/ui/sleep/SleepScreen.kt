@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Tune
@@ -143,6 +144,9 @@ fun SleepScreen(nav: NavHostController) {
             TopAppBar(
                 title = { Text("Schlaf") },
                 actions = {
+                    IconButton(onClick = { nav.navigate(Routes.ALARMS) }) {
+                        Icon(Icons.Default.Alarm, contentDescription = "Wecker")
+                    }
                     if (period == Period.DAY) {
                         IconButton(onClick = { nav.navigate(Routes.sleepEdit(date.toEpochDay())) }) {
                             Icon(Icons.Default.Edit, contentDescription = "Schlaf bearbeiten")

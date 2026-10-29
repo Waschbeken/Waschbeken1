@@ -34,7 +34,8 @@ object BodyCheck {
 
     enum class Level { NORMAL, WATCH, ALERT }
 
-    data class Signal(val vital: Vital, val value: Double, val usual: Double, val strong: Boolean) {
+    /** A value of the night compared with its usual level; [flagged] when it counts towards the warning. */
+    data class Signal(val vital: Vital, val value: Double, val usual: Double, val strong: Boolean, val flagged: Boolean = true) {
         val deviation get() = value - usual
 
         /** E.g. "+0,6 °C" or "−18 %" (HRV as percent). */
@@ -55,6 +56,8 @@ object BodyCheck {
         val nights: Int,
         /** Nights the normal range is based on. */
         val baselineNights: Int,
+        /** Every value of the night that could be compared, flagged or not. */
+        val all: List<Signal> = emptyList(),
     )
 
     /** Smallest spread assumed for each value, so a very steady history does not make tiny changes look big. */
@@ -112,6 +115,7 @@ object BodyCheck {
         // The two nights right before are left out, so a cold that started earlier does not hide itself.
         val base = sorted.subList(0, index).filter { it.date >= first && it.date < night.date.minusDays(2) }
         val signals = ArrayList<Signal>()
+        val all = ArrayList<Signal>()
         var used = 0
         for (vital in Vital.entries) {
             val v = value(night, vital) ?: continue
@@ -125,6 +129,9 @@ object BodyCheck {
             val (limit, strongLimit) = limits(vital, med)
             if (off >= limit && off >= 2 * spread) {
                 signals += Signal(vital, v, med, strong = off >= strongLimit && off >= 3 * spread)
+                all += signals.last()
+            } else {
+                all += Signal(vital, v, med, strong = false, flagged = false)
             }
         }
         if (used == 0) return null
@@ -138,7 +145,7 @@ object BodyCheck {
             score >= 2 -> Level.WATCH
             else -> Level.NORMAL
         }
-        return Result(night.date, level, signals, 1, used)
+        return Result(night.date, level, signals, 1, used, all)
     }
 }
 

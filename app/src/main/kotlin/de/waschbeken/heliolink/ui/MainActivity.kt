@@ -20,11 +20,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.MonitorHeart
+import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -77,6 +77,7 @@ object Routes {
     const val SLEEP = "sleep"
     const val TRAINING = "training"
     const val ALARMS = "alarms"
+    const val BODY = "body"
     const val SETTINGS = "settings"
     fun metric(type: String) = "metric/$type"
     fun settings(category: String) = "settings/$category"
@@ -94,7 +95,7 @@ private val tabs = listOf(
     Tab(Routes.DATA, "Daten", Icons.Filled.Insights),
     Tab(Routes.SLEEP, "Schlaf", Icons.Filled.Bedtime),
     Tab(Routes.TRAINING, "Sport", Icons.Filled.FitnessCenter),
-    Tab(Routes.ALARMS, "Wecker", Icons.Filled.Alarm),
+    Tab(Routes.BODY, "Körper", Icons.Filled.SelfImprovement),
     Tab(Routes.SETTINGS, "Mehr", Icons.Filled.Settings),
 )
 
@@ -373,6 +374,7 @@ private fun AppContent(pendingRoute: String?, onRouteShown: () -> Unit, onForget
             composable(Routes.SLEEP) { SleepScreen(nav) }
             composable(Routes.TRAINING) { TrainingScreen(nav) }
             composable(Routes.ALARMS) { AlarmsScreen(nav) }
+            composable(Routes.BODY) { de.waschbeken.heliolink.ui.body.BodyScreen(nav) }
             composable(Routes.SETTINGS) { SettingsScreen(nav) }
             composable(Routes.TOOLS_BREATHE) { de.waschbeken.heliolink.ui.tools.BreatheScreen(nav) }
             composable(Routes.TOOLS_FOCUS) { de.waschbeken.heliolink.ui.tools.FocusScreen(nav) }

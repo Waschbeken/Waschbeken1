@@ -9,6 +9,7 @@ aber ganz auf einen Strap ohne Display zugeschnitten.
 | Bereich | Funktionen |
 |---|---|
 | **Heute** | Begrüßung, Erholungswert (aus Schlaf, Ruhepuls, HRV und Stress), Kacheln für Schritte, Schlaf, Ruhepuls, Stress, SpO₂, HRV, PAI, Hauttemperatur, Atemfrequenz und Akku – jede mit Mini-Verlauf, antippen öffnet die Detailansicht. Live-Puls mit Zone, Ziel-Serie in Tagen |
+| **Körper** | Eigener Tab: **Wie geht's dir heute?** (5 Gesichter, Notiz) und Beschwerden zum Antippen (Kopfschmerzen, Halsschmerzen, Fieber, Müde …; sie zählen wie Schnell-Einträge). Darunter immer der **Körper-Check der letzten Nacht** – Hauttemperatur, Ruhepuls, HRV und Atmung gegen deinen Normalwert, mit Frühwarnung, wenn mehrere zugleich abweichen. Dazu HRV-Status, Herzrhythmus, Sauerstoff-Auswertung des Straps, die Helfer (Atemübung, Fokus-Timer) und dein Befinden der letzten 14 Tage |
 | **Daten** | Eigener Tab wie in Gadgetbridge: ein Datum für alle Seiten, wischen zwischen Aktivität, Puls, Schlaf, Schritte, Stress, SpO₂, HRV, Temperatur, Atmung, PAI und Akku. Tagesuhr (24 h) mit Aktivität, Schlaf und „nicht getragen“, Aktivitätsdiagramm mit Balken und Pulslinie. Seiten „Schlaf-Woche“ und „Schritte-Woche“. Alle Zeitdiagramme lassen sich mit zwei Fingern zoomen und verschieben, Doppeltipp zoomt hinein oder zurück; weit hineingezoomt stehen die Werte an den Punkten. **Finger halten** zeigt Zeit und Wert – im Schlaf, im Aktivitätsdiagramm und auf der Tagesuhr die Phase mit Beginn, Ende und Dauer |
 | **Schnell eintragen** | Auf „Heute“ mit einem Tipp Koffein, Nikotin, Alkohol, Essen, Medikament … notieren (Knöpfe frei änderbar, Karte zuklappbar). Die Einträge erscheinen als Markierung in den Tagesdiagrammen und zählen automatisch für die folgende Nacht in „Was deinem Schlaf guttut“ |
 | **Frühwarnung** | Weichen nachts mehrere Werte zugleich von deinem Normalwert ab (Hauttemperatur und Ruhepuls hoch, HRV niedrig, Atmung schneller), zeigt „Heute“ eine Karte und morgens kommt eine Benachrichtigung – oft einen Tag bevor man sich krank fühlt. Vergleich mit den letzten 30 Nächten, Hinweis auf Einträge wie Alkohol oder Sport, keine Diagnose |
@@ -18,7 +19,7 @@ aber ganz auf einen Strap ohne Display zugeschnitten.
 | **Sauerstoff-Abfälle** | Pro Nacht: Abfälle des SpO₂ um mindestens 3 %, pro Stunde bewertet (Hinweis auf Atemaussetzer), niedrigster Wert und Minuten unter 90 % |
 | **Herzrhythmus** | Während der Puls live läuft und du ruhig bist, prüft HelioLink je 64 Herzschläge auf einen unregelmäßigen Rhythmus (RMSSD, Wendepunkte, Entropie); wiederholte Treffer an mehreren Tagen ergeben einen Hinweis – keine Diagnose |
 | **Beste Einschlafzeit** | Aus den letzten 90 Nächten: in welcher Stunde deine besten Nächte beginnen |
-| **Helfer** | In „Schnell eintragen“ auf „Heute“: **Atemübung** (6 Atemzüge pro Minute mit Kreis, optional Takt am Arm, Puls und HRV vorher/nachher als Eintrag gespeichert) und **Fokus-Timer** (z. B. 25/5 × 4: der Strap vibriert zu Fokus und Pause, läuft im Hintergrund weiter) |
+| **Helfer** | Im Tab „Körper“: **Atemübung** (6 Atemzüge pro Minute mit Kreis, optional Takt am Arm, Puls und HRV vorher/nachher als Eintrag gespeichert) und **Fokus-Timer** (z. B. 25/5 × 4: der Strap vibriert zu Fokus und Pause, läuft im Hintergrund weiter) |
 | **Am Arm vibrieren** | Anrufe (3× lang) und Nachrichten gewählter Apps (2× kurz) lassen den Strap vibrieren – nicht im Schlaf und nicht bei „Bitte nicht stören“. Nur die sendende App wird angesehen, nie der Inhalt |
 | **Stress-Momente** | Nach längerem hohem Stress ohne Sport fragt HelioLink per Benachrichtigung „Was war los?“ (höchstens 3× am Tag, nicht nachts); die Stressseite zeigt deine häufigsten Auslöser |
 | **Pulsaufzeichnung** | Auf den aktuellen Puls tippen, Dauer wählen (1 min bis 2 h oder bis zum Stoppen): jede Sekunde wird aufgezeichnet, automatisch beendet und gespeichert – mit Live-Ansicht und zoombarer Auswertung. Dazu „Was machst du gerade?“, „Hast du etwas genommen?“ und eine Notiz |
@@ -60,7 +61,7 @@ sie beim nächsten Start einen Bericht zum Kopieren.
 | **Gerät & Verbindung** | Status, Akku, Firmware (Update über die Zepp-App: HelioLink pausiert, Zepp öffnet, danach wieder verbinden), Seriennummer, „Strap vibrieren lassen“, Live-Puls, Einstellungen neu laden, neu verbinden, Auth-Key, Strap entfernen |
 | **Messungen** | Puls-Messintervall (Intelligent, jede Minute … 30 min, aus), bei Aktivität häufiger messen, Puls an andere Geräte senden, Pulswarnungen hoch/niedrig, Schlaf mit hoher Genauigkeit, Atmungsqualität, Stress + Entspannungs-Erinnerung, SpO₂ ganztägig + Warnung |
 | **Bewegung & Ziele** | Bewegungserinnerung mit Zeitraum und Pause, Schrittziel auf dem Strap, Vibration bei erreichtem Ziel, automatische Trainingserkennung mit Empfindlichkeit |
-| **Wecker** | führt direkt zum Wecker-Tab |
+| **Wecker** | führt direkt zu den Weckern (auch über das Wecker-Symbol oben im Schlaf-Tab) |
 
 **App**
 
