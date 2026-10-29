@@ -42,6 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -81,6 +82,9 @@ import de.waschbeken.heliolink.ui.dbValue
 import de.waschbeken.heliolink.ui.fmt
 import de.waschbeken.heliolink.ui.formatMinutes
 import de.waschbeken.heliolink.ui.stressColor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.TextStyle
@@ -305,11 +309,67 @@ fun MetricScreen(nav: NavHostController, key: String) {
                 item { RhythmPanel(state.dataVersion) }
             }
             if (metric == Metric.HRV) item { HrvStatusPanel(state.dataVersion) }
+            if (metric == Metric.STRESS) item { StressTriggersPanel(state.dataVersion) }
             item {
                 Panel(color = MaterialTheme.colorScheme.surfaceContainerLow) {
                     Text("Was bedeutet das?", style = MaterialTheme.typography.titleSmall)
                     Text(metric.about, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+            }
+        }
+    }
+}
+
+/** What stressed you: answers to "Was war los?" of the last 90 days, plus a way to note one now. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun StressTriggersPanel(dataVersion: Int) {
+    val app = LocalContext.current.app
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var reload by remember { mutableStateOf(0) }
+    val counts by dbValue(dataVersion, reload) { db ->
+        val now = System.currentTimeMillis() / 1000
+        db.events(now - 90 * 86_400L, now + 60).map { it.tag }
+            .filter { it.startsWith(de.waschbeken.heliolink.service.StressPrompt.PREFIX) }
+            .groupingBy { it.removePrefix(de.waschbeken.heliolink.service.StressPrompt.PREFIX) }.eachCount()
+            .entries.sortedByDescending { it.value }
+    }
+    Panel {
+        Text("Deine Stress-Auslöser", style = MaterialTheme.typography.titleMedium)
+        val list = counts.orEmpty()
+        if (list.isEmpty()) {
+            Text(
+                "Nach längerem hohem Stress fragt HelioLink „Was war los?“ (Einstellungen → Benachrichtigungen). " +
+                    "Deine Antworten erscheinen hier – oder trag jetzt selbst ein, was dich stresst.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            val max = list.first().value.toFloat()
+            list.forEach { (reason, n) ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(reason, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                    Text("$n×", style = MaterialTheme.typography.labelLarge)
+                }
+                androidx.compose.material3.LinearProgressIndicator(
+                    progress = { n / max }, color = Palette.Stress, modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        Text("Gerade gestresst? Tippe, was es ist:", style = MaterialTheme.typography.labelLarge)
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            (de.waschbeken.heliolink.service.StressPrompt.REASONS + listOf("Termin/Prüfung", "Müde", "Krank")).forEach { reason ->
+                androidx.compose.material3.AssistChip(
+                    onClick = {
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                app.db.addEvent(System.currentTimeMillis() / 1000, de.waschbeken.heliolink.service.StressPrompt.PREFIX + reason)
+                            }
+                            reload++
+                        }
+                    },
+                    label = { Text(reason) },
+                )
             }
         }
     }

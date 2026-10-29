@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.Watch
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -74,6 +75,7 @@ enum class SettingsCategory(val key: String, val section: SettingsSection, val t
     MEASUREMENTS("measurements", SettingsSection.STRAP, "Messungen", Icons.Default.MonitorHeart, "Pulsintervall, Aktivität, Schlaf, Stress, SpO₂, Pulswarnungen"),
     MOVEMENT("movement", SettingsSection.STRAP, "Bewegung & Ziele", Icons.AutoMirrored.Filled.DirectionsWalk, "Bewegungserinnerung, Nicht stören, Schrittziel, Trainingserkennung"),
     ALARMS("alarms", SettingsSection.STRAP, "Wecker", Icons.Default.Alarm, "Vibrationswecker mit Smart Wake auf dem Strap"),
+    ARM("arm", SettingsSection.STRAP, "Am Arm vibrieren", Icons.Default.Vibration, "Anrufe und Nachrichten gewählter Apps"),
 
     APPEARANCE("appearance", SettingsSection.APP, "Darstellung", Icons.Default.Palette, "Hell/dunkel, Akzentfarbe, Material You, Schriftgröße"),
     HOME("home", SettingsSection.APP, "Startseite", Icons.Default.Dashboard, "Welche Kacheln auf „Heute“ erscheinen"),
@@ -208,6 +210,7 @@ fun SettingsCategoryScreen(nav: NavHostController, key: String, onForget: () -> 
                 SettingsCategory.MEASUREMENTS -> MeasurementsPage(state)
                 SettingsCategory.MOVEMENT -> MovementPage(state)
                 SettingsCategory.ALARMS -> Unit
+                SettingsCategory.ARM -> ArmPage()
                 SettingsCategory.APPEARANCE -> AppearancePage()
                 SettingsCategory.HOME -> HomeTilesPage()
                 SettingsCategory.SLEEP -> SleepSettingsPage(nav)
