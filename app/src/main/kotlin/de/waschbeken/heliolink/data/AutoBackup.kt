@@ -93,7 +93,22 @@ object AutoBackup {
         val doc = DocumentsContract.createDocument(resolver, parent, "application/zip", name)
             ?: throw Backup.BackupException("Im gewählten Ordner lässt sich keine Datei anlegen")
         backup.createBackup(doc)
-        // keep only the newest ones
+        pruneTree(context, tree, context.app.prefs.autoBackupKeep)
+    }
+
+    /** Deletes all but the newest [keep] automatic backups in the current place. */
+    fun prune(context: Context, keep: Int) = synchronized(lock) {
+        val tree = tree(context)
+        when {
+            tree != null -> pruneTree(context, tree, keep)
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> pruneDownloads(context, keep)
+            else -> pruneAppFolder(context, keep)
+        }
+    }
+
+    private fun pruneTree(context: Context, tree: Uri, keep: Int) {
+        val resolver = context.contentResolver
+        val parentId = DocumentsContract.getTreeDocumentId(tree)
         val children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, parentId)
         val old = ArrayList<Pair<String, String>>() // name, id
         resolver.query(
@@ -106,7 +121,7 @@ object AutoBackup {
                 if (n.startsWith(PREFIX) && n.endsWith(".zip")) old += n to c.getString(0)
             }
         }
-        old.sortedByDescending { it.first }.drop(context.app.prefs.autoBackupKeep.coerceAtLeast(1)).forEach { (_, id) ->
+        old.sortedByDescending { it.first }.drop(keep.coerceAtLeast(1)).forEach { (_, id) ->
             runCatching { DocumentsContract.deleteDocument(resolver, DocumentsContract.buildDocumentUriUsingTree(tree, id)) }
         }
     }
@@ -130,6 +145,14 @@ object AutoBackup {
             runCatching { resolver.delete(uri, null, null) }
             throw e
         }
+        pruneDownloads(context, context.app.prefs.autoBackupKeep)
+    }
+
+    private fun pruneDownloads(context: Context, keep: Int) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        val resolver = context.contentResolver
+        val folder = Environment.DIRECTORY_DOWNLOADS + "/" + FOLDER + "/"
+        val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
         // Only files this installation created are visible here; older ones stay.
         val old = ArrayList<Pair<String, Long>>()
         resolver.query(
@@ -141,7 +164,7 @@ object AutoBackup {
         )?.use { c ->
             while (c.moveToNext()) old += (c.getString(1) ?: "") to c.getLong(0)
         }
-        old.sortedByDescending { it.first }.drop(context.app.prefs.autoBackupKeep.coerceAtLeast(1)).forEach { (_, id) ->
+        old.sortedByDescending { it.first }.drop(keep.coerceAtLeast(1)).forEach { (_, id) ->
             runCatching { resolver.delete(android.content.ContentUris.withAppendedId(collection, id), null, null) }
         }
     }
@@ -149,7 +172,12 @@ object AutoBackup {
     private fun writeToAppFolder(context: Context, name: String, backup: Backup) {
         val dir = File(context.getExternalFilesDir(null) ?: context.filesDir, "Sicherungen").apply { mkdirs() }
         backup.createBackup(File(dir, name).outputStream())
+        pruneAppFolder(context, context.app.prefs.autoBackupKeep)
+    }
+
+    private fun pruneAppFolder(context: Context, keep: Int) {
+        val dir = File(context.getExternalFilesDir(null) ?: context.filesDir, "Sicherungen")
         dir.listFiles { f -> f.name.startsWith(PREFIX) }?.sortedByDescending { it.name }
-            ?.drop(context.app.prefs.autoBackupKeep.coerceAtLeast(1))?.forEach { it.delete() }
+            ?.drop(keep.coerceAtLeast(1))?.forEach { it.delete() }
     }
 }

@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -30,10 +31,10 @@ import de.waschbeken.heliolink.BuildConfig
 import de.waschbeken.heliolink.app
 import de.waschbeken.heliolink.data.AutoBackup
 import de.waschbeken.heliolink.data.Backup
+import de.waschbeken.heliolink.core.BackupCrypto
 import de.waschbeken.heliolink.service.StrapUiState
 import de.waschbeken.heliolink.ui.exportFile
 import de.waschbeken.heliolink.ui.rememberGadgetbridgeImport
-import de.waschbeken.heliolink.ui.rememberOpenFile
 import de.waschbeken.heliolink.ui.rememberSaveFile
 import de.waschbeken.heliolink.ui.shareFile
 import kotlinx.coroutines.Dispatchers
@@ -67,15 +68,36 @@ internal fun DataPage(state: StrapUiState) {
         backup.exportData(uri, range, state.log, exportInfo(context, state))
     }
     val saveBackup = rememberSaveFile("application/zip", "Sicherung gespeichert") { uri -> backup.createBackup(uri) }
-    val openBackup = rememberOpenFile(
-        arrayOf("application/zip", "application/octet-stream", "*/*"),
-        "Sicherung wiederhergestellt",
-        onSuccess = { de.waschbeken.heliolink.service.StrapService.start(context) },
-    ) { uri ->
-        app.repo.controller?.shutdown()
-        backup.restore(uri)
-        app.repo.dataChanged()
+    // Restore: first without a password; an encrypted backup then asks for it.
+    var askPasswordFor by remember { mutableStateOf<Uri?>(null) }
+    var passwordError by remember { mutableStateOf<String?>(null) }
+    var restoring by remember { mutableStateOf(false) }
+    fun restore(uri: Uri, password: String?) {
+        restoring = true
+        scope.launch {
+            var stopped = false
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    backup.restore(uri, password) {
+                        stopped = true
+                        app.repo.controller?.shutdown()
+                    }
+                    app.repo.dataChanged()
+                }
+            }
+            restoring = false
+            val error = result.exceptionOrNull()
+            if (error is BackupCrypto.WrongPassword) {
+                passwordError = if (password != null) "Falsches Passwort" else null
+                askPasswordFor = uri
+                return@launch
+            }
+            askPasswordFor = null
+            if (stopped) de.waschbeken.heliolink.service.StrapService.start(context)
+            Toast.makeText(context, error?.let { "Fehler: ${it.message ?: it.javaClass.simpleName}" } ?: "Sicherung wiederhergestellt", Toast.LENGTH_LONG).show()
+        }
     }
+    val pickBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) restore(uri, null) }
     val importGadgetbridge = rememberGadgetbridgeImport { app.repo.controller?.reconnect() }
     prefsTick()
     val prefs = app.prefs
@@ -132,7 +154,7 @@ internal fun DataPage(state: StrapUiState) {
     ) { prefs.autoBackupDays = it }
     SettingRow(
         "Speicherort",
-        AutoBackup.placeName(context) + if (prefs.autoBackupTree == null) " · tippen, um einen Ordner zu wählen (z. B. Google Drive)" else " · tippen zum Ändern",
+        AutoBackup.placeName(context) + if (prefs.autoBackupTree == null) " · tippen, um einen eigenen Ordner zu wählen" else " · tippen zum Ändern",
     ) { pickFolder.launch(null) }
     if (prefs.autoBackupTree != null) {
         SettingRow("Ordner zurücksetzen", "Wieder in Downloads/HelioLink sichern") { prefs.autoBackupTree = null }
@@ -158,17 +180,26 @@ internal fun DataPage(state: StrapUiState) {
         },
         enabled = !backupRunning,
     ) { backupNow() }
+    BackupEncryptionSetting()
     SettingsNote(
         "Automatische Sicherungen enthalten wie die normale Sicherung deinen Auth-Key und bleiben auch erhalten, wenn du " +
-            "HelioLink deinstallierst. Wiederherstellen: „Sicherung wiederherstellen“ und die neueste Datei heliolink-auto-… wählen.",
+            "HelioLink deinstallierst. Wiederherstellen: „Sicherung wiederherstellen“ und die neueste Datei heliolink-auto-… wählen." +
+            if (prefs.backupPassword == null) " Ohne Verschlüsselung können andere Apps mit Dateizugriff sie lesen." else "",
     )
 
     SettingsHeader("Sicherung")
     SettingRow("Sicherung erstellen", "Alle Daten und Einstellungen inkl. Auth-Key – zum Umzug auf ein neues Handy") {
         saveBackup("heliolink-sicherung-${Backup.fileDate()}.zip")
     }
-    SettingRow("Sicherung wiederherstellen", "Ersetzt alle Daten und Einstellungen auf diesem Handy") { confirmRestore = true }
-    SettingsNote("Die Sicherung enthält deinen Auth-Key. Gib sie nicht weiter.")
+    SettingRow(
+        "Sicherung wiederherstellen",
+        if (restoring) "Stelle wieder her …" else "Ersetzt alle Daten und Einstellungen auf diesem Handy",
+        enabled = !restoring,
+    ) { confirmRestore = true }
+    SettingsNote(
+        "Die Sicherung enthält deinen Auth-Key. Gib sie nicht weiter." +
+            if (prefs.backupPassword != null) " Sie wird mit deinem Passwort verschlüsselt." else "",
+    )
 
     SettingsHeader("Import")
     SettingRow("Aus Gadgetbridge importieren", "Zip aus „Daten exportieren“: Verlauf, Schlafphasen, SpO₂, Auth-Key") { importGadgetbridge() }
@@ -204,9 +235,16 @@ internal fun DataPage(state: StrapUiState) {
             "Sicherung wiederherstellen?",
             "Alle Daten und Einstellungen auf diesem Handy werden durch die Sicherung ersetzt. Danach verbindet sich die App neu.",
             "Datei auswählen",
-            onConfirm = { openBackup() },
+            onConfirm = { pickBackup.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) },
             onDismiss = { confirmRestore = false },
         )
+    }
+    askPasswordFor?.let { uri ->
+        BackupPasswordDialog(
+            error = passwordError,
+            busy = restoring,
+            onDismiss = { askPasswordFor = null },
+        ) { password -> restore(uri, password) }
     }
     if (confirmDelete) {
         ConfirmDialog(

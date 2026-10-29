@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +43,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import de.waschbeken.heliolink.app
 import de.waschbeken.heliolink.core.parseHex
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class FoundDevice(val name: String, val address: String, val rssi: Int) {
     val isHelio get() = name.contains("Helio", ignoreCase = true)
@@ -56,6 +60,10 @@ fun SetupScreen(hasPermission: Boolean, requestPermission: () -> Unit, onDone: (
     var manualAddress by remember { mutableStateOf("") }
     var scanning by remember { mutableStateOf(false) }
     val devices = remember { mutableStateListOf<FoundDevice>() }
+    val scope = rememberCoroutineScope()
+    var restoring by remember { mutableStateOf(false) }
+    var restoreAsk by remember { mutableStateOf<android.net.Uri?>(null) }
+    var restorePasswordError by remember { mutableStateOf<String?>(null) }
 
     val keyBytes = parseHex(key)
     val keyValid = keyBytes != null && keyBytes.size == 16
@@ -83,13 +91,41 @@ fun SetupScreen(hasPermission: Boolean, requestPermission: () -> Unit, onDone: (
                     selected = null
                 }
             }
-            val restoreBackup = rememberOpenFile(
-                arrayOf("application/zip", "application/octet-stream", "*/*"),
-                "Sicherung wiederhergestellt",
-                onSuccess = { if (prefs.isConfigured) onDone() },
-            ) { uri ->
-                de.waschbeken.heliolink.data.Backup(context, prefs, context.app.db).restore(uri)
-                context.app.repo.dataChanged()
+            // An encrypted backup first fails with WrongPassword and then asks for the password.
+            fun restore(uri: android.net.Uri, password: String?) {
+                restoring = true
+                scope.launch {
+                    val error = withContext(Dispatchers.IO) {
+                        runCatching {
+                            de.waschbeken.heliolink.data.Backup(context, prefs, context.app.db).restore(uri, password)
+                            context.app.repo.dataChanged()
+                        }.exceptionOrNull()
+                    }
+                    restoring = false
+                    if (error is de.waschbeken.heliolink.core.BackupCrypto.WrongPassword) {
+                        restorePasswordError = if (password != null) "Falsches Passwort" else null
+                        restoreAsk = uri
+                        return@launch
+                    }
+                    restoreAsk = null
+                    android.widget.Toast.makeText(
+                        context,
+                        error?.let { "Fehler: ${it.message ?: it.javaClass.simpleName}" } ?: "Sicherung wiederhergestellt",
+                        android.widget.Toast.LENGTH_LONG,
+                    ).show()
+                    if (error == null && prefs.isConfigured) onDone()
+                }
+            }
+            val pickBackup = androidx.activity.compose.rememberLauncherForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+            ) { uri -> if (uri != null) restore(uri, null) }
+            val restoreBackup = { pickBackup.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }
+            restoreAsk?.let { uri ->
+                de.waschbeken.heliolink.ui.settings.BackupPasswordDialog(
+                    error = restorePasswordError,
+                    busy = restoring,
+                    onDismiss = { restoreAsk = null },
+                ) { password -> restore(uri, password) }
             }
             SectionCard("HelioLink-Sicherung vorhanden?") {
                 Text(

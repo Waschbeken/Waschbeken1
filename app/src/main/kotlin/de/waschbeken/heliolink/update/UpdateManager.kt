@@ -35,6 +35,7 @@ class UpdateManager(val context: Context, private val prefs: Prefs) {
     val currentVersion: String = BuildConfig.VERSION_NAME.substringBefore("-")
 
     suspend fun check(): UpdateInfo? {
+        prefs.logNetwork("Update-Prüfung (api.github.com)")
         val releases = get("https://api.github.com/repos/${prefs.updateRepo.trim()}/releases?per_page=30")
         prefs.lastUpdateCheck = System.currentTimeMillis()
         return pick(JSONArray(releases))
@@ -94,6 +95,7 @@ class UpdateManager(val context: Context, private val prefs: Prefs) {
         dir.listFiles()?.forEach { it.delete() }
         val target = File(dir, "heliolink-${info.version}.apk")
         val tmp = File(dir, target.name + ".part")
+        prefs.logNetwork("Update ${info.version} laden (github.com)")
         val connection = open(info.apkUrl, "application/octet-stream")
         try {
             if (connection.responseCode !in 200..299) throw IOException("Download fehlgeschlagen (${connection.responseCode})")

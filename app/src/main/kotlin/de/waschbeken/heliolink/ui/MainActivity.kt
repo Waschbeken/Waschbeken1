@@ -113,6 +113,17 @@ class MainActivity : ComponentActivity() {
     /** Screen a notification asked to open (see [EXTRA_ROUTE]). */
     private var pendingRoute by mutableStateOf<String?>(null)
 
+    /** App lock: the content stays hidden until fingerprint, face or PIN confirm the owner. */
+    private var locked by mutableStateOf(false)
+    private var lockMessage by mutableStateOf<String?>(null)
+    private var authenticating = false
+    private var stoppedAt = 0L
+
+    private val keyguardLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        authenticating = false
+        if (it.resultCode == RESULT_OK) unlocked() else lockMessage = "Nicht entsperrt."
+    }
+
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         permissionGranted = hasBluetoothPermission()
         if (configured && permissionGranted) StrapService.start(this)
@@ -124,6 +135,8 @@ class MainActivity : ComponentActivity() {
         configured = app.prefs.isConfigured
         permissionGranted = hasBluetoothPermission()
         crashReport = CrashReporter.read(this)
+        locked = app.prefs.appLock && savedInstanceState?.getBoolean(STATE_UNLOCKED) != true
+        applyRecentsPrivacy()
         requestPermissions()
         handleIntent(intent)
         if (app.updater.manager.isAutoCheckDue()) app.updater.check(silent = true)
@@ -135,6 +148,10 @@ class MainActivity : ComponentActivity() {
                 app.updater.messages.collect { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
             }
             HelioTheme(prefs.themeMode, prefs.dynamicColor, prefs.accentColor, prefs.fontScale) {
+                if (locked && prefs.appLock) {
+                    LockScreen(lockMessage, ::unlock)
+                    return@HelioTheme
+                }
                 UpdateDialog(app.updater)
                 crashReport?.let { report -> CrashDialog(report) { crashReport = null } }
                 if (configured) {
@@ -164,12 +181,67 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         AppVisibility.inForeground = true
+        val prefs = app.prefs
+        if (prefs.appLock && stoppedAt > 0 && android.os.SystemClock.elapsedRealtime() - stoppedAt >= prefs.appLockDelay * 1000L) {
+            locked = true
+            lockMessage = null
+        }
+        stoppedAt = 0
+        applyRecentsPrivacy()
         if (configured) de.waschbeken.heliolink.data.AutoBackup.runIfDueInBackground(this)
     }
 
     override fun onStop() {
         AppVisibility.inForeground = false
+        // The fingerprint/PIN screen itself must not lock the app again.
+        if (!authenticating && !isChangingConfigurations) stoppedAt = android.os.SystemClock.elapsedRealtime()
         super.onStop()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(STATE_UNLOCKED, !locked)
+    }
+
+    private fun unlock() {
+        if (authenticating) return
+        if (!AppLock.available(this)) {
+            // The screen lock was removed: the app lock cannot work any more.
+            app.prefs.appLock = false
+            unlocked()
+            return
+        }
+        authenticating = true
+        AppLock.prompt(
+            this,
+            onSuccess = {
+                authenticating = false
+                unlocked()
+            },
+            onFail = { message ->
+                authenticating = false
+                lockMessage = message ?: "Nicht entsperrt."
+            },
+            fallback = {
+                val intent = AppLock.keyguardIntent(this)
+                if (intent == null) {
+                    authenticating = false
+                    unlocked()
+                } else {
+                    keyguardLauncher.launch(intent)
+                }
+            },
+        )
+    }
+
+    private fun unlocked() {
+        locked = false
+        lockMessage = null
+    }
+
+    /** With the app lock on, the preview in the list of recent apps stays empty (Android 13+). */
+    private fun applyRecentsPrivacy() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) setRecentsScreenshotEnabled(!app.prefs.appLock)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -223,6 +295,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_SHOW_UPDATE = "show_update"
         const val EXTRA_ROUTE = "route"
+        private const val STATE_UNLOCKED = "unlocked"
 
         /** Opens the app on [route] (one of [Routes]). */
         fun openIntent(context: android.content.Context, route: String): Intent =

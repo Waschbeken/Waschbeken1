@@ -2,6 +2,7 @@ package de.waschbeken.heliolink.data
 
 import android.content.Context
 import android.net.Uri
+import de.waschbeken.heliolink.core.BackupCrypto
 import de.waschbeken.heliolink.core.SleepStage
 import de.waschbeken.heliolink.BuildConfig
 import org.json.JSONObject
@@ -88,56 +89,131 @@ class Backup(private val context: Context, private val prefs: Prefs, private val
         createBackup(out)
     }
 
-    /** Writes the backup to [out] and closes it. */
+    /**
+     * Writes the backup to [out] and closes it. With a backup password the content is encrypted
+     * ([BackupCrypto]); the file stays a zip with only a small unencrypted note inside.
+     */
     fun createBackup(out: java.io.OutputStream) {
+        val password = prefs.backupPassword
         ZipOutputStream(out.buffered()).use { zip ->
-            zip.putNextEntry(ZipEntry("heliolink-backup.json"))
-            val meta = JSONObject()
-                .put("format", 1)
-                .put("app", BuildConfig.VERSION_NAME)
-                .put("created", System.currentTimeMillis())
-            zip.write(meta.toString().toByteArray())
+            zip.putNextEntry(ZipEntry(META))
+            zip.write(meta(encrypted = password != null).toString().toByteArray())
             zip.closeEntry()
-            zip.putNextEntry(ZipEntry("settings.json"))
-            zip.write(prefs.exportAll().toString(2).toByteArray())
-            zip.closeEntry()
-            zip.putNextEntry(ZipEntry("health.db"))
-            db.backupTo(zip)
-            zip.closeEntry()
+            if (password == null) {
+                writeContent(zip)
+            } else {
+                zip.putNextEntry(ZipEntry(ENCRYPTED))
+                val sealed = BackupCrypto.encrypt(NotClosing(zip), password.toCharArray())
+                ZipOutputStream(sealed).use { inner ->
+                    inner.putNextEntry(ZipEntry(META))
+                    inner.write(meta(encrypted = false).toString().toByteArray())
+                    inner.closeEntry()
+                    writeContent(inner)
+                }
+                zip.closeEntry()
+            }
         }
     }
 
-    /** Replaces database and settings with the backup. The strap connection must be stopped before. */
-    fun restore(uri: Uri) {
+    private fun meta(encrypted: Boolean) = JSONObject()
+        .put("format", 1)
+        .put("app", BuildConfig.VERSION_NAME)
+        .put("created", System.currentTimeMillis())
+        .put("encrypted", encrypted)
+
+    private fun writeContent(zip: ZipOutputStream) {
+        zip.putNextEntry(ZipEntry("settings.json"))
+        zip.write(prefs.exportAll().apply { remove(Prefs.KEY_BACKUP_PASSWORD) }.toString(2).toByteArray())
+        zip.closeEntry()
+        zip.putNextEntry(ZipEntry("health.db"))
+        db.backupTo(zip)
+        zip.closeEntry()
+    }
+
+    /** Lets the encrypted part finish without closing the zip around it. */
+    private class NotClosing(out: java.io.OutputStream) : java.io.FilterOutputStream(out) {
+        override fun write(b: ByteArray, off: Int, len: Int) = out.write(b, off, len)
+        override fun close() = out.flush()
+    }
+
+    /** True if the backup in [uri] needs its password. */
+    fun isEncrypted(uri: Uri): Boolean {
+        val input = context.contentResolver.openInputStream(uri) ?: throw BackupException("Datei lässt sich nicht öffnen")
+        ZipInputStream(input.buffered()).use { zip ->
+            while (true) {
+                val e = zip.nextEntry ?: return false
+                if (e.name == ENCRYPTED) return true
+                if (e.name == "health.db") return false
+            }
+        }
+    }
+
+    /**
+     * Replaces database and settings with the backup. Everything is read and checked first; only then
+     * [beforeReplace] runs (to stop the strap connection) and the data on the phone is replaced.
+     * Throws [BackupCrypto.WrongPassword] for an encrypted backup without the right [password].
+     */
+    fun restore(uri: Uri, password: String? = null, beforeReplace: () -> Unit = {}) {
         val tmp = File(context.cacheDir, "restore").apply { deleteRecursively(); mkdirs() }
         try {
-            var settings: JSONObject? = null
-            var dbFile: File? = null
-            var isBackup = false
+            val found = Found()
             val input = context.contentResolver.openInputStream(uri) ?: throw BackupException("Datei lässt sich nicht öffnen")
-            ZipInputStream(input.buffered()).use { zip ->
-                while (true) {
-                    val e = zip.nextEntry ?: break
-                    when (e.name) {
-                        "heliolink-backup.json" -> {
-                            zip.readBytes()
-                            isBackup = true
-                        }
-                        "settings.json" -> settings = JSONObject(zip.readBytes().decodeToString())
-                        "health.db" -> dbFile = File(tmp, "health.db").also { f -> f.outputStream().use { zip.copyTo(it) } }
-                    }
-                }
-            }
-            val db2 = dbFile
-            if (!isBackup || db2 == null) throw BackupException("Das ist keine HelioLink-Sicherung.")
+            ZipInputStream(input.buffered()).use { readEntries(it, tmp, found, password) }
+            val db2 = found.db
+            if (!found.isBackup || db2 == null) throw BackupException("Das ist keine HelioLink-Sicherung.")
+            beforeReplace()
+            val keepPassword = if (found.encrypted) password else prefs.backupPassword
             db.restoreFrom(db2)
-            settings?.let { prefs.importAll(it) }
+            found.settings?.let { prefs.importAll(it) }
+            prefs.backupPassword = keepPassword
         } finally {
             tmp.deleteRecursively()
         }
     }
 
+    private class Found {
+        var settings: JSONObject? = null
+        var db: File? = null
+        var isBackup = false
+        var encrypted = false
+    }
+
+    private fun readEntries(zip: ZipInputStream, tmp: File, found: Found, password: String?) {
+        while (true) {
+            val e = zip.nextEntry ?: break
+            when (e.name) {
+                META -> {
+                    zip.readBytes()
+                    found.isBackup = true
+                }
+                "settings.json" -> found.settings = JSONObject(zip.readBytes().decodeToString())
+                "health.db" -> found.db = File(tmp, "health.db").also { f -> f.outputStream().use { zip.copyTo(it) } }
+                ENCRYPTED -> {
+                    if (password == null) throw BackupCrypto.WrongPassword()
+                    found.encrypted = true
+                    val plain = try {
+                        BackupCrypto.decrypt(zip, password.toCharArray())
+                    } catch (d: BackupCrypto.Damaged) {
+                        throw BackupException(d.message ?: "Die Sicherung ist beschädigt.")
+                    }
+                    try {
+                        // not closed: that would close the outer zip
+                        readEntries(ZipInputStream(plain), tmp, found, null)
+                        // read to the end, so the last chunk is checked as well
+                        val rest = ByteArray(8192)
+                        while (plain.read(rest) >= 0) Unit
+                    } catch (d: BackupCrypto.Damaged) {
+                        throw BackupException(d.message ?: "Die Sicherung ist beschädigt.")
+                    }
+                }
+            }
+        }
+    }
+
     companion object {
+        private const val META = "heliolink-backup.json"
+        private const val ENCRYPTED = "daten.verschluesselt"
+
         fun fileDate(): String = LocalDate.now().toString()
     }
 }
