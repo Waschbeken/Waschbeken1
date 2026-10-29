@@ -224,8 +224,11 @@ fun HomeScreen(nav: NavHostController) {
                     controller?.setLiveHeartRate(it)
                 }
             }
-            item { de.waschbeken.heliolink.ui.events.QuickEntryCard(state.dataVersion) }
-            item { de.waschbeken.heliolink.ui.tools.HelperCard(nav) }
+            item {
+                de.waschbeken.heliolink.ui.events.QuickEntryCard(state.dataVersion) {
+                    de.waschbeken.heliolink.ui.tools.HelperRow(nav)
+                }
+            }
             if (d != null) {
                 item { SectionHeader("Heute im Überblick") }
                 item { TileGrid(d, state, profile.stepGoal, hidden, order, nav) }
@@ -241,7 +244,7 @@ fun HomeScreen(nav: NavHostController) {
                         if (d.day.isEmpty()) {
                             Text("Noch keine Daten für heute – nach dem nächsten Abruf erscheinen sie hier.", style = MaterialTheme.typography.bodySmall)
                         } else {
-                            val stages = remember(d) { d.night?.stages?.associate { (t, st) -> t / 60 * 60 to st }.orEmpty() }
+                            val stages = remember(d) { (listOfNotNull(d.night) + d.naps).flatMap { it.stages }.associate { (t, st) -> t / 60 * 60 to st } }
                             val counts = remember(d) {
                                 val c = HashMap<de.waschbeken.heliolink.ui.DayState, Int>()
                                 d.day.forEach { s -> c.merge(de.waschbeken.heliolink.ui.dayState(listOf(s), stages), 1) { a, b -> a + b } }

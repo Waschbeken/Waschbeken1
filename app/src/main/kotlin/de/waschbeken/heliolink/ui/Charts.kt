@@ -842,7 +842,9 @@ fun DayChart(
         for ((idx, b) in buckets) {
             val t = from + idx * 300
             val stage = b.firstNotNullOfOrNull { sleepStages[it.timestamp] }
-            val sleeping = stage != null || b.count { it.isSleep } > b.size / 2
+            // Only sleep the sleep detection confirmed (night or nap): the strap also marks short calm
+            // stretches with a high pulse as sleep.
+            val sleeping = stage != null
             val color = when {
                 stage != null -> Palette.stage(stage)
                 sleeping -> Palette.Light
@@ -956,7 +958,6 @@ fun dayState(samples: List<ActivitySample>, stages: Map<Long, SleepStage>): DayS
             SleepStage.LIGHT -> DayState.SLEEP_LIGHT
         }
     }
-    if (samples.count { it.isSleep } * 2 > samples.size) return DayState.SLEEP_LIGHT
     if (samples.count { it.notWorn } * 2 > samples.size) return DayState.NOT_WORN
     val stepsPerMinute = samples.sumOf { it.steps }.toFloat() / samples.size
     return when {

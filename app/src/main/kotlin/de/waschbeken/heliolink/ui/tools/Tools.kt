@@ -20,8 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -74,43 +74,38 @@ import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.math.roundToInt
 
-/** "Helfer" on the start page: breathing, HRV measurement and focus timer. */
+/** The helpers inside "Schnell eintragen": breathing, HRV measurement and focus timer. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun HelperCard(nav: NavHostController) {
+fun HelperRow(nav: NavHostController) {
     val app = LocalContext.current.app
     val state by app.repo.state.collectAsStateWithLifecycle()
-    Panel {
-        Text("Helfer", style = MaterialTheme.typography.titleMedium)
-        state.focus?.let { (start, plan) ->
-            var now by remember { mutableLongStateOf(System.currentTimeMillis() / 1000) }
-            LaunchedEffect(start) {
-                while (true) {
-                    now = System.currentTimeMillis() / 1000
-                    delay(1_000)
-                }
+    state.focus?.let { (start, plan) ->
+        var now by remember { mutableLongStateOf(System.currentTimeMillis() / 1000) }
+        LaunchedEffect(start) {
+            while (true) {
+                now = System.currentTimeMillis() / 1000
+                delay(1_000)
             }
-            val phase = plan.phaseAt(now - start)
-            Text(
-                if (phase == null) "Fokus-Timer fertig" else (if (phase.work) "Fokus" else "Pause") +
-                    " · Runde ${phase.round}/${plan.rounds} · noch ${phase.remaining / 60}:%02d".format(phase.remaining % 60),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
         }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilledTonalButton(onClick = { nav.navigate(Routes.TOOLS_BREATHE) }) {
-                Icon(Icons.Default.Air, contentDescription = null, modifier = Modifier.size(18.dp))
-                Text("  Atemübung")
-            }
-            FilledTonalButton(onClick = { nav.navigate(Routes.TOOLS_HRV) }) {
-                Icon(Icons.Default.MonitorHeart, contentDescription = null, modifier = Modifier.size(18.dp))
-                Text("  HRV messen")
-            }
-            FilledTonalButton(onClick = { nav.navigate(Routes.TOOLS_FOCUS) }) {
-                Icon(Icons.Default.Timer, contentDescription = null, modifier = Modifier.size(18.dp))
-                Text("  Fokus-Timer")
-            }
+        val phase = plan.phaseAt(now - start)
+        val text = if (phase == null) "Fokus-Timer fertig" else {
+            (if (phase.work) "Fokus" else "Pause") + " · Runde ${phase.round}/${plan.rounds} · noch " +
+                "${phase.remaining / 60}:%02d".format(phase.remaining % 60)
+        }
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+    }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf(
+            Triple("Atemübung", Icons.Default.Air, Routes.TOOLS_BREATHE),
+            Triple("HRV messen", Icons.Default.MonitorHeart, Routes.TOOLS_HRV),
+            Triple("Fokus-Timer", Icons.Default.Timer, Routes.TOOLS_FOCUS),
+        ).forEach { (label, icon, route) ->
+            AssistChip(
+                onClick = { nav.navigate(route) },
+                label = { Text(label) },
+                leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp)) },
+            )
         }
     }
 }

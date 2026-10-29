@@ -102,7 +102,7 @@ fun CollapsibleTagPicker(
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun QuickEntryCard(dataVersion: Int) {
+fun QuickEntryCard(dataVersion: Int, helpers: @Composable () -> Unit = {}) {
     val context = LocalContext.current
     val app = context.app
     val scope = rememberCoroutineScope()
@@ -149,6 +149,7 @@ fun QuickEntryCard(dataVersion: Int) {
                 leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
             )
         }
+        if (buttonsOpen) helpers()
         de.waschbeken.heliolink.ui.home.SubstancesSection(dataVersion + reload)
         val list = events.orEmpty()
         if (buttonsOpen && list.isNotEmpty()) {

@@ -144,9 +144,16 @@ object Queries {
         val from = date.atTime(9, 0).atZone(zone).toEpochSecond()
         val to = date.atTime(21, 0).atZone(zone).toEpochSecond()
         val tuning = db.prefs.sleepTuning
-        return SleepAnalyzer.sessions(db.activity(from, to), maxGapMinutes = 15, minMinutes = 15)
+        val samples = db.activity(from, to)
+        // A pulse far above rest is not sleep, even when the strap was lying still.
+        val resting = db.values(HealthDb.RESTING_HR, from - 7 * 86_400L, to).lastOrNull()?.value ?: 60
+        return SleepAnalyzer.sessions(samples, maxGapMinutes = 15, minMinutes = 15)
             .filter { s -> mainNight == null || s.end <= mainNight.start || s.start >= mainNight.end }
             .filter { it.asleepMinutes < 4 * 60 && it.asleepMinutes >= tuning.minSleepMinutes.coerceAtMost(15) }
+            .filter { s ->
+                val hr = samples.filter { it.timestamp in s.start until s.end && it.heartRate > 0 }.map { it.heartRate }
+                hr.isEmpty() || hr.average() < maxOf(resting + 20, 80)
+            }
     }
 
     /** The night (date of its morning) an entry at [ts] belongs to: before 4 am the same morning, otherwise the next. */
