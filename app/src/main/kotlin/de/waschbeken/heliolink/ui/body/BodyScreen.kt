@@ -123,7 +123,7 @@ fun BodyScreen(nav: NavHostController) {
     val app = LocalContext.current.app
     val state by app.repo.state.collectAsStateWithLifecycle()
     var reload by remember { mutableIntStateOf(0) }
-    val data by dbValue(state.dataVersion, reload) { load(it) }
+    val data by de.waschbeken.heliolink.ui.cachedDbValue("body", state.dataVersion, reload) { load(it) }
     Scaffold(topBar = { TopAppBar(title = { Text("Körper") }) }) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),

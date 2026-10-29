@@ -136,12 +136,12 @@ fun TrainingScreen(nav: NavHostController) {
     val state by app.repo.state.collectAsStateWithLifecycle()
     val tick by app.prefs.changes.collectAsStateWithLifecycle()
     val profile = app.prefs.profile.also { tick }
-    val data by dbValue(state.dataVersion) { load(it) }
+    val data by de.waschbeken.heliolink.ui.cachedDbValue("training", state.dataVersion) { load(it) }
     val controller = app.repo.controller
     var sport by remember { mutableStateOf(app.prefs.defaultSport) }
     var useIntervals by remember { mutableStateOf(false) }
     var plan by remember { mutableStateOf(de.waschbeken.heliolink.core.IntervalPlan.decode(app.prefs.intervalPlan) ?: de.waschbeken.heliolink.core.IntervalPlan.PRESETS[0]) }
-    val summary by dbValue(state.dataVersion, tick) { loadTrainingSummary(it, profile) }
+    val summary by de.waschbeken.heliolink.ui.cachedDbValue("training-summary", state.dataVersion, tick) { loadTrainingSummary(it, profile) }
     val rest = profile.zoneRest(data?.restingHr)
     val sections = de.waschbeken.heliolink.ui.rememberSections()
 

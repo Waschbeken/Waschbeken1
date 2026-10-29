@@ -209,7 +209,8 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
     override fun syncNow() {
         handler.post {
             val days = prefs.historyDays.toLong()
-            val sleepCode = prefs.sleepCode.takeIf { it > 0 }
+            // Without a code found by the search, the strap's known sleep record code is used.
+            val sleepCode = prefs.sleepCode.takeIf { it > 0 } ?: StrapProtocol.SLEEP_CODE
             val offset = prefs.sleepOffset
             connection?.startSync {
                 sleepRecordOffset = offset
