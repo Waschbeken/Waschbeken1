@@ -89,6 +89,8 @@ private class NightData(
     val temperature: List<ValueSample>,
     val tempBaseline: Double?,
     val naps: List<SleepSession> = emptyList(),
+    /** The strap's own oxygen drop summary of this night. */
+    val odi: de.waschbeken.heliolink.core.OdiNight? = null,
 )
 
 private class RangeData(val nights: Map<LocalDate, Queries.NightSummary>, val period: Period, val date: LocalDate)
@@ -111,6 +113,7 @@ private fun loadNight(db: HealthDb, date: LocalDate): NightData {
         temperature = db.values(HealthDb.TEMPERATURE, s, e),
         tempBaseline = baseline,
         naps = Queries.naps(db, date, zone, night),
+        odi = date.atStartOfDay(zone).toEpochSecond().let { midnight -> db.odi(midnight - 12 * 3600, midnight + 12 * 3600).lastOrNull() },
     )
 }
 
@@ -196,16 +199,34 @@ fun SleepScreen(nav: NavHostController) {
     }
 }
 
-/** Oxygen drops during the night, a hint for breathing pauses. */
+/** Oxygen drops during the night, a hint for breathing pauses: the strap's own summary and HelioLink's count. */
 @Composable
-private fun OxygenPanel(o: de.waschbeken.heliolink.core.OxygenDrops.Result) {
+private fun OxygenPanel(o: de.waschbeken.heliolink.core.OxygenDrops.Result?, strap: de.waschbeken.heliolink.core.OdiNight?) {
     Panel {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Sauerstoff-Abfälle", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            Text(o.rating, style = MaterialTheme.typography.labelLarge, color = if (o.perHour >= 15) MaterialTheme.colorScheme.error else Palette.Spo2)
+            if (o != null) {
+                Text(o.rating, style = MaterialTheme.typography.labelLarge, color = if (o.perHour >= 15) MaterialTheme.colorScheme.error else Palette.Spo2)
+            }
+        }
+        if (strap != null) {
+            Text(
+                if (strap.validTime > 0) {
+                    "Auswertung des Straps: ${strap.drops} Abfälle" + (strap.score?.let { " · Bewertung $it" } ?: "") +
+                        (strap.validTime.takeIf { it in 60..86_400 }?.let { " · ${formatMinutes((it / 60).toInt())} auswertbar" } ?: "")
+                } else {
+                    "Der Strap konnte diese Nacht nicht auswerten (zu wenig ruhige Messzeit)."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        if (o == null) {
+            Text("Der Strap wertet selbst aus, wie oft der Sauerstoff im Schlaf abfällt. Keine Diagnose.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            return@Panel
         }
         Text(
-            "${o.drops} Abfälle um mindestens ${de.waschbeken.heliolink.core.OxygenDrops.DROP} % · " + "%.1f".format(o.perHour) +
+            (if (strap != null) "Gezählt von HelioLink: " else "") +
+                "${o.drops} Abfälle um mindestens ${de.waschbeken.heliolink.core.OxygenDrops.DROP} % · " + "%.1f".format(o.perHour) +
                 " pro Stunde · niedrigster Wert ${o.lowest} %" + if (o.minutesBelow90 > 0) " · ${o.minutesBelow90} min unter 90 %" else "",
             style = MaterialTheme.typography.bodyMedium,
         )
@@ -437,9 +458,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(
             StatTile("Atemfrequenz", d.breath.map { it.value }.takeIf { it.isNotEmpty() }?.average()?.roundToInt()?.let { "$it /min" } ?: "–", Modifier.weight(1f))
         }
     }
-    de.waschbeken.heliolink.core.OxygenDrops.analyze(Queries.during(d.spo2, n), n.asleepMinutes)?.let { o ->
-        item { OxygenPanel(o) }
-    }
+    val drops = de.waschbeken.heliolink.core.OxygenDrops.analyze(Queries.during(d.spo2, n), n.asleepMinutes)
+    if (drops != null || d.odi != null) item { OxygenPanel(drops, d.odi) }
     val tempAvg = d.temperature.map { it.value / 100.0 }.takeIf { it.isNotEmpty() }?.average()
     if (tempAvg != null) {
         item {

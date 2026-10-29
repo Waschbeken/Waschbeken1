@@ -84,7 +84,6 @@ object Routes {
     fun alarm(position: Int) = "alarm/$position"
     fun sleepEdit(day: Long) = "sleep/edit/$day"
     const val TOOLS_BREATHE = "tools/breathe"
-    const val TOOLS_HRV = "tools/hrv"
     const val TOOLS_FOCUS = "tools/focus"
 }
 
@@ -376,7 +375,6 @@ private fun AppContent(pendingRoute: String?, onRouteShown: () -> Unit, onForget
             composable(Routes.ALARMS) { AlarmsScreen(nav) }
             composable(Routes.SETTINGS) { SettingsScreen(nav) }
             composable(Routes.TOOLS_BREATHE) { de.waschbeken.heliolink.ui.tools.BreatheScreen(nav) }
-            composable(Routes.TOOLS_HRV) { de.waschbeken.heliolink.ui.tools.HrvMeasureScreen(nav) }
             composable(Routes.TOOLS_FOCUS) { de.waschbeken.heliolink.ui.tools.FocusScreen(nav) }
             composable("metric/{type}") { MetricScreen(nav, it.arguments?.getString("type").orEmpty()) }
             composable("settings/{category}") { SettingsCategoryScreen(nav, it.arguments?.getString("category").orEmpty(), onForget) }

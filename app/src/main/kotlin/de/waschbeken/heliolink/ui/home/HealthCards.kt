@@ -87,6 +87,15 @@ fun BodyCheckCard(result: BodyCheck.Result, hints: List<String>) {
 }
 
 private val hm = DateTimeFormatter.ofPattern("HH:mm")
+
+/** "Noch etwa 6 h 30 min im Körper (bis ca. 05:40, dann unter 10 %)." or "Weitgehend abgebaut." */
+private fun inBody(gone: Long?, now: Long, what: String): String {
+    if (gone == null) return "Noch über 2 Tage im Körper."
+    if (gone <= now) return "Weitgehend abgebaut."
+    val minutes = ((gone - now) / 60).toInt()
+    val left = if (minutes >= 60) "${minutes / 60} h ${minutes % 60} min" else "$minutes min"
+    return "Noch etwa $left im Körper (bis ca. ${clock(gone)}, dann $what)."
+}
 private fun clock(epoch: Long) = Instant.ofEpochSecond(epoch).atZone(ZoneId.systemDefault()).format(hm)
 
 /** What the substances card shows, loaded off the main thread. */
@@ -133,17 +142,18 @@ fun SubstancesSection(dataVersion: Int) {
         }
         recent[Substances.Kind.CAFFEINE]?.let { list ->
             val kind = Substances.Kind.CAFFEINE
-            val level = Substances.level(list, kind, now)
+            // Never before the newest entry, so a fresh entry counts in full right away.
+            val t = maxOf(now, list.maxOf { it.timestamp })
+            val level = Substances.level(list, kind, t)
             val atBed = Substances.level(list, kind, d.bedtime)
             Text("Koffein: ca. ${level.toInt()} mg jetzt · ca. ${atBed.toInt()} mg zur Schlafenszeit", style = MaterialTheme.typography.bodyMedium)
             LinearProgressIndicator(progress = { (level / 400.0).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(6.dp))
-            val below = Substances.timeBelow(list, kind, 25.0, now)
             Text(
-                when {
-                    atBed >= 50 -> "Das kann Einschlafen und Tiefschlaf stören. "
-                    atBed >= 25 -> "Wenig, aber empfindliche Menschen merken das. "
-                    else -> "Zur Schlafenszeit kaum noch etwas. "
-                } + (below?.takeIf { it > now }?.let { "Unter 25 mg ab ca. ${clock(it)}." } ?: ""),
+                inBody(Substances.timeBelow(list, kind, 25.0, t), t, "unter 25 mg") + " " + when {
+                    atBed >= 50 -> "Zur Schlafenszeit ist noch genug da, um Einschlafen und Tiefschlaf zu stören."
+                    atBed >= 25 -> "Zur Schlafenszeit wenig – empfindliche Menschen merken das."
+                    else -> "Zur Schlafenszeit kaum noch etwas."
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -151,16 +161,18 @@ fun SubstancesSection(dataVersion: Int) {
         recent[Substances.Kind.NICOTINE]?.let { list ->
             val kind = Substances.Kind.NICOTINE
             val last = list.maxOf { it.timestamp }
-            val ago = (now - last) / 60
-            val gone = Substances.timeBelow(list, kind, list.maxOf { it.amount } * 0.1, now)
-            val share = Substances.level(list, kind, now) / list.filter { it.timestamp == last }.sumOf { it.amount }
+            val t = maxOf(now, last)
+            val ago = (t - last) / 60
+            val lastAmount = list.filter { it.timestamp == last }.sumOf { it.amount }
+            val share = Substances.level(list, kind, t) / lastAmount
             Text(
                 "Nikotin: zuletzt vor " + (if (ago >= 60) "${ago / 60} h ${ago % 60} min" else "$ago min") +
-                    " · noch etwa ${(share * 100).toInt().coerceAtMost(100)} % davon",
+                    " · noch etwa ${(share * 100).toInt().coerceIn(0, 100)} % davon",
                 style = MaterialTheme.typography.bodyMedium,
             )
+            LinearProgressIndicator(progress = { share.toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(6.dp))
             Text(
-                (gone?.takeIf { it > now }?.let { "Weitgehend abgebaut (unter 10 %) ab ca. ${clock(it)}. " } ?: "Weitgehend abgebaut. ") +
+                inBody(Substances.timeBelow(list, kind, lastAmount * 0.1, t), t, "unter 10 %") + " " +
                     "Nikotin hebt Puls und Wachheit – kurz vor dem Schlafen macht es das Einschlafen schwerer.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

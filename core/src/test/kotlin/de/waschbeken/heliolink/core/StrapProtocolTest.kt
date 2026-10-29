@@ -129,6 +129,58 @@ class StrapProtocolTest {
         assertEquals(t.toLong() + 120, samples[1].timestamp)
     }
 
+    /** Runs one fetch of [type] that answers with [data] and returns the events. */
+    private fun fetchOnce(type: FetchType, data: ByteArray): List<StrapEvent> {
+        val h = Harness(key, now)
+        val cursor = object : SyncCursor {
+            override fun get(type: FetchType): Long? = null
+            override fun set(type: FetchType, epochMillis: Long) {}
+        }
+        h.protocol.startSync(cursor, listOf(type))
+        assertEquals(type.code, h.writes.last().value[1].toInt() and 0xff)
+        h.protocol.onFetchControlNotification(byteArrayOf(0x10, 0x01, 0x01) + le32(data.size) + byteArrayOf(*le16(2026), 10, 29, 3, 0, 0, 4))
+        data.toList().chunked(200).forEachIndexed { i, part -> h.protocol.onFetchDataNotification(byteArrayOf(i.toByte()) + part.toByteArray()) }
+        h.protocol.onFetchControlNotification(byteArrayOf(0x10, 0x02, 0x01) + le32(crc32(data)))
+        return h.events
+    }
+
+    @Test
+    fun fetchesSdnn() {
+        val t = 1_793_000_000
+        val data = le32(t) + byteArrayOf(4) + le32(4_250) + le32(t + 3600) + byteArrayOf(4) + le32(-1)
+        val samples = fetchOnce(FetchType.HRV_SDNN, data).filterIsInstance<StrapEvent.SdnnData>().single().samples
+        assertEquals(listOf(43), samples.map { it.value })
+    }
+
+    @Test
+    fun fetchesSleepSpo2() {
+        val t = 1_793_000_000
+        val rec = { ts: Int, v: Int -> le32(ts) + byteArrayOf(v.toByte(), 60) + ByteArray(24) }
+        val data = byteArrayOf(2) + rec(t, 95) + rec(t + 300, 91)
+        val samples = fetchOnce(FetchType.SPO2_SLEEP, data).filterIsInstance<StrapEvent.Spo2Data>().single().samples
+        assertEquals(listOf(95, 91), samples.map { it.value })
+    }
+
+    @Test
+    fun fetchesOxygenDropSummary() {
+        val day = 1_793_000_000
+        val night = ByteArray(2896).also { r ->
+            le32(day).copyInto(r, 0)
+            le32(25_000).copyInto(r, 4)
+            le32(320).copyInto(r, 8)
+            r[12] = 88
+            r[15] = 12
+        }
+        val empty = ByteArray(2896).also { le32(day - 86_400).copyInto(it, 0) }
+        val nights = fetchOnce(FetchType.ODI, empty + night).filterIsInstance<StrapEvent.OdiData>().single().nights
+        assertEquals(2, nights.size)
+        assertEquals(0, nights[0].drops)
+        assertEquals(null, nights[0].score)
+        assertEquals(12, nights[1].drops)
+        assertEquals(88, nights[1].score)
+        assertEquals(320L, nights[1].odi)
+    }
+
     @Test
     fun emptyStartTimeDoesNotCrash() {
         val h = Harness(key, now)
