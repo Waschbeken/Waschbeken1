@@ -343,8 +343,8 @@ fun HrvMeasureScreen(nav: NavHostController) {
                             Text("1 Minute in Ruhe", style = MaterialTheme.typography.titleMedium)
                             Text(
                                 "Am besten morgens direkt nach dem Aufwachen, im Liegen, jeden Tag gleich. Nicht reden, nicht bewegen, " +
-                                    "normal atmen. Der Strap gibt seine Nacht-HRV nicht heraus – mit dieser Messung bekommst du trotzdem " +
-                                    "einen täglichen Wert für den HRV-Status. Nebenbei wird der Herzrhythmus geprüft.",
+                                    "normal atmen. Der Strap misst die HRV zwar selbst, aber unter wechselnden Bedingungen – diese Messung " +
+                                    "gibt dir jeden Tag einen gut vergleichbaren Wert. Nebenbei wird der Herzrhythmus geprüft.",
                                 style = MaterialTheme.typography.bodySmall,
                             )
                             outcome?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = Palette.Hrv) }
@@ -380,7 +380,7 @@ fun HrvMeasureScreen(nav: NavHostController) {
             }
             item {
                 Panel {
-                    Text("Letzte 14 Tage", style = MaterialTheme.typography.titleMedium)
+                    Text("HRV morgens, letzte 14 Tage", style = MaterialTheme.typography.titleMedium)
                     val today = LocalDate.now()
                     val days = (13 downTo 0).map { today.minusDays(it.toLong()) }
                     val h = history.orEmpty()

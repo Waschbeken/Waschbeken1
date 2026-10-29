@@ -557,6 +557,17 @@ class StrapProtocol(
                 if (samples.isNotEmpty()) emit(StrapEvent.RespirationData(samples))
                 end = samples.maxOfOrNull { it.timestamp }?.plus(60)
             }
+            FetchType.HRV -> {
+                // like the resting heart rate: timestamp(4) utc offset in quarter hours(1) HRV in ms(1), 0xff = empty
+                if (data.size % 6 != 0) {
+                    emit(StrapEvent.Log("HRV: unbekanntes Format (${data.size} Bytes)"))
+                    return false
+                }
+                val samples = (0 until data.size / 6).map { n -> ValueSample(data.u32(n * 6), data.u8(n * 6 + 5)) }
+                    .filter { it.value in 5..250 }
+                if (samples.isNotEmpty()) emit(StrapEvent.HrvData(samples))
+                end = samples.maxOfOrNull { it.timestamp }?.plus(60)
+            }
             FetchType.SLEEP -> {
                 val records = SleepRecordParser.parseAll(data, sleepRecordOffset)
                 if (records.isNotEmpty()) emit(StrapEvent.SleepData(records))
@@ -580,7 +591,7 @@ class StrapProtocol(
         /** Fetch codes that are not used by any data type we know, tried when looking for sleep records. */
         val SLEEP_CODE_CANDIDATES: List<Int> =
             ((0x27..0x50) + (0x14..0x24) + (0x08..0x0c) + (0x0e..0x11) + listOf(0x03, 0x04))
-                .filter { it !in setOf(0x2c, 0x2e, 0x38, 0x3a, 0x3d) }
+                .filter { it !in setOf(0x2c, 0x2e, 0x38, 0x3a, 0x3d, 0x49) }
     }
 }
 

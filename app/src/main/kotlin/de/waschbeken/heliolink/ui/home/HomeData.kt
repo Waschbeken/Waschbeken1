@@ -71,8 +71,6 @@ class HomeData(
 
             val hrvAll = db.values(HealthDb.HRV, past, dayEnd)
             val hrvNight = Queries.during(hrvAll, night).map { it.value }.takeIf { it.isNotEmpty() }?.average()
-            val hrvByNight = hrvAll.groupBy { (it.timestamp + 6 * 3600) / 86400 }.values.map { v -> v.map { it.value }.average() }
-            val hrvBaseline = hrvByNight.dropLast(1).takeIf { it.size >= 3 }?.average()
 
             val temps = db.values(HealthDb.TEMPERATURE, past, dayEnd)
             val tempNight = Queries.during(temps, night).map { it.value / 100.0 }.takeIf { it.isNotEmpty() }?.average()
@@ -88,13 +86,16 @@ class HomeData(
             val next = nextAlarm(alarms.map { it.alarm })
             val nextLabel = alarms.firstOrNull { next != null && it.alarm.hour == next.hour && it.alarm.minute == next.minute }?.label.orEmpty()
 
-            val vitals = Queries.nightVitals(db, today.minusDays(36), today, zone)
+            val vitals = Queries.nightVitals(db, today.minusDays(60), today, zone)
+            // Usual night HRV of the last four weeks (the strap also measures by day, which is lower).
+            val hrvBaseline = vitals.filter { it.date < today && it.date > today.minusDays(29) }.mapNotNull { it.hrv }
+                .takeIf { it.size >= 3 }?.average()
             val bodyCheck = BodyCheck.check(vitals)?.takeIf { it.date == today }
             val hints = if (bodyCheck == null || bodyCheck.level == BodyCheck.Level.NORMAL) emptyList() else {
                 (Queries.eventsForNight(db, today, zone).map { it.tag } + db.sleepTags(today.toEpochDay(), today.toEpochDay())[today.toEpochDay()].orEmpty())
                     .filter { t -> BODY_CHECK_HINTS.any { t.contains(it, ignoreCase = true) } }.distinct()
             }
-            val hrvStatus = HrvStatus.status(Queries.hrvDaily(db, today.minusDays(60), today, zone), today)
+            val hrvStatus = HrvStatus.status(vitals.mapNotNull { v -> v.hrv?.let { v.date to it } }.toMap(), today)
 
             return HomeData(
                 date = today,

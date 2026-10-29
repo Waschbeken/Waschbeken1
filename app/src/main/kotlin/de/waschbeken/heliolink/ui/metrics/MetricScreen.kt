@@ -113,9 +113,10 @@ enum class Metric(val key: String, val title: String, val color: Color, val abou
     HRV(
         "hrv", "Herzfrequenzvariabilität", Palette.Hrv,
         "Die HRV zeigt, wie flexibel dein Nervensystem ist. Wichtig ist der Vergleich mit deinem eigenen Schnitt: " +
-            "höher als sonst heißt meist gut erholt, deutlich niedriger heißt Belastung. Nachts kommt sie aus dem Import; " +
-            "tagsüber berechnet HelioLink sie jede Minute aus den Herzschlag-Abständen, solange der Puls live gemessen wird " +
-            "(Live-Puls, Puls-Aufzeichnung, Training). Werte in Bewegung schwanken stark.",
+            "höher als sonst heißt meist gut erholt, deutlich niedriger heißt Belastung. Der Strap misst sie selbst alle ein " +
+            "bis zwei Minuten, Tag und Nacht, und HelioLink holt sie beim Abruf. Läuft der Puls live (Live-Puls, Aufzeichnung, " +
+            "Training), rechnet HelioLink zusätzlich jede Minute aus den Herzschlag-Abständen. Werte in Bewegung schwanken stark; " +
+            "am aussagekräftigsten ist die HRV im Schlaf.",
     ),
     TEMPERATURE(
         "temperature", "Hauttemperatur", Palette.Temperature,
@@ -419,15 +420,16 @@ private fun RhythmPanel(dataVersion: Int) {
 private fun HrvStatusPanel(dataVersion: Int) {
     val result by dbValue(dataVersion) { db ->
         val today = LocalDate.now()
-        de.waschbeken.heliolink.core.HrvStatus.status(Queries.hrvDaily(db, today.minusDays(60), today, ZoneId.systemDefault()), today)
+        val nightly = Queries.nightVitals(db, today.minusDays(60), today, ZoneId.systemDefault()).mapNotNull { v -> v.hrv?.let { v.date to it } }.toMap()
+        de.waschbeken.heliolink.core.HrvStatus.status(nightly, today)
     }
     Panel {
         Text("HRV-Status", style = MaterialTheme.typography.titleMedium)
         val r = result
         if (r == null) {
             Text(
-                "Braucht HRV-Werte aus mindestens 14 Nächten oder Morgenmessungen, davon 3 in der letzten Woche. Der Strap gibt " +
-                    "seine Nacht-HRV nicht heraus – sie kommt aus dem Gadgetbridge-Import oder aus Messungen mit Live-Puls am Morgen.",
+                "Braucht die HRV aus mindestens 14 Nächten, davon 3 in der letzten Woche. Der Strap liefert sie beim Abruf – " +
+                    "nach ein paar Nächten erscheint der Status.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
