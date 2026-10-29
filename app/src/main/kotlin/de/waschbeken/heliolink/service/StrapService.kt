@@ -332,10 +332,11 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 repo.dataChanged()
             }
             is StrapEvent.SleepCodeProbed -> {
-                if (event.code != null) {
-                    prefs.sleepCode = event.code
+                val code = event.code
+                if (code != null) {
+                    prefs.sleepCode = code
                     prefs.sleepOffset = event.offset
-                    repo.log("Schlafphasen gefunden (Code 0x%02x) – werden ab jetzt mit abgerufen".format(event.code))
+                    repo.log("Schlafphasen gefunden (Code 0x%02x) – werden ab jetzt mit abgerufen".format(code))
                 } else {
                     prefs.sleepCode = 0
                     repo.log("Der Strap liefert keine Schlafphasen-Datensätze, Schlaf wird aus den Minutenwerten berechnet")
