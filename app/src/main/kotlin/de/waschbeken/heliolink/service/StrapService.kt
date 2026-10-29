@@ -644,6 +644,10 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 db.insertValues(HealthDb.RESPIRATION, event.samples)
                 repo.log("${event.samples.size} Atemfrequenz-Werte gespeichert")
             }
+            is StrapEvent.HrvData -> {
+                db.insertValues(HealthDb.HRV, event.samples)
+                repo.log("${event.samples.size} HRV-Werte gespeichert")
+            }
             is StrapEvent.Alarms -> {
                 db.mergeStrapAlarms(event.alarms)
                 repo.update { it.copy(alarmsLoaded = true) }

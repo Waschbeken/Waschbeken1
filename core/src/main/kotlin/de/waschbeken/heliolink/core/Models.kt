@@ -65,6 +65,7 @@ enum class FetchType(val code: Int?, val label: String) {
     PAI(0x0d, "PAI"),
     TEMPERATURE(0x2e, "Hauttemperatur"),
     RESPIRATION(0x38, "Atemfrequenz"),
+    HRV(0x49, "HRV"),
     SLEEP(null, "Schlafphasen"),
 }
 
@@ -106,6 +107,8 @@ sealed interface StrapEvent {
     /** Skin temperature in hundredths of a degree Celsius. */
     data class TemperatureData(val samples: List<ValueSample>) : StrapEvent
     data class RespirationData(val samples: List<ValueSample>) : StrapEvent
+    /** The strap's own HRV values in ms, measured every one or two minutes (day and night). */
+    data class HrvData(val samples: List<ValueSample>) : StrapEvent
     data class Alarms(val alarms: List<StrapAlarm>) : StrapEvent
 
     /** Progress of the sleep code search: [tried] of [total] codes, with the last answer. */

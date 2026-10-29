@@ -109,6 +109,27 @@ class StrapProtocolTest {
     }
 
     @Test
+    fun fetchesHrv() {
+        val h = Harness(key, now)
+        val cursor = object : SyncCursor {
+            val map = HashMap<FetchType, Long>()
+            override fun get(type: FetchType) = map[type]
+            override fun set(type: FetchType, epochMillis: Long) { map[type] = epochMillis }
+        }
+        h.protocol.startSync(cursor, listOf(FetchType.HRV))
+        assertEquals(0x49, h.writes.last().value[1].toInt() and 0xff)
+        val t = ZonedDateTime.of(2026, 10, 29, 2, 0, 0, 0, ZoneId.of("UTC")).toEpochSecond().toInt()
+        // records: timestamp(4) tz(1) hrv(1); the last one is empty (0xff)
+        val data = le32(t) + byteArrayOf(4, 48) + le32(t + 120) + byteArrayOf(4, 52) + le32(t + 240) + byteArrayOf(4, -1)
+        h.protocol.onFetchControlNotification(byteArrayOf(0x10, 0x01, 0x01) + le32(data.size) + byteArrayOf(*le16(2026), 10, 29, 3, 0, 0, 4))
+        h.protocol.onFetchDataNotification(byteArrayOf(0) + data)
+        h.protocol.onFetchControlNotification(byteArrayOf(0x10, 0x02, 0x01) + le32(crc32(data)))
+        val samples = h.events.filterIsInstance<StrapEvent.HrvData>().single().samples
+        assertEquals(listOf(48, 52), samples.map { it.value })
+        assertEquals(t.toLong() + 120, samples[1].timestamp)
+    }
+
+    @Test
     fun emptyStartTimeDoesNotCrash() {
         val h = Harness(key, now)
         val cursor = object : SyncCursor {

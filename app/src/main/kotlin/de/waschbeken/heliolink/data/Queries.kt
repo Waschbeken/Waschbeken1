@@ -238,7 +238,7 @@ object Queries {
 
     /**
      * HRV of the night ending on [date]; without night values the morning measurement (04–11 h)
-     * stands in, because the strap does not hand out its night HRV.
+     * stands in (the strap's values or the HRV measurement on the helper page).
      */
     private fun hrvOfDay(hrv: List<ValueSample>, night: SleepSession?, date: LocalDate, zone: ZoneId): Double? {
         during(hrv, night).map { it.value.toDouble() }.filter { it in 5.0..250.0 }.takeIf { it.size >= 3 }?.let { return it.average() }
