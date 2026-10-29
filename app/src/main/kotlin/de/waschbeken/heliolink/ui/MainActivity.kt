@@ -173,7 +173,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        intent?.getStringExtra(EXTRA_ROUTE)?.let { pendingRoute = it }
+        intent?.getStringExtra(EXTRA_ROUTE)?.let {
+            pendingRoute = it
+            intent.removeExtra(EXTRA_ROUTE) // not again after a rotation
+        }
         if (intent?.getBooleanExtra(EXTRA_SHOW_UPDATE, false) == true) {
             val s = app.updater.state.value
             if (s is UpdateState.Available || s is UpdateState.Ready) app.updater.showDialog.value = true else app.updater.check()

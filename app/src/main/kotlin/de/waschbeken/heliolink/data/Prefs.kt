@@ -161,6 +161,15 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getBoolean("morning_summary", true)
         set(v) = edit { putBoolean("morning_summary", v) }
 
+    /** Weekly report on Monday morning: sleep, score and steps compared with the week before. */
+    var weeklySummary: Boolean
+        get() = sp.getBoolean("weekly_summary", true)
+        set(v) = edit { putBoolean("weekly_summary", v) }
+
+    var weeklySummaryDay: Long
+        get() = sp.getLong("weekly_summary_day", 0)
+        set(v) = edit { putLong("weekly_summary_day", v) }
+
     var morningSummaryDay: Long
         get() = sp.getLong("morning_summary_day", 0)
         set(v) = edit { putLong("morning_summary_day", v) }
