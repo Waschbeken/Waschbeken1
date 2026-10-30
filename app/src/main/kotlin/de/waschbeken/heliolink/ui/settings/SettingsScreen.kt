@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Dashboard
@@ -74,6 +75,7 @@ enum class SettingsSection(val title: String) { STRAP("Strap"), APP("App") }
 enum class SettingsCategory(val key: String, val section: SettingsSection, val title: String, val icon: ImageVector, val summary: String) {
     DEVICE("device", SettingsSection.STRAP, "Gerät & Verbindung", Icons.Default.Bluetooth, "Status, Akku, Firmware, Auth-Key, vibrieren lassen"),
     MEASUREMENTS("measurements", SettingsSection.STRAP, "Messungen", Icons.Default.MonitorHeart, "Pulsintervall, Aktivität, Schlaf, Stress, SpO₂, Pulswarnungen"),
+    BATTERY("battery", SettingsSection.STRAP, "Akku & Leistung", Icons.Default.BatteryChargingFull, "Profile: Akku sparen oder maximale Genauigkeit, Verbrauch pro Tag"),
     MOVEMENT("movement", SettingsSection.STRAP, "Bewegung & Ziele", Icons.AutoMirrored.Filled.DirectionsWalk, "Bewegungserinnerung, Nicht stören, Schrittziel, Trainingserkennung"),
     ALARMS("alarms", SettingsSection.STRAP, "Wecker", Icons.Default.Alarm, "Vibrationswecker mit Smart Wake auf dem Strap"),
     ARM("arm", SettingsSection.STRAP, "Am Arm vibrieren", Icons.Default.Vibration, "Anrufe und Nachrichten gewählter Apps"),
@@ -217,6 +219,7 @@ fun SettingsCategoryScreen(nav: NavHostController, key: String, onForget: () -> 
             when (category) {
                 SettingsCategory.DEVICE -> DevicePage(state, onForget)
                 SettingsCategory.MEASUREMENTS -> MeasurementsPage(state)
+                SettingsCategory.BATTERY -> BatteryPage(state)
                 SettingsCategory.MOVEMENT -> MovementPage(state)
                 SettingsCategory.ALARMS -> Unit
                 SettingsCategory.ARM -> ArmPage()

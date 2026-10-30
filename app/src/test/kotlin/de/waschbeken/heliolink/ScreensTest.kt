@@ -73,6 +73,10 @@ class ScreensTest {
             de.waschbeken.heliolink.core.Goal(de.waschbeken.heliolink.core.Goal.Kind.WITHOUT, 0, 7, "Nikotin"),
         )
         app.prefs.withoutTags = listOf("Nikotin", "Alkohol")
+        // As if the strap were connected, so the strap settings and profiles show their content.
+        app.repo.update {
+            it.copy(link = de.waschbeken.heliolink.ble.LinkState.READY, battery = 64, settings = DemoData.strapSettings)
+        }
         visitAll("demo")
     }
 
