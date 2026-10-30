@@ -70,7 +70,12 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         const val PAUSED_TEXT = "Pausiert – der Strap ist frei für die Zepp-App"
 
         fun start(context: Context) {
-            ContextCompat.startForegroundService(context, Intent(context, StrapService::class.java))
+            try {
+                ContextCompat.startForegroundService(context, Intent(context, StrapService::class.java))
+            } catch (e: Exception) {
+                // Android may refuse a start from the background; the app starts the service when opened.
+                context.app.repo.log("Dienst konnte nicht starten: ${e.message}")
+            }
         }
     }
 

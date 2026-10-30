@@ -76,13 +76,31 @@ class ScreensTest {
         visitAll("demo")
     }
 
-    private fun visitAll(name: String) {
+    /** The main screens in the dark theme. */
+    @Test
+    fun darkTheme() {
+        DemoData.fill(app.db)
+        start("dunkel", ThemeMode.DARK)
+        shot("01-heute")
+        open(Routes.DATA, "02-daten")
+        open(Routes.SLEEP, "03-schlaf")
+        open(Routes.TRAINING, "04-sport")
+        open(Routes.BODY, "05-koerper")
+        open(Routes.PROGRESS, "40-fortschritt")
+        open(Routes.metric(Metric.HEART.key), "10-heart")
+    }
+
+    private fun start(name: String, theme: ThemeMode) {
         shots = File("build/screenshots/$name").apply { mkdirs() }
         compose.mainClock.autoAdvance = false
         compose.setContent {
-            HelioTheme(mode = ThemeMode.LIGHT) { AppContent(route, onRouteShown = { route = null }, onForget = {}) }
+            HelioTheme(mode = theme) { AppContent(route, onRouteShown = { route = null }, onForget = {}) }
         }
         settle()
+    }
+
+    private fun visitAll(name: String) {
+        start(name, ThemeMode.LIGHT)
         shot("01-heute")
 
         open(Routes.DATA, "02-daten")
