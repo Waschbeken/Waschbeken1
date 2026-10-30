@@ -1,5 +1,7 @@
 package de.waschbeken.heliolink.core
 
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -49,5 +51,21 @@ class StressMomentsTest {
         val stress = (0 until 20).map { now - 40 * 60 + it * 60L to 85 }
         val walking = stress.associate { it.first to 100 }
         assertNull(StressMoments.find(stress, walking, now))
+    }
+}
+
+class EntryTimeTest {
+    private val zone = ZoneId.of("Europe/Berlin")
+    private val now = ZonedDateTime.of(2026, 10, 30, 7, 30, 0, 0, zone)
+
+    @Test
+    fun earlierTimeIsToday() {
+        assertEquals(ZonedDateTime.of(2026, 10, 30, 6, 45, 0, 0, zone).toEpochSecond(), EntryTime.at(6, 45, now))
+        assertEquals(now.toEpochSecond(), EntryTime.at(7, 30, now))
+    }
+
+    @Test
+    fun laterTimeIsYesterday() {
+        assertEquals(ZonedDateTime.of(2026, 10, 29, 23, 0, 0, 0, zone).toEpochSecond(), EntryTime.at(23, 0, now))
     }
 }

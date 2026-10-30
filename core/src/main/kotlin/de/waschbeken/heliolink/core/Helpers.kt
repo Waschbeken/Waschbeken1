@@ -1,7 +1,17 @@
 package de.waschbeken.heliolink.core
 
+import java.time.ZonedDateTime
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
+
+/** When a quick entry happened, from a time of day picked afterwards. */
+object EntryTime {
+    /** [hour]:[minute] on the day of [now], or the day before when that is still ahead (23:00 picked at 06:00 = last night). */
+    fun at(hour: Int, minute: Int, now: ZonedDateTime): Long {
+        val sameDay = now.toLocalDate().atTime(hour, minute).atZone(now.zone)
+        return (if (sameDay.isAfter(now.plusMinutes(1))) sameDay.minusDays(1) else sameDay).toEpochSecond()
+    }
+}
 
 /** A short HRV measurement at rest (e.g. right after waking up) from the beat intervals. */
 object HrvMeasurement {
