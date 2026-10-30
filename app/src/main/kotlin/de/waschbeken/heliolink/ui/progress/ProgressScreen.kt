@@ -117,6 +117,7 @@ fun ProgressScreen(nav: NavHostController) {
             ) {
                 item { GoalsPanel(goals, facts, today) { prefs.goals = it } }
                 item { WithoutPanel(without, facts?.abstinence, prefs.quickTags) { prefs.withoutTags = it } }
+                facts?.records?.takeIf { it.isNotEmpty() }?.let { records -> item { RecordsPanel(records) } }
                 item {
                     CalendarPanel(year, metric, calendar, today, onYear = { year = it }, onMetric = { calendarMetric = it.name })
                 }
@@ -383,6 +384,29 @@ private fun WithoutPanel(tags: List<String>, results: Map<String, Abstinence.Res
                 label = { Text("Hinzufügen") },
                 leadingIcon = { Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
             )
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------- records
+
+@Composable
+private fun RecordsPanel(records: List<Record>) {
+    val day = DateTimeFormatter.ofPattern("d. MMM yyyy", German)
+    Panel {
+        Text("Bestwerte", style = MaterialTheme.typography.titleMedium)
+        Text("Deine Rekorde der letzten 12 Monate", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        records.chunked(2).forEach { pair ->
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                pair.forEach { r ->
+                    Column(Modifier.weight(1f)) {
+                        Text(r.label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(r.value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        Text(r.date.format(day), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                if (pair.size == 1) Box(Modifier.weight(1f))
+            }
         }
     }
 }

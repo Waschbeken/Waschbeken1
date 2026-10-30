@@ -19,7 +19,12 @@ import java.time.ZoneId
 internal class ProgressFacts(
     val days: Map<LocalDate, DayFacts>,
     val abstinence: Map<String, Abstinence.Result>,
+    /** Personal bests of the period. */
+    val records: List<Record> = emptyList(),
 )
+
+/** A personal best, e.g. the most steps on one day. */
+internal class Record(val label: String, val value: String, val date: LocalDate)
 
 /** One value per day of a year for the calendar. */
 internal enum class CalendarMetric(val label: String, val lowIsGood: Boolean = false) {
@@ -77,7 +82,36 @@ internal object ProgressData {
         val abstinence = tags.associateWith { tag ->
             Abstinence.of(all.filter { it.tag == tag }.map { day(it.timestamp) }, first, today)
         }
-        return ProgressFacts(days, abstinence)
+        return ProgressFacts(days, abstinence, if (weeks < 4) emptyList() else records(db, nights, totals, from, today))
+    }
+
+    private fun records(
+        db: HealthDb,
+        nights: Map<LocalDate, Queries.NightSummary>,
+        totals: Map<LocalDate, Queries.DayTotals>,
+        from: LocalDate,
+        to: LocalDate,
+    ): List<Record> {
+        val out = ArrayList<Record>()
+        totals.values.filter { it.steps > 0 }.maxByOrNull { it.steps }?.let {
+            out += Record("Meiste Schritte", "%,d".format(java.util.Locale.GERMANY, it.steps), it.date)
+        }
+        totals.values.filter { it.steps > 0 }.maxByOrNull { it.activeMinutes }?.let {
+            out += Record("Aktivster Tag", "${it.activeMinutes} aktive min", it.date)
+        }
+        nights.values.maxByOrNull { it.asleepMinutes }?.let {
+            out += Record("Längster Schlaf", "%d:%02d h".format(it.asleepMinutes / 60, it.asleepMinutes % 60), it.date)
+        }
+        nights.values.maxByOrNull { it.score }?.let { out += Record("Beste Nacht", "Score ${it.score}", it.date) }
+        val start = from.atStartOfDay(zone).toEpochSecond()
+        val end = to.plusDays(1).atStartOfDay(zone).toEpochSecond()
+        db.values(HealthDb.RESTING_HR, start, end).filter { it.value in 30..120 }.minByOrNull { it.value }?.let {
+            out += Record("Niedrigster Ruhepuls", "${it.value} bpm", day(it.timestamp))
+        }
+        Queries.hrvDaily(db, from, to, zone).maxByOrNull { it.value }?.let {
+            out += Record("Höchste HRV", "${it.value.toInt()} ms", it.key)
+        }
+        return out
     }
 
     fun calendar(db: HealthDb, profile: UserProfile, year: Int, metric: CalendarMetric): Map<LocalDate, Float> {
