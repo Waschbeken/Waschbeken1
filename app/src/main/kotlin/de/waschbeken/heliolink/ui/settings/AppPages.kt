@@ -186,9 +186,26 @@ internal fun SyncPage(state: StrapUiState) {
     ) { confirmReload = true }
 
     SettingsHeader("Datenstand")
-    SettingsNote("Bis wann HelioLink die Daten vom Strap hat. Liegt etwas weit zurück, obwohl gerade synchronisiert wurde, hat der Strap die neueren Werte noch nicht herausgegeben – im Protokoll steht pro Abruf „Daten bis …“.")
+    SettingsNote(
+        "Bis wann HelioLink die Daten vom Strap hat; im Protokoll steht pro Abruf „Daten bis …“. Fehlen in einem " +
+            "Diagramm Stunden, tippe die Datenart an: dann holt HelioLink die letzten 7 Tage davon noch einmal.",
+    )
+    var reloadType by remember { mutableStateOf<de.waschbeken.heliolink.core.FetchType?>(null) }
     de.waschbeken.heliolink.core.FetchType.entries.forEach { type ->
-        prefs.get(type)?.let { SettingRow(type.label, "bis ${formatDate(it)}") }
+        prefs.get(type)?.let { SettingRow(type.label, "bis ${formatDate(it)} · tippen zum Neuladen", enabled = state.connected && !state.syncing) { reloadType = type } }
+    }
+    reloadType?.let { type ->
+        ConfirmDialog(
+            "${type.label} neu laden?",
+            "HelioLink holt ${type.label} der letzten 7 Tage noch einmal vom Strap. Vorhandene Werte bleiben, fehlende kommen dazu, soweit der Strap sie noch hat.",
+            "Neu laden",
+            onConfirm = {
+                val back = System.currentTimeMillis() - 7 * 86_400_000L
+                if ((prefs.get(type) ?: 0L) > back) prefs.set(type, back)
+                controller?.syncNow()
+            },
+            onDismiss = { reloadType = null },
+        )
     }
 
     SettingsHeader("Schlafphasen")

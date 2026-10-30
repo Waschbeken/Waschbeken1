@@ -49,8 +49,10 @@ Bewertung; der Strap hebt nur etwa 6 Nächte auf).
 Das Protokollwissen stammt aus Gadgetbridge und der Strap-Protokollbeschreibung des Projekts Ridge.
 
 **Bedienung:** Auf jeder Übersicht nach unten wischen holt sofort neue Daten vom Strap. Nach Mitternacht
-zeigt „Heute“ noch den Vortag, bis du aufgewacht bist (spätestens bis 12 Uhr) – so steht dort nicht plötzlich
-überall 0. Abgerufene Daten bleiben auf dem Strap; „Verlauf neu laden“ kann sie jederzeit erneut holen.
+zeigt „Heute“ noch den Vortag, bis du aufgewacht bist (ein paar wache Minuten nach der Nacht, spätestens bis
+12 Uhr) – so steht dort nicht plötzlich überall 0. Abgerufene Daten bleiben auf dem Strap; „Verlauf neu laden“
+kann sie jederzeit erneut holen. Unter *Synchronisierung → Datenstand* steht pro Datenart, bis wann die Daten da
+sind; ein Tipp darauf holt nur diese Datenart der letzten 7 Tage noch einmal (z. B. bei Lücken in der Temperatur).
 
 Im Hintergrund hält ein Dienst die Verbindung, startet nach einem Neustart des Handys von selbst,
 verbindet sich automatisch neu und lädt den Verlauf regelmäßig vom Strap. Stürzt die App ab, zeigt
@@ -78,7 +80,7 @@ sie beim nächsten Start einen Bericht zum Kopieren.
 | **Schlaf** | Schlafziel, „Stimmt deine Nacht?“, kurze Wachphasen ignorieren, Wachzeit innerhalb einer Nacht, kürzester Schlaf (Nickerchen), Einschlafen später / Aufwachen früher werten, Phasen immer schätzen, Korrekturen verwalten |
 | **Profil** | Alter, Geschlecht, Gewicht, Größe, Schritt- und Schlafziel |
 | **Training & Zonen** | Max. Puls (mit Vorschlag, wenn ein Training höher ging), Ruhepuls, Zonen nach % HFmax oder Karvonen, Standard-Sportart, Strap vibriert über/unter einer Pulsgrenze |
-| **Synchronisierung** | Automatischer Abruf, Zeitraum beim ersten Abruf, Verlauf neu laden, Schlafphasen-Suche mit Stand und Zurücksetzen |
+| **Synchronisierung** | Automatischer Abruf, Zeitraum beim ersten Abruf, Verlauf neu laden, Datenstand pro Datenart (einzeln neu laden), Schlafphasen-Suche mit Stand und Zurücksetzen |
 | **App-Updates** | Automatisch prüfen, Vorabversionen, **Shizuku** (Status, Erlaubnis, Installieren ohne Nachfrage, im Hintergrund installieren), Update-Quelle |
 | **Datenschutz** | Was das Handy verlässt (nur die Update-Suche bei GitHub, mit Liste der letzten Verbindungen), App-Sperre mit Fingerabdruck/Gesicht/PIN (sofort oder nach 1–30 min im Hintergrund, leere Vorschau in „Letzte Apps“), Sicherungen mit Passwort verschlüsseln. Die Android-Cloud-Sicherung (Google, Xiaomi) ist für HelioLink ausgeschaltet |
 | **Daten & Sicherung** | Automatische Sicherung (täglich, alle 3 Tage oder wöchentlich und vor jedem Update) nach Downloads/HelioLink oder in einen gewählten Ordner, die letzten 3–30 bleiben; Export als Zip mit CSV (speichern oder teilen, Zeitraum wählbar, inkl. `schlaf_naechte.csv` und `schlaf_phasen.csv` mit deinen Korrekturen), Sicherung erstellen/wiederherstellen, Gadgetbridge-Import, Protokoll anzeigen/kopieren |

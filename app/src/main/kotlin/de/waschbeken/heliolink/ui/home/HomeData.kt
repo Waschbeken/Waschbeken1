@@ -58,15 +58,18 @@ class HomeData(
     companion object {
         /**
          * The day the start page shows: after midnight it stays on the previous day until you woke
-         * up (a night ending today was found) or until noon, so it does not jump to zero at 00:00.
+         * up (a night ending today was found and you were awake for a few minutes after it) or until
+         * noon, so it does not jump to zero at 00:00.
          */
         fun homeDay(db: HealthDb, zone: ZoneId): LocalDate {
             val now = java.time.LocalDateTime.now()
             val today = now.toLocalDate()
             if (now.hour >= 12) return today
-            val night = Queries.night(db, today, zone)
-            val awake = night != null && night.end <= System.currentTimeMillis() / 1000 - 10 * 60
-            return if (awake) today else today.minusDays(1)
+            val night = Queries.night(db, today, zone) ?: return today.minusDays(1)
+            // Awake: a few minutes worn and not asleep after the night (not just a sync in the middle of it).
+            val nowSec = System.currentTimeMillis() / 1000
+            val awakeMinutes = db.activity(night.end, nowSec + 60).count { !it.isSleep && !it.notWorn }
+            return if (awakeMinutes >= 3) today else today.minusDays(1)
         }
 
         fun load(db: HealthDb, stepGoal: Int): HomeData {
