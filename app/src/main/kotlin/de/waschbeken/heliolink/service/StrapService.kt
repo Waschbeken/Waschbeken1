@@ -883,10 +883,17 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 append("Ø ${"%,d".format(java.util.Locale.GERMANY, stepsLast)} Schritte")
                 append(trend(stepsLast, stepsBefore, ""))
             }
+            val goals = prefs.goals
+            if (goals.isNotEmpty()) {
+                val facts = de.waschbeken.heliolink.ui.progress.ProgressData.facts(db, prefs.profile, today, emptyList(), weeks = 1).days
+                val reached = goals.count { de.waschbeken.heliolink.core.Goals.week(it, facts, today.minusWeeks(1), today).reached }
+                if (isNotEmpty()) append(" · ")
+                append("Ziele: $reached von ${goals.size} geschafft")
+            }
         }
         Notifications.show(
             this, Notifications.ID_WEEKLY, Notifications.CHANNEL_HEALTH, "Deine Woche", text,
-            de.waschbeken.heliolink.ui.MainActivity.openIntent(this, de.waschbeken.heliolink.ui.Routes.SLEEP),
+            de.waschbeken.heliolink.ui.MainActivity.openIntent(this, de.waschbeken.heliolink.ui.Routes.PROGRESS),
         )
     }
 
@@ -912,8 +919,8 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
     /** Morning summary after the first successful sync of the day. */
     private fun afterSync() {
         de.waschbeken.heliolink.data.AutoBackup.runIfDueInBackground(this)
-        weeklySummary()
         try {
+            weeklySummary()
             bodyCheckWarning()
             StressPrompt.check(this, db, prefs, repo.state.value.workout != null)
         } catch (e: Exception) {
