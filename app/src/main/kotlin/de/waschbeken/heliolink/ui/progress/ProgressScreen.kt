@@ -138,7 +138,26 @@ fun GoalsSummaryCard(dataVersion: Int, onOpen: () -> Unit) {
     val app = LocalContext.current.app
     val tick by app.prefs.changes.collectAsStateWithLifecycle()
     val goals = app.prefs.goals.also { tick }
-    if (goals.isEmpty()) return
+    if (goals.isEmpty()) {
+        if (!app.prefs.progressHintSeen) {
+            Panel(color = MaterialTheme.colorScheme.secondaryContainer) {
+                Text("Neu: Fortschritt", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Eigene Ziele mit Wochen-Häkchen, „Tage ohne …“, Bestwerte, ein Jahreskalender, der Rückblick auf " +
+                        "Woche, Monat und Jahr – und ein PDF-Bericht für den Arzt.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = {
+                        app.prefs.progressHintSeen = true
+                        onOpen()
+                    }) { Text("Ansehen") }
+                    TextButton(onClick = { app.prefs.progressHintSeen = true }) { Text("Später") }
+                }
+            }
+        }
+        return
+    }
     val profile = app.prefs.profile
     val today = LocalDate.now()
     val facts by cachedDbValue("home-goals", dataVersion, today, tick) { ProgressData.facts(it, profile, today, emptyList(), weeks = 0) }
