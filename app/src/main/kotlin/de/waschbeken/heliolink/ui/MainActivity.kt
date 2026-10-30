@@ -86,6 +86,7 @@ object Routes {
     fun sleepEdit(day: Long) = "sleep/edit/$day"
     const val TOOLS_BREATHE = "tools/breathe"
     const val TOOLS_FOCUS = "tools/focus"
+    const val PROGRESS = "progress"
 }
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
@@ -378,6 +379,7 @@ internal fun AppContent(pendingRoute: String?, onRouteShown: () -> Unit, onForge
             composable(Routes.SETTINGS) { SettingsScreen(nav) }
             composable(Routes.TOOLS_BREATHE) { de.waschbeken.heliolink.ui.tools.BreatheScreen(nav) }
             composable(Routes.TOOLS_FOCUS) { de.waschbeken.heliolink.ui.tools.FocusScreen(nav) }
+            composable(Routes.PROGRESS) { de.waschbeken.heliolink.ui.progress.ProgressScreen(nav) }
             composable("metric/{type}") { MetricScreen(nav, it.arguments?.getString("type").orEmpty()) }
             composable("settings/{category}") { SettingsCategoryScreen(nav, it.arguments?.getString("category").orEmpty(), onForget) }
             composable("workout/{id}", listOf(navArgument("id") { type = NavType.LongType })) {

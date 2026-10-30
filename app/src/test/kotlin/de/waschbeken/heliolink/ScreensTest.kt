@@ -67,6 +67,12 @@ class ScreensTest {
     @Test
     fun demoData() {
         DemoData.fill(app.db)
+        app.prefs.goals = listOf(
+            de.waschbeken.heliolink.core.Goal(de.waschbeken.heliolink.core.Goal.Kind.SLEEP, 420, 5),
+            de.waschbeken.heliolink.core.Goal(de.waschbeken.heliolink.core.Goal.Kind.STEPS, 8000, 7),
+            de.waschbeken.heliolink.core.Goal(de.waschbeken.heliolink.core.Goal.Kind.WITHOUT, 0, 7, "Nikotin"),
+        )
+        app.prefs.withoutTags = listOf("Nikotin", "Alkohol")
         visitAll("demo")
     }
 
@@ -103,6 +109,9 @@ class ScreensTest {
         open(Routes.TOOLS_FOCUS, "35-fokus")
         open(Routes.sleepEdit(LocalDate.now().toEpochDay()), "36-schlaf-bearbeiten")
         app.db.workouts().forEach { w -> open(Routes.workout(w.id), "37-training-${w.id}") }
+        open(Routes.PROGRESS, "40-fortschritt")
+        listOf("Woche", "Jahr").forEach { click(it); shot("40-fortschritt-$it") }
+        listOf("Schritte", "Ruhepuls").forEach { click(it); shot("40-fortschritt-kalender-$it") }
         open(Routes.HOME, "01-heute-zurueck")
     }
 
@@ -144,6 +153,17 @@ class ScreensTest {
         }
     }
 
+    /** Rows down to the last one that differs from the background at the bottom. */
+    private fun contentHeight(b: Bitmap): Int {
+        val background = b.getPixel(0, b.height - 1)
+        val row = IntArray(b.width)
+        for (y in b.height - 1 downTo 1) {
+            b.getPixels(row, 0, b.width, 0, y, b.width, 1)
+            if (row.any { it != background }) return minOf(b.height, y + 24)
+        }
+        return b.height
+    }
+
     private fun shot(name: String) {
         try {
             val bitmap = try {
@@ -152,7 +172,10 @@ class ScreensTest {
                 val view = compose.activity.window.decorView
                 Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888).also { view.draw(Canvas(it)) }
             }
-            File(shots, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            // Half size, cut below the content, as JPEG: small enough to keep every run.
+            val height = contentHeight(bitmap)
+            val small = Bitmap.createScaledBitmap(Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, height), bitmap.width / 2, height / 2, true)
+            File(shots, "$name.jpg").outputStream().use { small.compress(Bitmap.CompressFormat.JPEG, 80, it) }
         } catch (e: Throwable) {
             println("Kein Bildschirmfoto für $name: $e")
         }

@@ -75,13 +75,22 @@ jobs:
       - name: App-Seiten testen
         run: ./gradlew --no-daemon :app:testDebugUnitTest
 
-      - name: Bildschirmfotos hochladen
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: screenshots
-          path: app/build/screenshots/
-          if-no-files-found: ignore
+      # The screenshots of a working branch go to the branch "screenshots" (replaced each time), so
+      # they can be looked at without downloading an artifact.
+      - name: Bildschirmfotos ablegen
+        if: always() && github.event_name == 'push' && github.ref_name != github.event.repository.default_branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [ -d app/build/screenshots ] || exit 0
+          SRC="$PWD/app/build/screenshots"
+          DIR=$(mktemp -d)
+          cp -r "$SRC"/. "$DIR"/
+          cd "$DIR"
+          git init -q -b screenshots
+          git add -A
+          git -c user.name="HelioLink CI" -c user.email="ci@users.noreply.github.com" commit -q -m "Bildschirmfotos von ${GITHUB_SHA::7} (${GITHUB_REF_NAME})"
+          git push -q -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" screenshots
 
       # Signed with the release key once it is set up; otherwise with the test key.
       - name: APKs bauen

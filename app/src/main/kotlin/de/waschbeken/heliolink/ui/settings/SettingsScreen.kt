@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MonitorHeart
@@ -112,6 +113,14 @@ fun SettingsScreen(nav: NavHostController) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             item { StrapCard(state, prefs.deviceName) { open(SettingsCategory.DEVICE) } }
+            item {
+                SettingsGroup {
+                    CategoryRow(
+                        Icons.Default.EmojiEvents, "Fortschritt",
+                        "Eigene Ziele, Tage ohne …, Jahreskalender, Rückblick, Bericht für den Arzt",
+                    ) { nav.navigate(Routes.PROGRESS) }
+                }
+            }
             SettingsSection.entries.forEach { section ->
                 item { SectionHeader(section.title) }
                 item {
