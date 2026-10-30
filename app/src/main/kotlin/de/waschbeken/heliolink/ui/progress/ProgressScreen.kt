@@ -216,9 +216,17 @@ private fun GoalRow(goal: Goal, facts: ProgressFacts?, today: LocalDate, editing
             Column(Modifier.weight(1f)) {
                 Text(goal.title, style = MaterialTheme.typography.bodyLarge)
                 val left = (goal.perWeek - week.done).coerceAtLeast(0)
+                // Days of this week that can still count (today and later, not yet met).
+                val open = week.days.indices.count { i -> week.days[i] != true && !week.start.plusDays(i.toLong()).isBefore(today) }
                 Text(
                     buildString {
-                        append(if (week.reached) "Diese Woche geschafft" else "${week.done} von ${goal.perWeek} · noch $left")
+                        append(
+                            when {
+                                week.reached -> "Diese Woche geschafft"
+                                left > open -> "${week.done} von ${goal.perWeek} · diese Woche nicht mehr zu schaffen"
+                                else -> "${week.done} von ${goal.perWeek} · noch $left"
+                            },
+                        )
                         if (streak > 0) append(" · $streak ${if (streak == 1) "Woche" else "Wochen"} in Folge")
                     },
                     style = MaterialTheme.typography.bodySmall,
@@ -363,6 +371,7 @@ private fun WithoutPanel(tags: List<String>, results: Map<String, Abstinence.Res
                             r == null -> "Rechne …"
                             r.daysSince == null -> "Noch nie eingetragen"
                             r.daysSince == 0L -> "Heute eingetragen · Rekord ${r.longest} Tage · ${r.entries}× insgesamt"
+                            (r.daysSince ?: 0L).let { it >= r.longest && it >= 2 } -> "Neuer Rekord! · ${r.entries}× insgesamt"
                             else -> "Rekord ${r.longest} Tage · ${r.entries}× insgesamt"
                         },
                         style = MaterialTheme.typography.bodySmall,
