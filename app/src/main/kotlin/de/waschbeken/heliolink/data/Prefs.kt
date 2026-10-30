@@ -264,6 +264,11 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getString("goals", null)?.split('\n')?.mapNotNull { de.waschbeken.heliolink.core.Goal.decode(it) } ?: emptyList()
         set(v) = edit { putString("goals", v.joinToString("\n") { it.encode() }) }
 
+    /** The start page told about the "Fortschritt" page once. */
+    var progressHintSeen: Boolean
+        get() = sp.getBoolean("progress_hint_seen", false)
+        set(v) = edit { putBoolean("progress_hint_seen", v) }
+
     /** Entries counted as "Tage ohne …" (e.g. Nikotin, Alkohol). */
     var withoutTags: List<String>
         get() = sp.getString("without_tags", null)?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()
