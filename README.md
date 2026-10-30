@@ -34,7 +34,9 @@ aber ganz auf einen Strap ohne Display zugeschnitten.
 | **Puls-Erholung** | Nach einem Training misst HelioLink noch eine Minute weiter und speichert, wie stark der Puls gefallen ist |
 | **Training** | Verlauf nach Monaten, erkannte Aktivitäten – alles auf- und zuklappbar. Training starten mit Sportart, sekündlicher Puls, Zone in Farbe, Kalorien, Zeit in Zonen. Automatisch erkannte Spaziergänge und Läufe, aktive Minuten der Woche, Verlauf mit Detailansicht und **TCX**-Export (Strava, Garmin & Co.) |
 | **Wecker** | Bis zu 10 Vibrationswecker auf dem Strap mit **Smart Wake** (bis 30 min früher im Leichtschlaf), Wochentage, Name, Countdown, Schlafenszeit-Hinweis, Schnellwecker (Powernap, „jetzt + Schlafziel“). Änderungen ohne Verbindung werden später übertragen |
-| **Widget & Kachel** | Puls, Schritte, Schlaf und Akku auf dem Startbildschirm; Schnelleinstellungs-Kachel „Strap finden“ |
+| **Fortschritt** | *Mehr → Fortschritt*: **eigene Ziele** (Schlaf, Schlafenszeit, Schritte, aktive Minuten, Training, „Ohne …“ an x Tagen pro Woche) mit Häkchen pro Tag und Wochen-Serie – auch als Karte auf „Heute“. **Tage ohne …** (z. B. Nikotin, Alkohol) mit Rekord. **Jahreskalender** mit 12 Monaten für Schlaf, Score, Schritte, aktive Minuten, Ruhepuls oder Stress. **Rückblick** für Woche, Monat oder Jahr mit Vergleich zum Vorzeitraum, besten Tagen und Einträgen. **Bestwerte** der letzten 12 Monate (meiste Schritte, längster Schlaf, beste Nacht, niedrigster Ruhepuls, höchste HRV). Der Wochenbericht am Montag nennt auch, wie viele Ziele du geschafft hast |
+| **Bericht für den Arzt** | PDF über 14, 30 oder 90 Tage: Überblick (Schlaf, Ruhepuls, HRV, SpO₂, Atmung, Hauttemperatur, Schritte, Stress, Befinden), Verläufe als Diagramme und die Einträge mit Notizen. Entsteht auf dem Handy und verlässt es nur, wenn du es teilst |
+| **Widgets & Kachel** | Puls, Schritte, Schlaf und Akku auf dem Startbildschirm; zweites Widget **„HelioLink Verlauf“** mit dem Puls der letzten 12 Stunden als Diagramm (Schlaf hinterlegt); Schnelleinstellungs-Kachel „Strap finden“ |
 | **Einstellungen** | Getrennt nach **Strap** und **App** (siehe unten). „Nach Updates suchen“ sitzt direkt auf der Übersicht |
 
 **Datenschutz:** Gesundheitsdaten verlassen das Handy nie – kein Konto, keine Cloud, keine Analyse. Die
@@ -193,13 +195,20 @@ app/    Android-App (Jetpack Compose)
         ├─ service/      Vordergrunddienst, Sync, Training-Aufzeichnung
         ├─ data/         SQLite-Datenbank, Einstellungen, Sicherung, Import
         ├─ update/       Updates aus GitHub-Releases, Shizuku
-        ├─ widget/       Startbildschirm-Widget
+        ├─ widget/       Startbildschirm-Widgets (Werte, Pulsverlauf)
         └─ ui/           Heute, Details, Schlaf, Training, Wecker, Einstellungen
 ```
 
 Die Protokoll-Tests laufen ohne Android-SDK: `./gradlew :core:test`. Sie simulieren einen
 kompletten Strap (Schlüsselaustausch, verschlüsselte Nachrichten, Datenabruf) und prüfen die
 Kryptografie gegen BouncyCastle.
+
+Die Seiten-Tests (`./gradlew :app:testDebugUnitTest`, Robolectric) öffnen jede Seite der App –
+alle Tabs, Daten-Seiten, Zeiträume, Einstellungen, Wecker, Helfer, Trainings und „Fortschritt“ –
+einmal mit leerer Datenbank und einmal mit fünf Wochen Beispieldaten (`app/src/test/…/DemoData.kt`)
+und schlagen bei jedem Absturz fehl. Dabei entstehen Bildschirmfotos unter `app/build/screenshots`;
+CI legt sie für Arbeits-Branches auf dem Branch `screenshots` ab. Ein Update wird nur veröffentlicht,
+wenn beide Testläufe grün sind.
 
 ## Hinweise
 

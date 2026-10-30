@@ -226,6 +226,7 @@ fun HomeScreen(nav: NavHostController) {
                     }
                 }
                 item { de.waschbeken.heliolink.ui.events.QuickEntryCard(state.dataVersion) }
+                item { de.waschbeken.heliolink.ui.progress.GoalsSummaryCard(state.dataVersion) { nav.navigate(Routes.PROGRESS) } }
                 if (d != null) {
                     item { SectionHeader(if (d.date == java.time.LocalDate.now()) "Heute im Überblick" else "Gestern – bis du aufwachst") }
                     item { TileGrid(d, state, profile.stepGoal, hidden, order, nav) }

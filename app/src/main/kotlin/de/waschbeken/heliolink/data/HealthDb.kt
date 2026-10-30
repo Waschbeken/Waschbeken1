@@ -676,6 +676,16 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
             if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else null
         }
 
+    fun firstActivityTimestamp(): Long? =
+        readableDatabase.rawQuery("SELECT MIN(ts) FROM activity", null).use { c ->
+            if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else null
+        }
+
+    fun firstEventTimestamp(): Long? =
+        readableDatabase.rawQuery("SELECT MIN(ts) FROM event", null).use { c ->
+            if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else null
+        }
+
     fun startWorkout(sport: String, start: Long): Long {
         val cv = ContentValues()
         cv.put("sport", sport)

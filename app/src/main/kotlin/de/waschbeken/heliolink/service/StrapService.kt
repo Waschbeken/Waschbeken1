@@ -70,7 +70,12 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         const val PAUSED_TEXT = "Pausiert – der Strap ist frei für die Zepp-App"
 
         fun start(context: Context) {
-            ContextCompat.startForegroundService(context, Intent(context, StrapService::class.java))
+            try {
+                ContextCompat.startForegroundService(context, Intent(context, StrapService::class.java))
+            } catch (e: Exception) {
+                // Android may refuse a start from the background; the app starts the service when opened.
+                context.app.repo.log("Dienst konnte nicht starten: ${e.message}")
+            }
         }
     }
 
@@ -82,7 +87,14 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
     private val prefs get() = app.prefs
     private val db get() = app.db
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    // Failures of single background jobs are logged instead of closing the app.
+    private val scope = CoroutineScope(
+        SupervisorJob() + Dispatchers.Main + kotlinx.coroutines.CoroutineExceptionHandler { _, e ->
+            de.waschbeken.heliolink.data.CrashReporter.nonFatal(applicationContext, e)
+            android.util.Log.e("HelioLink", "Hintergrundaufgabe fehlgeschlagen", e)
+            repo.log("Fehler: ${e.javaClass.simpleName} ${e.message.orEmpty()}")
+        },
+    )
 
     private var liveRequested = false
     private var probeOffset = 0
@@ -800,7 +812,11 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         if (!force && now - lastWidgetUpdate < 60_000) return
         lastWidgetUpdate = now
         val s = repo.state.value
-        HelioWidget.update(applicationContext, s.heartRate, s.steps, lastNightText(), s.battery)
+        // The night is computed from the database: not on the main thread.
+        scope.launch(Dispatchers.IO) {
+            HelioWidget.update(applicationContext, s.heartRate, s.steps, lastNightText(), s.battery)
+            de.waschbeken.heliolink.widget.HelioChartWidget.refresh(applicationContext)
+        }
     }
 
     private fun lastNightText(): String? {
@@ -867,10 +883,17 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 append("Ø ${"%,d".format(java.util.Locale.GERMANY, stepsLast)} Schritte")
                 append(trend(stepsLast, stepsBefore, ""))
             }
+            val goals = prefs.goals
+            if (goals.isNotEmpty()) {
+                val facts = de.waschbeken.heliolink.ui.progress.ProgressData.facts(db, prefs.profile, today, emptyList(), weeks = 1).days
+                val reached = goals.count { de.waschbeken.heliolink.core.Goals.week(it, facts, today.minusWeeks(1), today).reached }
+                if (isNotEmpty()) append(" · ")
+                append("Ziele: $reached von ${goals.size} geschafft")
+            }
         }
         Notifications.show(
             this, Notifications.ID_WEEKLY, Notifications.CHANNEL_HEALTH, "Deine Woche", text,
-            de.waschbeken.heliolink.ui.MainActivity.openIntent(this, de.waschbeken.heliolink.ui.Routes.SLEEP),
+            de.waschbeken.heliolink.ui.MainActivity.openIntent(this, de.waschbeken.heliolink.ui.Routes.PROGRESS),
         )
     }
 
@@ -896,8 +919,8 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
     /** Morning summary after the first successful sync of the day. */
     private fun afterSync() {
         de.waschbeken.heliolink.data.AutoBackup.runIfDueInBackground(this)
-        weeklySummary()
         try {
+            weeklySummary()
             bodyCheckWarning()
             StressPrompt.check(this, db, prefs, repo.state.value.workout != null)
         } catch (e: Exception) {

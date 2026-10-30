@@ -259,6 +259,16 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getString("quick_tags", null)?.split('\n')?.filter { it.isNotBlank() } ?: DEFAULT_QUICK_TAGS
         set(v) = edit { putString("quick_tags", v.distinct().joinToString("\n")) }
 
+    /** Personal goals ("Fortschritt"), e.g. sleep ≥ 7 h on 5 days a week. */
+    var goals: List<de.waschbeken.heliolink.core.Goal>
+        get() = sp.getString("goals", null)?.split('\n')?.mapNotNull { de.waschbeken.heliolink.core.Goal.decode(it) } ?: emptyList()
+        set(v) = edit { putString("goals", v.joinToString("\n") { it.encode() }) }
+
+    /** Entries counted as "Tage ohne …" (e.g. Nikotin, Alkohol). */
+    var withoutTags: List<String>
+        get() = sp.getString("without_tags", null)?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()
+        set(v) = edit { putString("without_tags", v.distinct().joinToString("\n")) }
+
     /** The connection is paused so the Zepp app can use the strap (e.g. for a firmware update). */
     var connectionPaused: Boolean
         get() = sp.getBoolean("connection_paused", false)

@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">HelioLink</string>
     <string name="widget_description">Puls, Schritte, Schlaf und Akku deines Helio Strap</string>
+    <string name="widget_chart_description">Pulsverlauf der letzten 12 Stunden mit Schritten und Schlaf</string>
 </resources>
