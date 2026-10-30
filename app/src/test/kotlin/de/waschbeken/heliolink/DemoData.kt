@@ -1,6 +1,8 @@
 package de.waschbeken.heliolink
 
 import de.waschbeken.heliolink.core.ActivitySample
+import de.waschbeken.heliolink.core.HealthConfig
+import de.waschbeken.heliolink.core.HealthSetting
 import de.waschbeken.heliolink.core.OdiNight
 import de.waschbeken.heliolink.core.PaiSample
 import de.waschbeken.heliolink.core.RhythmCheck
@@ -171,4 +173,33 @@ object DemoData {
         db.saveAlarm(StrapAlarm(0, true, true, 6, 45, StrapAlarm.WEEKDAYS), "Arbeit", pending = false)
         db.saveAlarm(StrapAlarm(1, false, false, 9, 0, 0x60), "Wochenende", pending = true)
     }
+
+    /** Settings like a connected strap reports them (without a real connection behind them). */
+    val strapSettings = HealthConfig(
+        values = mapOf(
+            HealthSetting.HEART_RATE_INTERVAL to -2,
+            HealthSetting.HEART_RATE_HIGH_ALERT to 120,
+            HealthSetting.HEART_RATE_LOW_ALERT to 0,
+            HealthSetting.HEART_RATE_ACTIVITY_MONITORING to 0,
+            HealthSetting.HEART_RATE_BROADCAST to 1,
+            HealthSetting.SLEEP_HIGH_ACCURACY to 1,
+            HealthSetting.SLEEP_BREATHING_QUALITY to 1,
+            HealthSetting.STRESS_MONITORING to 1,
+            HealthSetting.STRESS_RELAXATION_REMINDER to 0,
+            HealthSetting.SPO2_ALL_DAY to 0,
+            HealthSetting.SPO2_LOW_ALERT to 0,
+            HealthSetting.INACTIVITY_WARNINGS to 1,
+            HealthSetting.INACTIVITY_START to 8 * 60,
+            HealthSetting.INACTIVITY_END to 20 * 60,
+            HealthSetting.GOAL_NOTIFICATION to 1,
+            HealthSetting.GOAL_STEPS to 8000,
+            HealthSetting.CONNECTED_ADVERTISING to 0,
+        ),
+        options = mapOf(
+            HealthSetting.HEART_RATE_INTERVAL to listOf(0, -2, 1, 5, 10, 30),
+            HealthSetting.HEART_RATE_HIGH_ALERT to listOf(0, 100, 110, 120, 130, 140, 150),
+            HealthSetting.HEART_RATE_LOW_ALERT to listOf(0, 40, 45, 50),
+            HealthSetting.SPO2_LOW_ALERT to listOf(0, 80, 85, 90),
+        ),
+    )
 }

@@ -182,10 +182,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** The live heart rate was paused when the app went to the background (Akku & Leistung). */
+    private var livePaused = false
+
     override fun onStart() {
         super.onStart()
         AppVisibility.inForeground = true
         val prefs = app.prefs
+        if (livePaused) {
+            livePaused = false
+            app.repo.controller?.setLiveHeartRate(true)
+        }
         if (prefs.appLock && stoppedAt > 0 && android.os.SystemClock.elapsedRealtime() - stoppedAt >= prefs.appLockDelay * 1000L) {
             locked = true
             lockMessage = null
@@ -197,6 +204,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         AppVisibility.inForeground = false
+        if (app.prefs.liveOffInBackground && !isChangingConfigurations && app.repo.state.value.liveHeartRate) {
+            app.repo.controller?.setLiveHeartRate(false)
+            livePaused = true
+        }
         // The fingerprint/PIN screen itself must not lock the app again.
         if (!authenticating && !isChangingConfigurations) stoppedAt = android.os.SystemClock.elapsedRealtime()
         super.onStop()

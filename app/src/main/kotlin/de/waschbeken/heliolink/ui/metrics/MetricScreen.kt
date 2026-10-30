@@ -297,7 +297,7 @@ fun MetricScreen(nav: NavHostController, key: String) {
                             Metric.TEMPERATURE -> ValueContent(d, metric, "°C", 0.01, decimals = 1)
                             Metric.RESPIRATION -> ValueContent(d, metric, "/min", 1.0)
                             Metric.PAI -> PaiContent(d)
-                            Metric.BATTERY -> BatteryContent(d)
+                            Metric.BATTERY -> BatteryContent(d) { nav.navigate(de.waschbeken.heliolink.ui.Routes.settings("battery")) }
                         }
                     }
                 }
@@ -925,8 +925,16 @@ private fun PaiContent(d: MetricData) {
 }
 
 @Composable
-private fun BatteryContent(d: MetricData) {
+private fun BatteryContent(d: MetricData, onSettings: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Panel(onClick = onSettings) {
+            Text("Akku & Leistung", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Profile zum Akkusparen oder für maximale Genauigkeit, Verbrauch pro Tag und was am meisten Akku kostet",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         if (d.values.isEmpty()) {
             Panel { Text("Noch kein Akkuverlauf gespeichert.", style = MaterialTheme.typography.bodyMedium) }
             return@Column
@@ -938,6 +946,6 @@ private fun BatteryContent(d: MetricData) {
             )
         }
         val days = BatteryForecast.daysLeft(d.values)
-        TileRow("Aktuell" to "${d.values.last().value} %", "Reicht noch" to (days?.let { "%.1f Tage".format(it) } ?: "–"))
+        TileRow("Aktuell" to "${d.values.last().value} %", "Reicht noch" to (days?.let { "%.1f Tage".format(java.util.Locale.GERMANY, it) } ?: "–"))
     }
 }

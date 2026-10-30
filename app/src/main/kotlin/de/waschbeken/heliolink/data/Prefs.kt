@@ -264,6 +264,16 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getString("goals", null)?.split('\n')?.mapNotNull { de.waschbeken.heliolink.core.Goal.decode(it) } ?: emptyList()
         set(v) = edit { putString("goals", v.joinToString("\n") { it.encode() }) }
 
+    /** Pause the live heart rate while the app is in the background (it continues on return). */
+    var liveOffInBackground: Boolean
+        get() = sp.getBoolean("live_off_background", true)
+        set(v) = edit { putBoolean("live_off_background", v) }
+
+    /** When a battery profile was last chosen (epoch ms), to show the drain since then. */
+    var batteryProfileSince: Long
+        get() = sp.getLong("battery_profile_since", 0)
+        set(v) = edit { putLong("battery_profile_since", v) }
+
     /** The start page told about the "Fortschritt" page once. */
     var progressHintSeen: Boolean
         get() = sp.getBoolean("progress_hint_seen", false)
