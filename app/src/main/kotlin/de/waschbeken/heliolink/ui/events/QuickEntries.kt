@@ -11,14 +11,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -27,6 +31,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,6 +48,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import de.waschbeken.heliolink.app
 import de.waschbeken.heliolink.core.EntryEffects
+import de.waschbeken.heliolink.core.EntryTime
+import de.waschbeken.heliolink.data.HealthDb
 import de.waschbeken.heliolink.data.Prefs
 import de.waschbeken.heliolink.ui.CollapsibleHeader
 import de.waschbeken.heliolink.ui.Panel
@@ -55,9 +63,57 @@ import kotlinx.coroutines.withContext
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 
 private fun clock(epoch: Long) = Instant.ofEpochSecond(epoch).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("HH:mm"))
+
+/** "07:30" today, "gestern 23:00" or "28.10. 21:15" further back. */
+private fun whenText(epoch: Long): String {
+    val day = Instant.ofEpochSecond(epoch).atZone(ZoneId.systemDefault()).toLocalDate()
+    val today = LocalDate.now()
+    return when (day) {
+        today -> clock(epoch)
+        today.minusDays(1) -> "gestern ${clock(epoch)}"
+        else -> day.format(DateTimeFormatter.ofPattern("dd.MM.")) + " " + clock(epoch)
+    }
+}
+
+/**
+ * When something happened: a quick choice ("vor 30 Min.") or an exact time of day – today, or
+ * yesterday when that time is still ahead. [onPick] gets null for "Jetzt".
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+fun EntryTimeDialog(title: String, initial: Long?, onDismiss: () -> Unit, onPick: (Long?) -> Unit) {
+    val start = Instant.ofEpochSecond(initial ?: System.currentTimeMillis() / 1000).atZone(ZoneId.systemDefault())
+    val state = rememberTimePickerState(initialHour = start.hour, initialMinute = start.minute, is24Hour = true)
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(0 to "Jetzt", 15 to "vor 15 Min.", 30 to "vor 30 Min.", 60 to "vor 1 Std.", 120 to "vor 2 Std.").forEach { (ago, label) ->
+                        AssistChip(onClick = {
+                            onPick(if (ago == 0) null else System.currentTimeMillis() / 1000 - ago * 60L)
+                            onDismiss()
+                        }, label = { Text(label) })
+                    }
+                }
+                Text("Oder genaue Uhrzeit:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TimePicker(state = state)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                onPick(EntryTime.at(state.hour, state.minute, ZonedDateTime.now()))
+                onDismiss()
+            }) { Text("Übernehmen") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
+    )
+}
 
 /** Chips to pick several entries. */
 @OptIn(ExperimentalLayoutApi::class)
@@ -97,8 +153,9 @@ fun CollapsibleTagPicker(
 }
 
 /**
- * "Schnell eintragen": one tap notes caffeine, nicotine, food … at this moment. The entries show up in
- * the day charts and count for the following night in the sleep evaluation.
+ * "Schnell eintragen": one tap notes caffeine, nicotine, food … at this moment, or at the time chosen
+ * under "Wann" (for the next entry). The entries show up in the day charts and count for the
+ * following night in the sleep evaluation; their time can be changed afterwards.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -115,14 +172,21 @@ fun QuickEntryCard(dataVersion: Int, helpers: @Composable () -> Unit = {}) {
     }
     var custom by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
+    // Time for the next entry; null = now.
+    var at by remember { mutableStateOf<Long?>(null) }
+    var pickTime by remember { mutableStateOf(false) }
+    var retime by remember { mutableStateOf<HealthDb.Event?>(null) }
     val sections = rememberSections()
 
     fun add(tag: String, note: String = "") {
+        val ts = at ?: System.currentTimeMillis() / 1000
+        at = null
         scope.launch {
-            val now = System.currentTimeMillis() / 1000
-            withContext(Dispatchers.IO) { app.db.addEvent(now, tag, note) }
+            withContext(Dispatchers.IO) { app.db.addEvent(ts, tag, note) }
             reload++
-            Toast.makeText(context, "$tag um ${clock(now)} eingetragen", Toast.LENGTH_SHORT).show()
+            app.repo.dataChanged()
+            val today = Instant.ofEpochSecond(ts).atZone(zone).toLocalDate() == LocalDate.now()
+            Toast.makeText(context, "$tag ${if (today) "um " else ""}${whenText(ts)} eingetragen", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -140,6 +204,20 @@ fun QuickEntryCard(dataVersion: Int, helpers: @Composable () -> Unit = {}) {
                 )
             }
             if (buttonsOpen) TextButton(onClick = { editing = true }) { Text("Knöpfe") }
+        }
+        if (buttonsOpen) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Wann:", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            FilterChip(
+                selected = at != null,
+                onClick = { pickTime = true },
+                label = { Text(at?.let { whenText(it) } ?: "Jetzt") },
+                leadingIcon = { Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                trailingIcon = if (at != null) {
+                    { Icon(Icons.Default.Close, contentDescription = "Zurück auf jetzt", modifier = Modifier.size(16.dp).clickable { at = null }) }
+                } else {
+                    null
+                },
+            )
         }
         if (buttonsOpen) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             app.prefs.quickTags.forEach { tag -> AssistChip(onClick = { add(tag) }, label = { Text(tag) }) }
@@ -160,9 +238,19 @@ fun QuickEntryCard(dataVersion: Int, helpers: @Composable () -> Unit = {}) {
                 "Heute eingetragen", open, count = list.size,
                 summary = list.takeLast(4).reversed().joinToString(", ") { "${it.tag} ${clock(it.timestamp)}" },
             ) { sections.toggle("home-events") }
+            if (open) Text(
+                "Tippe auf eine Uhrzeit, um sie zu ändern.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             if (open) list.reversed().forEach { e ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(clock(e.timestamp), style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(52.dp))
+                    Text(
+                        clock(e.timestamp),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.width(52.dp).clickable { retime = e }.padding(vertical = 8.dp),
+                    )
                     Column(Modifier.weight(1f)) {
                         Text(e.tag, style = MaterialTheme.typography.bodyMedium)
                         if (e.note.isNotBlank()) Text(e.note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -192,6 +280,17 @@ fun QuickEntryCard(dataVersion: Int, helpers: @Composable () -> Unit = {}) {
         add(tag, note)
     }
     if (editing) EditButtonsDialog(app.prefs, onDismiss = { editing = false })
+    if (pickTime) EntryTimeDialog("Wann war das?", at, onDismiss = { pickTime = false }) { at = it }
+    retime?.let { e ->
+        EntryTimeDialog("${e.tag}: Uhrzeit ändern", e.timestamp, onDismiss = { retime = null }) { picked ->
+            val ts = picked ?: System.currentTimeMillis() / 1000
+            scope.launch {
+                withContext(Dispatchers.IO) { app.db.setEventTime(e.id, ts) }
+                reload++
+                app.repo.dataChanged()
+            }
+        }
+    }
 }
 
 @Composable

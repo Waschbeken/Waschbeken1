@@ -196,6 +196,12 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         writableDatabase.delete("event", "id = ?", arrayOf(id.toString()))
     }
 
+    fun setEventTime(id: Long, ts: Long) {
+        val cv = ContentValues()
+        cv.put("ts", ts)
+        writableDatabase.update("event", cv, "id = ?", arrayOf(id.toString()))
+    }
+
     fun events(from: Long, to: Long): List<Event> {
         val out = ArrayList<Event>()
         readableDatabase.rawQuery(
