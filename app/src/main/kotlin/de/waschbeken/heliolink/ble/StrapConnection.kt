@@ -164,7 +164,13 @@ class StrapConnection(
             is StrapEvent.SyncProgress -> lastFetchActivity = System.currentTimeMillis()
             else -> Unit
         }
-        listener.onEvent(event)
+        // A bug in handling one event (e.g. a database error) must not close the app or the connection.
+        try {
+            listener.onEvent(event)
+        } catch (e: Exception) {
+            de.waschbeken.heliolink.data.CrashReporter.nonFatal(context, e)
+            android.util.Log.e("HelioLink", "Ereignis ${event::class.simpleName} fehlgeschlagen", e)
+        }
     }
 
     // ------------------------------------------------------------------ queue
@@ -295,6 +301,16 @@ class StrapConnection(
     }
 
     private fun onNotification(uuid: UUID, value: ByteArray) {
+        try {
+            dispatchNotification(uuid, value)
+        } catch (e: Exception) {
+            // An unexpected record from a newer firmware must not close the app.
+            de.waschbeken.heliolink.data.CrashReporter.nonFatal(context, e)
+            listener.onEvent(StrapEvent.Log("Unerwartete Daten vom Strap ignoriert: ${e.javaClass.simpleName} ${e.message.orEmpty()}"))
+        }
+    }
+
+    private fun dispatchNotification(uuid: UUID, value: ByteArray) {
         when (uuid) {
             Uuids.CHUNKED_READ -> protocol.onChunkedNotification(value)
             Uuids.FETCH_CONTROL -> {

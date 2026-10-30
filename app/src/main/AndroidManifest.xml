@@ -109,6 +109,18 @@
                 android:resource="@xml/helio_widget" />
         </receiver>
 
+        <receiver
+            android:name=".widget.HelioChartWidget"
+            android:exported="false"
+            android:label="HelioLink Verlauf">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/helio_chart_widget" />
+        </receiver>
+
         <!-- Lets the Shizuku app hand over its binder for installs without a confirmation dialog. -->
         <provider
             android:name="rikka.shizuku.ShizukuProvider"

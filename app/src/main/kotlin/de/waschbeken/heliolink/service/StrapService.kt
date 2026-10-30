@@ -82,7 +82,14 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
     private val prefs get() = app.prefs
     private val db get() = app.db
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    // Failures of single background jobs are logged instead of closing the app.
+    private val scope = CoroutineScope(
+        SupervisorJob() + Dispatchers.Main + kotlinx.coroutines.CoroutineExceptionHandler { _, e ->
+            de.waschbeken.heliolink.data.CrashReporter.nonFatal(applicationContext, e)
+            android.util.Log.e("HelioLink", "Hintergrundaufgabe fehlgeschlagen", e)
+            repo.log("Fehler: ${e.javaClass.simpleName} ${e.message.orEmpty()}")
+        },
+    )
 
     private var liveRequested = false
     private var probeOffset = 0
@@ -800,7 +807,11 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         if (!force && now - lastWidgetUpdate < 60_000) return
         lastWidgetUpdate = now
         val s = repo.state.value
-        HelioWidget.update(applicationContext, s.heartRate, s.steps, lastNightText(), s.battery)
+        // The night is computed from the database: not on the main thread.
+        scope.launch(Dispatchers.IO) {
+            HelioWidget.update(applicationContext, s.heartRate, s.steps, lastNightText(), s.battery)
+            de.waschbeken.heliolink.widget.HelioChartWidget.refresh(applicationContext)
+        }
     }
 
     private fun lastNightText(): String? {
