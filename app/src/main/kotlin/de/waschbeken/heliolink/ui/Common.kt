@@ -84,14 +84,45 @@ fun formatDuration(seconds: Long): String {
 /** Loads something from the database off the main thread, reloading when a key changes. */
 @Composable
 fun <T> dbValue(vararg keys: Any?, load: (HealthDb) -> T): State<T?> {
-    val db = LocalContext.current.app.db
+    val context = LocalContext.current.applicationContext
     return produceState<T?>(null, *keys) {
-        value = withContext(Dispatchers.IO) { load(db) }
+        ScreenLoads.run(context, load).onSuccess { value = it }
     }
 }
 
-/** Last results of [cachedDbValue], so a screen shows its data at once when you come back to it. */
-private val screenCache = HashMap<String, Any?>()
+/** Database loads of the screens. A failing load is logged instead of closing the app. */
+object ScreenLoads {
+    /** Loads in progress; tests wait until it is 0 before looking at a screen. */
+    val running = java.util.concurrent.atomic.AtomicInteger()
+
+    /** Set by tests: a failing load fails the test instead of being only logged. */
+    @Volatile
+    var strict = false
+
+    suspend fun <T> run(context: android.content.Context, load: (HealthDb) -> T): Result<T> {
+        running.incrementAndGet()
+        try {
+            return Result.success(withContext(Dispatchers.IO) { load(context.app.db) })
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (strict) throw e
+            android.util.Log.e("HelioLink", "Laden fehlgeschlagen", e)
+            de.waschbeken.heliolink.data.CrashReporter.nonFatal(context, e)
+            return Result.failure(e)
+        } finally {
+            running.decrementAndGet()
+        }
+    }
+}
+
+/**
+ * Last results of [cachedDbValue], so a screen shows its data at once when you come back to it.
+ * Only the most recent ones are kept (screens with many dates or periods would add up otherwise).
+ */
+private val screenCache = object : LinkedHashMap<String, Any?>(32, 0.75f, true) {
+    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Any?>?) = size > 40
+}
 
 /**
  * Like [dbValue], but starts with the last result stored under [cacheKey] instead of nothing: going
@@ -99,12 +130,13 @@ private val screenCache = HashMap<String, Any?>()
  */
 @Composable
 fun <T> cachedDbValue(cacheKey: String, vararg keys: Any?, load: (HealthDb) -> T): State<T?> {
-    val db = LocalContext.current.app.db
+    val context = LocalContext.current.applicationContext
     @Suppress("UNCHECKED_CAST")
     return produceState(screenCache[cacheKey] as T?, cacheKey, *keys) {
-        val loaded = withContext(Dispatchers.IO) { load(db) }
-        screenCache[cacheKey] = loaded
-        value = loaded
+        ScreenLoads.run(context, load).onSuccess { loaded ->
+            screenCache[cacheKey] = loaded
+            value = loaded
+        }
     }
 }
 

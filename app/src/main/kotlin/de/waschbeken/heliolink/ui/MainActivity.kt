@@ -340,7 +340,7 @@ private fun CrashDialog(report: String, onClose: () -> Unit) {
 }
 
 @Composable
-private fun AppContent(pendingRoute: String?, onRouteShown: () -> Unit, onForget: () -> Unit) {
+internal fun AppContent(pendingRoute: String?, onRouteShown: () -> Unit, onForget: () -> Unit) {
     val nav = rememberNavController()
     LaunchedEffect(pendingRoute) {
         val route = pendingRoute ?: return@LaunchedEffect

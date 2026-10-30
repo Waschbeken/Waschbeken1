@@ -71,6 +71,18 @@ jobs:
       - name: Tests
         run: ./gradlew --no-daemon :core:test
 
+      # Opens every screen with an empty database and with demo data (Robolectric) and takes screenshots.
+      - name: App-Seiten testen
+        run: ./gradlew --no-daemon :app:testDebugUnitTest
+
+      - name: Bildschirmfotos hochladen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: app/build/screenshots/
+          if-no-files-found: ignore
+
       # Signed with the release key once it is set up; otherwise with the test key.
       - name: APKs bauen
         env:
@@ -109,4 +121,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-reports
-          path: core/build/reports/
+          path: |
+            core/build/reports/
+            app/build/reports/tests/
