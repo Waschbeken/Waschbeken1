@@ -279,8 +279,14 @@ internal object HealthReport {
             c.drawLine(left, y(avg), right, y(avg), dashed)
             val small = paint(8f, Color.DKGRAY)
             c.drawText(fmt(values.maxOf { it.second }, decimals), LEFT, y(values.maxOf { it.second }) + 3, small)
-            c.drawText(fmt(values.minOf { it.second }, decimals), LEFT, y(values.minOf { it.second }) + 3, small)
-            c.drawText("Ø ${fmt(avg, decimals)}", right - 40f, y(avg) - 3, small)
+            // Bars start at zero; lines show their lowest value.
+            if (bars) c.drawText("0", LEFT, bottom, small) else c.drawText(fmt(values.minOf { it.second }, decimals), LEFT, y(values.minOf { it.second }) + 3, small)
+            // The average on a white label at the right edge, so it stays readable over the line.
+            val avgText = "Ø ${fmt(avg, decimals)}"
+            val tw = small.measureText(avgText)
+            val ty = (y(avg) - 4).coerceIn(top + 8, bottom - 2)
+            c.drawRect(right - tw - 6, ty - 8, right, ty + 2, Paint().apply { this.color = Color.WHITE })
+            c.drawText(avgText, right - tw - 3, ty, small)
         }
         val small = paint(8f, Color.GRAY)
         c.drawText(from.format(shortDay), left, bottom + 11, small)
