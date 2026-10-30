@@ -28,36 +28,57 @@ import java.time.temporal.ChronoUnit
  * with notes. Created on the phone; it only leaves it when the user shares it.
  */
 internal object HealthReport {
-    private const val W = 595 // A4 in points
-    private const val H = 842
+    const val W = 595 // A4 in points
+    const val H = 842
     private const val LEFT = 48f
     private const val RIGHT = W - 48f
 
     private val dayFormat = DateTimeFormatter.ofPattern("d.M.yyyy", German)
     private val shortDay = DateTimeFormatter.ofPattern("d.M.", German)
 
-    private class Writer(val doc: PdfDocument, val footer: String) {
-        private var number = 0
+    /** Where the pages are drawn: a PDF on the phone, bitmaps in tests. */
+    interface PageSink {
+        fun begin(number: Int): Canvas
+        fun end()
+    }
+
+    private class PdfSink(val doc: PdfDocument) : PageSink {
         private var page: PdfDocument.Page? = null
+
+        override fun begin(number: Int): Canvas {
+            val p = doc.startPage(PdfDocument.PageInfo.Builder(W, H, number).create())
+            page = p
+            return p.canvas
+        }
+
+        override fun end() {
+            page?.let { doc.finishPage(it) }
+            page = null
+        }
+    }
+
+    private class Writer(val sink: PageSink, val footer: String) {
+        private var number = 0
+        private var open = false
         lateinit var canvas: Canvas
         var y = 0f
 
         fun newPage() {
-            page?.let { doc.finishPage(it) }
+            if (open) sink.end()
             number++
-            val p = doc.startPage(PdfDocument.PageInfo.Builder(W, H, number).create())
-            page = p
-            canvas = p.canvas
+            canvas = sink.begin(number)
+            open = true
             canvas.drawText("$footer · Seite $number", LEFT, H - 24f, paint(8f, Color.GRAY))
             y = 56f
         }
 
         fun need(height: Float) {
-            if (page == null || y + height > H - 48f) newPage()
+            if (!open || y + height > H - 48f) newPage()
         }
 
         fun finish() {
-            page?.let { doc.finishPage(it) }
+            if (open) sink.end()
+            open = false
         }
     }
 
@@ -73,6 +94,19 @@ internal object HealthReport {
     private fun hm(minutes: Int) = "%d:%02d h".format(minutes / 60, minutes % 60)
 
     fun create(context: Context, db: HealthDb, prefs: Prefs, days: Int): File {
+        val file = exportFile(context, "HelioLink-Bericht-${LocalDate.now()}.pdf")
+        val doc = PdfDocument()
+        try {
+            draw(PdfSink(doc), db, prefs, days)
+            file.outputStream().use { doc.writeTo(it) }
+        } finally {
+            doc.close()
+        }
+        return file
+    }
+
+    /** Collects the values of the last [days] days and draws the report page by page into [sink]. */
+    fun draw(sink: PageSink, db: HealthDb, prefs: Prefs, days: Int) {
         val zone = ZoneId.systemDefault()
         val to = LocalDate.now()
         val from = to.minusDays(days - 1L)
@@ -104,10 +138,8 @@ internal object HealthReport {
         val events = db.events(start, end).filter { !it.tag.startsWith(StressPrompt.PREFIX) }
         val feelings = db.feelings(from.toEpochDay(), to.toEpochDay()).values.toList()
 
-        val file = exportFile(context, "HelioLink-Bericht-${to}.pdf")
-        val doc = PdfDocument()
-        try {
-            val w = Writer(doc, "HelioLink ${BuildConfig.VERSION_NAME} · erstellt am ${to.format(dayFormat)}")
+        run {
+            val w = Writer(sink, "HelioLink ${BuildConfig.VERSION_NAME} · erstellt am ${to.format(dayFormat)}")
             w.need(0f)
             val c = { w.canvas }
             c().drawText("Gesundheitsbericht", LEFT, w.y, paint(22f, bold = true))
@@ -199,11 +231,7 @@ internal object HealthReport {
                 LEFT, w.y, paint(8.5f, Color.GRAY),
             )
             w.finish()
-            file.outputStream().use { doc.writeTo(it) }
-        } finally {
-            doc.close()
         }
-        return file
     }
 
     /** A small chart over the whole period: bars or a line, with the range and the average. */
