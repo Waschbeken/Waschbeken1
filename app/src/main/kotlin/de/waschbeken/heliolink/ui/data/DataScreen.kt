@@ -84,6 +84,7 @@ import de.waschbeken.heliolink.ui.dbValue
 import de.waschbeken.heliolink.ui.fmt
 import de.waschbeken.heliolink.ui.formatDuration
 import de.waschbeken.heliolink.ui.formatMinutes
+import de.waschbeken.heliolink.ui.formatHours
 import de.waschbeken.heliolink.ui.minuteStrip
 import de.waschbeken.heliolink.ui.navigateToTab
 import de.waschbeken.heliolink.ui.record.RecordingBanner
@@ -608,9 +609,9 @@ private fun SleepWeekPage(d: DayData, onOpen: (LocalDate) -> Unit) {
     if (nights.isNotEmpty()) {
         Panel {
             Row {
-                Metric("Ø Schlaf", formatMinutes(nights.sumOf { it.asleepMinutes } / nights.size), Modifier.weight(1f), color = Palette.Sleep)
-                Metric("Ø Tief", formatMinutes(nights.sumOf { it.deep } / nights.size), Modifier.weight(1f), color = Palette.Deep)
-                Metric("Ø REM", formatMinutes(nights.sumOf { it.rem } / nights.size), Modifier.weight(1f), color = Palette.Rem)
+                Metric("Ø Schlaf", formatHours(nights.sumOf { it.asleepMinutes } / nights.size), Modifier.weight(1f), color = Palette.Sleep)
+                Metric("Ø Tief", formatHours(nights.sumOf { it.deep } / nights.size), Modifier.weight(1f), color = Palette.Deep)
+                Metric("Ø REM", formatHours(nights.sumOf { it.rem } / nights.size), Modifier.weight(1f), color = Palette.Rem)
                 Metric("Ø Score", "${nights.sumOf { it.score } / nights.size}", Modifier.weight(1f))
             }
         }

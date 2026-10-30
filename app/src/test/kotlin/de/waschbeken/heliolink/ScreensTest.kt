@@ -41,7 +41,7 @@ import java.time.LocalDate
  * app/build/screenshots (uploaded by CI), so changes can be looked at without a phone.
  */
 @RunWith(AndroidJUnit4::class)
-@Config(sdk = [34], qualifiers = "w400dp-h2400dp-xhdpi")
+@Config(sdk = [34], qualifiers = "de-rDE-w400dp-h2400dp-xhdpi")
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class ScreensTest {
     @get:Rule
