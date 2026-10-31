@@ -21,6 +21,7 @@ import de.waschbeken.heliolink.ble.LinkState
 import de.waschbeken.heliolink.ble.StrapConnection
 import de.waschbeken.heliolink.core.Calories
 import de.waschbeken.heliolink.core.DeviceInfo
+import de.waschbeken.heliolink.core.FetchType
 import de.waschbeken.heliolink.core.HealthSetting
 import de.waschbeken.heliolink.core.HeartRateMode
 import de.waschbeken.heliolink.core.IntervalPlan
@@ -68,6 +69,11 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         private const val ACTION_STOP = "de.waschbeken.heliolink.STOP"
 
         const val PAUSED_TEXT = "Pausiert – der Strap ist frei für die Zepp-App"
+
+        /** Data the strap writes once a day or night; fetched at most every 3 hours automatically. */
+        private val RARE_TYPES = setOf(
+            FetchType.RESTING_HEART_RATE, FetchType.PAI, FetchType.ODI, FetchType.HRV_SDNN, FetchType.SPO2_SLEEP,
+        )
 
         fun start(context: Context) {
             try {
@@ -121,14 +127,22 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         }
     }
 
+    private var lastStatusPoll = 0L
+
     private val periodic = object : Runnable {
         override fun run() {
             val c = connection
             if (c != null && c.state == LinkState.READY) {
-                c.protocol.requestBattery()
-                c.protocol.requestSteps()
+                // Steps and battery for the start page: every 5 minutes while the app is open,
+                // otherwise every 30 minutes (each request wakes the strap's radio).
+                val now = System.currentTimeMillis()
+                if (de.waschbeken.heliolink.AppVisibility.inForeground || now - lastStatusPoll >= 30 * 60_000L) {
+                    lastStatusPoll = now
+                    c.protocol.requestBattery()
+                    c.protocol.requestSteps()
+                }
                 val minutes = prefs.autoSyncMinutes
-                if (minutes > 0 && System.currentTimeMillis() - prefs.lastSync > minutes * 60_000L) syncNow()
+                if (minutes > 0 && now - prefs.lastSync > minutes * 60_000L) sync(full = false)
             }
             checkForUpdateInBackground()
             checkBedtime()
@@ -218,15 +232,26 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
 
     // ------------------------------------------------------------------ StrapController (any thread)
 
-    override fun syncNow() {
+    override fun syncNow() = sync(full = true)
+
+    /**
+     * Fetches the history. The automatic sync leaves out the types that change only once a day or
+     * night unless they were last fetched 3 hours ago; asking the strap for each type costs battery.
+     * A sync started by the user always fetches everything.
+     */
+    private fun sync(full: Boolean) {
         handler.post {
             val days = prefs.historyDays.toLong()
             // Without a code found by the search, the strap's known sleep record code is used.
             val sleepCode = prefs.sleepCode.takeIf { it > 0 } ?: StrapProtocol.SLEEP_CODE
             val offset = prefs.sleepOffset
+            val now = System.currentTimeMillis()
+            val all = full || now - prefs.lastFullSync >= 3 * 3_600_000L
+            val types = if (all) FetchType.entries else FetchType.entries.filter { it !in RARE_TYPES }
             connection?.startSync {
+                if (all) prefs.lastFullSync = now
                 sleepRecordOffset = offset
-                startSync(prefs, defaultHistory = Duration.ofDays(days), sleepCode = sleepCode)
+                startSync(prefs, types = types, defaultHistory = Duration.ofDays(days), sleepCode = sleepCode)
             }
         }
     }
@@ -581,7 +606,9 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         if (state == LinkState.READY) {
             updateHeartRateStreaming()
             pushPendingAlarms()
-            handler.postDelayed({ syncNow() }, 3_000)
+            // After a short drop-out the data is still fresh: no new sync for every reconnect.
+            val minutes = prefs.autoSyncMinutes.takeIf { it > 0 } ?: 30
+            if (System.currentTimeMillis() - prefs.lastSync > minutes * 60_000L / 2) handler.postDelayed({ sync(full = false) }, 3_000)
         }
         updateNotification()
     }

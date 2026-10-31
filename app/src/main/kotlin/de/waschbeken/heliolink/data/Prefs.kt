@@ -92,6 +92,11 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getLong("last_sync", 0)
         set(v) = edit { putLong("last_sync", v) }
 
+    /** Last sync that fetched every data type, including the ones that change only once a day. */
+    var lastFullSync: Long
+        get() = sp.getLong("last_full_sync", 0)
+        set(v) = edit { putLong("last_full_sync", v) }
+
     // --- sleep
 
     /** Awake periods shorter than this many minutes count as light sleep, 0 = keep all. */

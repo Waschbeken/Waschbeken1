@@ -82,6 +82,28 @@ private fun DrawScope.timeAxis(m: TextMeasurer, from: Long, to: Long, left: Floa
     if (to <= from) return
     val zone = ZoneId.systemDefault()
     val span = to - from
+    if (span > 36 * 3600) {
+        // Several days: one label per day (or every few days), counted in local days so a change to or
+        // from summer time does not move the ticks to 23:00. Up to a week the weekday under the middle
+        // of the day, otherwise the date at midnight.
+        var d = Instant.ofEpochSecond(from).atZone(zone).toLocalDate()
+        val last = Instant.ofEpochSecond(to).atZone(zone).toLocalDate()
+        val days = java.time.temporal.ChronoUnit.DAYS.between(d, last) + 1
+        val week = days <= 8
+        val every = maxOf(1L, (days + 6) / 7)
+        var i = 0L
+        while (!d.isAfter(last)) {
+            val t = if (week) d.atTime(12, 0).atZone(zone).toEpochSecond() else d.atStartOfDay(zone).toEpochSecond()
+            if (i % every == 0L && t in from..to) {
+                val txt = if (week) d.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.GERMANY).take(2)
+                else "${d.dayOfMonth}.${d.monthValue}."
+                label(m, txt, left + (t - from).toFloat() / span * w, y, color, center = true)
+            }
+            d = d.plusDays(1)
+            i++
+        }
+        return
+    }
     val steps = longArrayOf(60, 120, 300, 600, 900, 1800, 3600, 7200, 10800, 21600, 43200, 86400)
     val step = steps.firstOrNull { span / it <= 6 } ?: 86400
     val midnight = Instant.ofEpochSecond(from).atZone(zone).toLocalDate().atStartOfDay(zone).toEpochSecond()
