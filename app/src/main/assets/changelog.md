@@ -1,6 +1,7 @@
 # Was ist neu in HelioLink
 
 ## 1.0.30
+- Neue Seite „Alle Einträge“ (auf „Heute“ unter Schnell eintragen): alle Einträge und Beschwerden der letzten Wochen nach Tagen, filterbar nach Art; Uhrzeit ändern und löschen geht auch für frühere Tage.
 - Schneller und sparsamer: Die Schlafanalyse der letzten Wochen wird nur noch neu berechnet, wenn neue Daten oder Korrekturen da sind – die Startseite lädt dadurch zügiger und das Handy rechnet weniger im Hintergrund.
 
 ## 1.0.29

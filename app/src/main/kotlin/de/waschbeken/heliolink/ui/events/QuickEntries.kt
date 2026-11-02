@@ -85,15 +85,17 @@ private fun whenText(epoch: Long): String {
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun EntryTimeDialog(title: String, initial: Long?, onDismiss: () -> Unit, onPick: (Long?) -> Unit) {
+fun EntryTimeDialog(title: String, initial: Long?, onDismiss: () -> Unit, day: LocalDate? = null, onPick: (Long?) -> Unit) {
     val start = Instant.ofEpochSecond(initial ?: System.currentTimeMillis() / 1000).atZone(ZoneId.systemDefault())
     val state = rememberTimePickerState(initialHour = start.hour, initialMinute = start.minute, is24Hour = true)
+    // An entry of an earlier day keeps its day; only the time changes.
+    val earlierDay = day != null && day < LocalDate.now()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!earlierDay) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(0 to "Jetzt", 15 to "vor 15 Min.", 30 to "vor 30 Min.", 60 to "vor 1 Std.", 120 to "vor 2 Std.").forEach { (ago, label) ->
                         AssistChip(onClick = {
                             onPick(if (ago == 0) null else System.currentTimeMillis() / 1000 - ago * 60L)
@@ -101,13 +103,21 @@ fun EntryTimeDialog(title: String, initial: Long?, onDismiss: () -> Unit, onPick
                         }, label = { Text(label) })
                     }
                 }
-                Text("Oder genaue Uhrzeit:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    if (earlierDay) "Uhrzeit am ${day?.format(DateTimeFormatter.ofPattern("d.M."))}:" else "Oder genaue Uhrzeit:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 TimePicker(state = state)
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                onPick(EntryTime.at(state.hour, state.minute, ZonedDateTime.now()))
+                val zone = ZoneId.systemDefault()
+                onPick(
+                    if (earlierDay && day != null) day.atTime(state.hour, state.minute).atZone(zone).toEpochSecond()
+                    else EntryTime.at(state.hour, state.minute, ZonedDateTime.now(zone)),
+                )
                 onDismiss()
             }) { Text("Übernehmen") }
         },
@@ -159,7 +169,7 @@ fun CollapsibleTagPicker(
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun QuickEntryCard(dataVersion: Int, helpers: @Composable () -> Unit = {}) {
+fun QuickEntryCard(dataVersion: Int, helpers: @Composable () -> Unit = {}, onShowAll: (() -> Unit)? = null) {
     val context = LocalContext.current
     val app = context.app
     val scope = rememberCoroutineScope()
@@ -263,6 +273,9 @@ fun QuickEntryCard(dataVersion: Int, helpers: @Composable () -> Unit = {}) {
                     }) { Icon(Icons.Default.Close, contentDescription = "Löschen") }
                 }
             }
+        }
+        if (buttonsOpen && onShowAll != null) {
+            TextButton(onClick = onShowAll) { Text("Alle Einträge ansehen ›") }
         }
 
         if (buttonsOpen) {
