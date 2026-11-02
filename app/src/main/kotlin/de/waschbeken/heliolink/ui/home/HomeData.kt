@@ -5,6 +5,7 @@ import de.waschbeken.heliolink.core.ActivitySample
 import de.waschbeken.heliolink.core.Aggregates
 import de.waschbeken.heliolink.core.BatteryForecast
 import de.waschbeken.heliolink.core.BodyCheck
+import de.waschbeken.heliolink.core.DailyInsights
 import de.waschbeken.heliolink.core.HrvStatus
 import de.waschbeken.heliolink.core.DayStats
 import de.waschbeken.heliolink.core.DetectedActivity
@@ -54,6 +55,8 @@ class HomeData(
     val hrvStatus: HrvStatus.Result?,
     /** Irregular heart rhythm stretches of the last 14 days, when they repeat (see RhythmCheck.worthAHint). */
     val irregularRhythm: List<HealthDb.RhythmRow>,
+    /** "Heute fällt auf": what differs clearly from the usual. */
+    val insights: List<DailyInsights.Insight> = emptyList(),
 ) {
     companion object {
         /**
@@ -113,6 +116,28 @@ class HomeData(
             }
             val hrvStatus = HrvStatus.status(vitals.mapNotNull { v -> v.hrv?.let { v.date to it } }.toMap(), today)
 
+            // The nights and days before, for "Heute fällt auf".
+            fun bedtime(start: Long) = java.time.Instant.ofEpochSecond(start).atZone(zone)
+                .let { de.waschbeken.heliolink.core.Review.bedtimeOf(it.hour * 60 + it.minute) }
+            val before = Queries.nightSummaries(db, today.minusDays(14), today.minusDays(1), zone).values
+                .filter { it.asleepMinutes >= 180 }
+            val stepDays = week.filter { it.date >= today.minusDays(8) && it.date <= today.minusDays(2) && it.steps > 0 }
+            val insights = DailyInsights.of(
+                DailyInsights.Input(
+                    sleepMinutes = night?.asleepMinutes,
+                    usualSleepMinutes = before.takeIf { it.size >= 3 }?.map { it.asleepMinutes }?.average(),
+                    bedtime = night?.let { bedtime(it.start) },
+                    usualBedtime = before.takeIf { it.size >= 3 }?.map { bedtime(it.start) }?.average(),
+                    restingHr = resting,
+                    usualRestingHr = restingBaseline,
+                    hrv = hrvNight,
+                    usualHrv = hrvBaseline,
+                    temperatureDeviation = tempDeviation,
+                    stepsYesterday = week.firstOrNull { it.date == today.minusDays(1) }?.steps?.takeIf { it > 0 },
+                    usualSteps = stepDays.takeIf { it.size >= 3 }?.map { it.steps }?.average(),
+                ),
+            )
+
             return HomeData(
                 date = today,
                 day = day,
@@ -143,6 +168,7 @@ class HomeData(
                 irregularRhythm = db.rhythm(dayEnd - 15 * 86_400L, dayEnd).filter { it.irregular }.let { list ->
                     if (de.waschbeken.heliolink.core.RhythmCheck.worthAHint(list.map { (it.timestamp + 3600) / 86_400 })) list else emptyList()
                 },
+                insights = insights,
             )
         }
 
