@@ -377,6 +377,11 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getString("notified_update", "").orEmpty()
         set(v) = edit { putString("notified_update", v) }
 
+    /** The version whose "Was ist neu" the user has seen. */
+    var lastSeenVersion: String
+        get() = sp.getString("last_seen_version", "").orEmpty()
+        set(v) = edit { putString("last_seen_version", v) }
+
     var skippedVersion: String
         get() = sp.getString("skipped_update", "").orEmpty()
         set(v) = edit { putString("skipped_update", v) }

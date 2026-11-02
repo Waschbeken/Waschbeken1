@@ -33,6 +33,7 @@ fun UpdateDialog(updater: AppUpdater) {
         is UpdateState.Available -> s.info
         is UpdateState.Downloading -> s.info
         is UpdateState.Ready -> s.info
+        is UpdateState.Installing -> s.info
         is UpdateState.KeyChanged -> s.info
         else -> null
     }
@@ -56,6 +57,14 @@ fun UpdateDialog(updater: AppUpdater) {
                         } else {
                             LinearProgressIndicator(Modifier.fillMaxWidth())
                         }
+                    }
+                    is UpdateState.Installing -> {
+                        Text("Wird installiert …", style = MaterialTheme.typography.bodyMedium)
+                        LinearProgressIndicator(Modifier.fillMaxWidth())
+                        Text(
+                            "HelioLink schließt sich gleich kurz und öffnet sich danach von selbst mit der neuen Version.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
                     is UpdateState.Failed -> Text(s.message)
                     is UpdateState.KeyChanged -> {
@@ -97,7 +106,7 @@ fun UpdateDialog(updater: AppUpdater) {
             when (val s = state) {
                 is UpdateState.Available -> TextButton(onClick = { updater.download(s.info) }) { Text("Installieren") }
                 is UpdateState.Ready -> TextButton(onClick = { updater.install(s.apk) }) { Text("Installieren") }
-                is UpdateState.Downloading -> Unit
+                is UpdateState.Downloading, is UpdateState.Installing -> Unit
                 is UpdateState.KeyChanged -> TextButton(onClick = { updater.dismiss(skipVersion = false) }) { Text("Später") }
                 else -> TextButton(onClick = { updater.dismiss(skipVersion = false) }) { Text("OK") }
             }

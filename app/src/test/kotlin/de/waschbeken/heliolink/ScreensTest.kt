@@ -90,6 +90,7 @@ class ScreensTest {
         open(Routes.SLEEP, "03-schlaf")
         open(Routes.TRAINING, "04-sport")
         open(Routes.BODY, "05-koerper")
+        open(Routes.WHATS_NEW, "41-was-ist-neu")
         open(Routes.PROGRESS, "40-fortschritt")
         open(Routes.metric(Metric.HEART.key), "10-heart")
     }

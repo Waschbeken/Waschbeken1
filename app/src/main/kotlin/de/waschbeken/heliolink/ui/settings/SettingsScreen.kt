@@ -161,6 +161,7 @@ fun SettingsScreen(nav: NavHostController) {
                             }
                         },
                     )
+                    SettingRow("Was ist neu", "Alle Neuerungen und Änderungen der letzten Versionen") { nav.navigate(Routes.WHATS_NEW) }
                     SettingRow("HelioLink ${BuildConfig.VERSION_NAME}", "Ohne Cloud – deine Daten bleiben auf dem Gerät. Für den Amazfit Helio Strap.")
                 }
             }
