@@ -146,6 +146,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             }
             checkForUpdateInBackground()
             checkBedtime()
+            checkNightBattery()
             handler.postDelayed(this, 5 * 60_000L)
         }
     }
@@ -873,6 +874,33 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 de.waschbeken.heliolink.ui.MainActivity.openIntent(this, de.waschbeken.heliolink.ui.Routes.ALARMS),
             )
         }
+    }
+
+    /**
+     * In the evening (18–23 h): when the strap's battery will probably not last until the morning,
+     * say so once, so it can still be charged before going to bed and the night is recorded.
+     */
+    private fun checkNightBattery() {
+        if (prefs.lowBatteryAlert <= 0) return
+        val s = repo.state.value
+        val level = s.battery ?: return
+        if (s.charging) return
+        val now = ZonedDateTime.now()
+        if (now.hour !in 18..22 || prefs.nightBatteryDay == now.toLocalDate().toEpochDay()) return
+        val nowSec = now.toEpochSecond()
+        val perDay = de.waschbeken.heliolink.core.BatteryProfiles.drainPerDay(db.values(HealthDb.BATTERY, nowSec - 3 * 86_400L, nowSec + 60))
+            ?: return
+        val hoursLeft = level / (perDay / 24)
+        val morning = now.toLocalDate().plusDays(1).atTime(8, 0).atZone(now.zone)
+        val hoursNeeded = java.time.Duration.between(now, morning).toMinutes() / 60.0
+        if (hoursLeft >= hoursNeeded + 1) return
+        prefs.nightBatteryDay = now.toLocalDate().toEpochDay()
+        Notifications.show(
+            this, Notifications.ID_BATTERY, Notifications.CHANNEL_HEALTH,
+            "Strap-Akku reicht nicht für die Nacht",
+            "Noch $level % – das reicht für etwa ${hoursLeft.toInt()} Stunden. Lade den Strap vor dem Schlafen kurz, damit die Nacht aufgezeichnet wird.",
+            de.waschbeken.heliolink.ui.MainActivity.openIntent(this, de.waschbeken.heliolink.ui.Routes.settings("battery")),
+        )
     }
 
     /** Monday morning: last week compared with the week before. */

@@ -177,6 +177,11 @@ class Prefs(context: Context) : SyncCursor {
 
     // --- notifications
 
+    /** Day (epoch day) the "battery will not last the night" hint was shown. */
+    var nightBatteryDay: Long
+        get() = sp.getLong("night_battery_day", 0)
+        set(v) = edit { putLong("night_battery_day", v) }
+
     /** Battery level at which a warning is shown, 0 = off. */
     var lowBatteryAlert: Int
         get() = sp.getInt("low_battery", 15)
