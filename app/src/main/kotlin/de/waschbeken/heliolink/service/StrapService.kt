@@ -169,6 +169,10 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         }
         createChannel()
         repo.controller = this
+        ContextCompat.registerReceiver(
+            this, bluetoothReceiver, android.content.IntentFilter(android.bluetooth.BluetoothAdapter.ACTION_STATE_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
         // React to settings that change the heart rate streaming (continuous recording).
         scope.launch {
             var last = prefs.continuousHrSeconds
@@ -200,7 +204,24 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         return START_STICKY
     }
 
+    /** Bluetooth switched back on: connect right away instead of after the next retry (up to a minute). */
+    private val bluetoothReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val on = intent.getIntExtra(android.bluetooth.BluetoothAdapter.EXTRA_STATE, -1) == android.bluetooth.BluetoothAdapter.STATE_ON
+            if (on && !prefs.connectionPaused) {
+                handler.post {
+                    repo.log("Bluetooth ist wieder an – verbinde")
+                    connection?.connect()
+                }
+            }
+        }
+    }
+
     override fun onDestroy() {
+        try {
+            unregisterReceiver(bluetoothReceiver)
+        } catch (_: IllegalArgumentException) {
+        }
         scope.cancel()
         repo.controller = null
         handler.post {

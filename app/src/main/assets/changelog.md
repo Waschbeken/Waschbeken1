@@ -1,6 +1,7 @@
 # Was ist neu in HelioLink
 
 ## 1.0.30
+- Wird Bluetooth wieder eingeschaltet, verbindet sich HelioLink sofort mit dem Strap statt erst nach bis zu einer Minute.
 - Abends meldet sich HelioLink einmal, wenn der Strap-Akku voraussichtlich nicht bis zum Morgen reicht – so kannst du vor dem Schlafen noch laden und die Nacht wird aufgezeichnet.
 - Monatsrückblick: In den ersten Tagen eines Monats kommt eine Benachrichtigung mit dem Vormonat im Vergleich (Schlaf, Score, Schritte, Ruhepuls, Trainings); tippen öffnet „Fortschritt“. Abschaltbar unter Benachrichtigungen.
 - Neue Karte „Heute fällt auf“ auf der Startseite: nennt, was an deiner Nacht und deinem Tag deutlich anders war als sonst – länger oder später geschlafen, Ruhepuls, HRV, Hauttemperatur, Schritte.
