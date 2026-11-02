@@ -1,16 +1,14 @@
 # Was ist neu in HelioLink
 
-## 1.0.30
-- Wird Bluetooth wieder eingeschaltet, verbindet sich HelioLink sofort mit dem Strap statt erst nach bis zu einer Minute.
-- Abends meldet sich HelioLink einmal, wenn der Strap-Akku voraussichtlich nicht bis zum Morgen reicht – so kannst du vor dem Schlafen noch laden und die Nacht wird aufgezeichnet.
-- Monatsrückblick: In den ersten Tagen eines Monats kommt eine Benachrichtigung mit dem Vormonat im Vergleich (Schlaf, Score, Schritte, Ruhepuls, Trainings); tippen öffnet „Fortschritt“. Abschaltbar unter Benachrichtigungen.
+## 1.0.29
+- Nach jedem Update zeigt HelioLink, was neu ist. Alle bisherigen Neuerungen findest du unter Mehr → Was ist neu.
 - Neue Karte „Heute fällt auf“ auf der Startseite: nennt, was an deiner Nacht und deinem Tag deutlich anders war als sonst – länger oder später geschlafen, Ruhepuls, HRV, Hauttemperatur, Schritte.
 - Schlaf: Unter dem Score stehen jetzt immer der Score vom Strap und HelioLinks eigene Schätzung mit ihren Teilpunkten (Dauer, Tief, REM, Ruhe).
 - „Wie entsteht der Score?“ auf der Schlafseite erklärt beide Werte mit den Zahlen deiner Nacht.
 - HelioLinks Schätzung zieht bei sehr langem Schlaf (mehr als 1,5 Stunden über deinem Ziel) bis zu 30 % der Dauer-Punkte ab – 12 Stunden Schlaf gelten nicht mehr als perfekt.
-
-## 1.0.29
-- Nach jedem Update zeigt HelioLink, was neu ist. Alle bisherigen Neuerungen findest du unter Mehr → Was ist neu.
+- Monatsrückblick: In den ersten Tagen eines Monats kommt eine Benachrichtigung mit dem Vormonat im Vergleich (Schlaf, Score, Schritte, Ruhepuls, Trainings); tippen öffnet „Fortschritt“. Abschaltbar unter Benachrichtigungen.
+- Abends meldet sich HelioLink einmal, wenn der Strap-Akku voraussichtlich nicht bis zum Morgen reicht – so kannst du vor dem Schlafen noch laden und die Nacht wird aufgezeichnet.
+- Wird Bluetooth wieder eingeschaltet, verbindet sich HelioLink sofort mit dem Strap statt erst nach bis zu einer Minute.
 - Updates über Shizuku: HelioLink startet nach der Installation von selbst wieder, statt einfach zu verschwinden.
 - Shizuku wird beim Installieren kurz abgewartet, wenn es gerade erst anläuft – vorher sprang dann oft der Android-Installer ein.
 - Das Update-Fenster zeigt während der Shizuku-Installation den Fortschritt.
