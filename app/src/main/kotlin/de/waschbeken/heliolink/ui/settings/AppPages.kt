@@ -277,6 +277,11 @@ internal fun NotificationsPage() {
         prefs.weeklySummary,
     ) { prefs.weeklySummary = it }
     SwitchSetting(
+        "Monatsrückblick",
+        "Am Monatsanfang: der Vormonat im Vergleich – Schlaf, Score, Schritte, Ruhepuls, Trainings",
+        prefs.monthlySummary,
+    ) { prefs.monthlySummary = it }
+    SwitchSetting(
         "Morgenbericht",
         "Nach dem ersten Abruf am Morgen: Schlafdauer, Phasen und Erholung",
         prefs.morningSummary,

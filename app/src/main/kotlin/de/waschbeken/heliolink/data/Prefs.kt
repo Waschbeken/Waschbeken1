@@ -205,6 +205,16 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getBoolean("weekly_summary", true)
         set(v) = edit { putBoolean("weekly_summary", v) }
 
+    /** On the first days of a month: the month before at a glance. */
+    var monthlySummary: Boolean
+        get() = sp.getBoolean("monthly_summary", true)
+        set(v) = edit { putBoolean("monthly_summary", v) }
+
+    /** First day of the month whose summary was shown (epoch day). */
+    var monthlySummaryMonth: Long
+        get() = sp.getLong("monthly_summary_month", 0)
+        set(v) = edit { putLong("monthly_summary_month", v) }
+
     var weeklySummaryDay: Long
         get() = sp.getLong("weekly_summary_day", 0)
         set(v) = edit { putLong("weekly_summary_day", v) }
