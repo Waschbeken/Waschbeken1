@@ -4,6 +4,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -101,25 +102,33 @@ class AppUpdater(
         }
     }
 
-    private fun installNow(apk: File) {
-        if (useShizuku() && ShizukuInstaller.status() == ShizukuInstaller.Status.READY) {
-            val info = (_state.value as? UpdateState.Ready)?.info
-            scope.launch {
-                try {
-                    if (info != null) _state.value = UpdateState.Installing(info)
-                    ShizukuInstaller.install(manager.context, apk)
-                    // Normally not reached: Android restarts the app with the new version.
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    _messages.tryEmit("Shizuku-Installation fehlgeschlagen: ${e.message} – öffne den Android-Installer")
-                    if (info != null) _state.value = UpdateState.Ready(info, apk)
-                    installWithSystem(apk)
-                }
-            }
+    private suspend fun installNow(apk: File) {
+        if (!useShizuku()) {
+            installWithSystem(apk)
             return
         }
-        installWithSystem(apk)
+        val info = (_state.value as? UpdateState.Ready)?.info
+        // Right after the app starts, Shizuku's connection may take a moment to arrive.
+        if (ShizukuInstaller.awaitStatus() != ShizukuInstaller.Status.READY) {
+            _messages.tryEmit("Shizuku ist gerade nicht bereit – öffne den Android-Installer")
+            installWithSystem(apk)
+            return
+        }
+        try {
+            if (info != null) _state.value = UpdateState.Installing(info)
+            ShizukuInstaller.install(manager.context, apk)
+            // Normally not reached for long: Android ends this process and HelioLink opens again with
+            // the new version. If it keeps running, say so instead of showing "installing" forever.
+            delay(20_000)
+            _messages.tryEmit("Update installiert – falls HelioLink nicht neu startet, öffne es bitte einmal neu.")
+            _state.value = UpdateState.Idle
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _messages.tryEmit("Shizuku-Installation fehlgeschlagen: ${e.message} – öffne den Android-Installer")
+            if (info != null) _state.value = UpdateState.Ready(info, apk)
+            installWithSystem(apk)
+        }
     }
 
     private fun installWithSystem(apk: File) {

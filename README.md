@@ -37,6 +37,7 @@ aber ganz auf einen Strap ohne Display zugeschnitten.
 | **Fortschritt** | *Mehr → Fortschritt*: **eigene Ziele** (Schlaf, Schlafenszeit, Schritte, aktive Minuten, Training, „Ohne …“ an x Tagen pro Woche) mit Häkchen pro Tag und Wochen-Serie – auch als Karte auf „Heute“. **Tage ohne …** (z. B. Nikotin, Alkohol) mit Rekord. **Jahreskalender** mit 12 Monaten für Schlaf, Score, Schritte, aktive Minuten, Ruhepuls oder Stress. **Rückblick** für Woche, Monat oder Jahr mit Vergleich zum Vorzeitraum, besten Tagen und Einträgen. **Bestwerte** der letzten 12 Monate (meiste Schritte, längster Schlaf, beste Nacht, niedrigster Ruhepuls, höchste HRV). Der Wochenbericht am Montag nennt auch, wie viele Ziele du geschafft hast |
 | **Bericht für den Arzt** | PDF über 14, 30 oder 90 Tage: Überblick (Schlaf, Ruhepuls, HRV, SpO₂, Atmung, Hauttemperatur, Schritte, Stress, Befinden), Verläufe als Diagramme und die Einträge mit Notizen. Entsteht auf dem Handy und verlässt es nur, wenn du es teilst |
 | **Widgets & Kachel** | Puls, Schritte, Schlaf und Akku auf dem Startbildschirm; zweites Widget **„HelioLink Verlauf“** mit dem Puls der letzten 12 Stunden als Diagramm (Schlaf hinterlegt); Schnelleinstellungs-Kachel „Strap finden“ |
+| **Was ist neu** | Nach jedem Update zeigt HelioLink einmal, was neu ist oder sich geändert hat; alle Versionen unter *Mehr → Was ist neu*. Die Hinweise stehen in `app/src/main/assets/changelog.md` und werden auch als Text des GitHub-Release verwendet |
 | **Einstellungen** | Getrennt nach **Strap** und **App** (siehe unten). „Nach Updates suchen“ sitzt direkt auf der Übersicht |
 
 **Datenschutz:** Gesundheitsdaten verlassen das Handy nie – kein Konto, keine Cloud, keine Analyse. Die
@@ -164,7 +165,9 @@ Mit [Shizuku](https://shizuku.rikka.app) installiert HelioLink Updates ohne den 
 2. In HelioLink *Einstellungen → App-Updates → Shizuku-Status* antippen und HelioLink erlauben.
 3. „Updates über Shizuku installieren“ einschalten; optional „Im Hintergrund installieren“.
 
-Ist Shizuku nicht bereit, nimmt die App wie gewohnt den Android-Installer.
+Ist Shizuku nicht bereit, nimmt die App wie gewohnt den Android-Installer (direkt nach dem App-Start
+wartet sie dafür ein paar Sekunden auf Shizuku). Während der Installation schließt sich HelioLink kurz;
+ein kleiner Shell-Auftrag über Shizuku öffnet die App wieder, sobald die neue Version installiert ist.
 
 ## Einrichtung: der Auth-Key
 

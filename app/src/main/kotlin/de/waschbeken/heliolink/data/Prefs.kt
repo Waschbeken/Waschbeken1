@@ -177,6 +177,11 @@ class Prefs(context: Context) : SyncCursor {
 
     // --- notifications
 
+    /** Day (epoch day) the "battery will not last the night" hint was shown. */
+    var nightBatteryDay: Long
+        get() = sp.getLong("night_battery_day", 0)
+        set(v) = edit { putLong("night_battery_day", v) }
+
     /** Battery level at which a warning is shown, 0 = off. */
     var lowBatteryAlert: Int
         get() = sp.getInt("low_battery", 15)
@@ -204,6 +209,16 @@ class Prefs(context: Context) : SyncCursor {
     var weeklySummary: Boolean
         get() = sp.getBoolean("weekly_summary", true)
         set(v) = edit { putBoolean("weekly_summary", v) }
+
+    /** On the first days of a month: the month before at a glance. */
+    var monthlySummary: Boolean
+        get() = sp.getBoolean("monthly_summary", true)
+        set(v) = edit { putBoolean("monthly_summary", v) }
+
+    /** First day of the month whose summary was shown (epoch day). */
+    var monthlySummaryMonth: Long
+        get() = sp.getLong("monthly_summary_month", 0)
+        set(v) = edit { putLong("monthly_summary_month", v) }
 
     var weeklySummaryDay: Long
         get() = sp.getLong("weekly_summary_day", 0)
@@ -376,6 +391,11 @@ class Prefs(context: Context) : SyncCursor {
     var notifiedUpdateVersion: String
         get() = sp.getString("notified_update", "").orEmpty()
         set(v) = edit { putString("notified_update", v) }
+
+    /** The version whose "Was ist neu" the user has seen. */
+    var lastSeenVersion: String
+        get() = sp.getString("last_seen_version", "").orEmpty()
+        set(v) = edit { putString("last_seen_version", v) }
 
     var skippedVersion: String
         get() = sp.getString("skipped_update", "").orEmpty()

@@ -1,7 +1,9 @@
 package de.waschbeken.heliolink.ui.home
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -209,6 +211,7 @@ fun HomeScreen(nav: NavHostController) {
                 }
                 val d = data
                 item { HeroCard(state, d, profile.stepGoal) { nav.navigateToTab(Routes.SLEEP) } }
+                d?.insights?.takeIf { it.isNotEmpty() }?.let { list -> item { InsightsCard(list) } }
                 d?.bodyCheck?.takeIf { it.level != de.waschbeken.heliolink.core.BodyCheck.Level.NORMAL }?.let { check ->
                     item { BodyCheckCard(check, d.bodyCheckHints) }
                 }
@@ -615,6 +618,26 @@ private fun AlarmCard(d: HomeData, onClick: () -> Unit) {
                 }
             }
             CountPill("Wecker", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
+        }
+    }
+}
+
+
+/** "Heute fällt auf": the few things that differ clearly from your normal. */
+@Composable
+private fun InsightsCard(list: List<de.waschbeken.heliolink.core.DailyInsights.Insight>) {
+    Panel {
+        Text("Heute fällt auf", style = MaterialTheme.typography.titleMedium)
+        list.forEach { insight ->
+            Row(verticalAlignment = Alignment.Top) {
+                val color = when (insight.tone) {
+                    de.waschbeken.heliolink.core.DailyInsights.Tone.GOOD -> Color(0xFF30A46C)
+                    de.waschbeken.heliolink.core.DailyInsights.Tone.WATCH -> Color(0xFFF76B15)
+                    de.waschbeken.heliolink.core.DailyInsights.Tone.NEUTRAL -> MaterialTheme.colorScheme.primary
+                }
+                Box(Modifier.padding(top = 6.dp, end = 10.dp).size(8.dp).background(color, CircleShape))
+                Text(insight.text, style = MaterialTheme.typography.bodyMedium)
+            }
         }
     }
 }

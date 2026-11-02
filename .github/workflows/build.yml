@@ -108,7 +108,12 @@ jobs:
         run: |
           APK="heliolink-${VERSION}.apk"
           cp app/build/outputs/apk/release/app-release.apk "$APK"
-          if [ -n "$RANGE" ]; then
+          # The notes come from the app's own "Was ist neu" (app/src/main/assets/changelog.md) when it
+          # has a section for this version; otherwise from the commit titles.
+          CHANGELOG=$(awk -v v="## $VERSION" '$0==v {f=1; next} /^## / {f=0} f' app/src/main/assets/changelog.md 2>/dev/null | sed '/^[[:space:]]*$/d')
+          if [ -n "$CHANGELOG" ]; then
+            NOTES=$(printf 'Neu in %s:\n\n%s' "$VERSION" "$CHANGELOG")
+          elif [ -n "$RANGE" ]; then
             CHANGES=$(git log --no-merges --pretty='- %s' "$RANGE" -- app core gradle build.gradle.kts settings.gradle.kts gradle.properties | head -30)
             NOTES=$(printf 'Automatisches Update. Änderungen seit %s:\n\n%s' "$LAST" "${CHANGES:-- Kleine Verbesserungen}")
           else

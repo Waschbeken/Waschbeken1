@@ -30,17 +30,24 @@ data class SleepSession(
     /**
      * 0–100 from duration, deep/REM share and interruptions. The duration counts most: all 55 points
      * at the sleep goal, none at 3 hours below it – a short night cannot score high just because
-     * its phases look good.
+     * its phases look good. Much longer than the goal (more than 1.5 h) costs up to 30 % of the
+     * duration points: very long sleep usually means catching up or being worn out.
      */
     val estimatedScore: Int
         get() = scoreParts.sumOf { it.second }.coerceIn(0, 100)
+
+    companion object {
+        /** Minutes above the sleep goal that still count as full duration. */
+        const val OVERSLEEP_GRACE = 90
+    }
 
     /** The parts of [estimatedScore]: (name, points, of maximum), e.g. ("Dauer", 26, 55). */
     val scoreParts: List<Triple<String, Int, Int>>
         get() {
             if (asleepMinutes == 0) return emptyList()
             val short = (goalMinutes - asleepMinutes).coerceAtLeast(0)
-            val durationScore = (1 - short / 180.0).coerceAtLeast(0.0) * 55
+            val over = (asleepMinutes - goalMinutes - OVERSLEEP_GRACE).coerceAtLeast(0)
+            val durationScore = ((1 - short / 180.0).coerceAtLeast(0.0) - (over / 240.0).coerceAtMost(1.0) * 0.3) * 55
             val deepShare = minutes(SleepStage.DEEP).toDouble() / asleepMinutes
             val remShare = minutes(SleepStage.REM).toDouble() / asleepMinutes
             val deepScore = (deepShare / 0.2).coerceAtMost(1.0) * 15

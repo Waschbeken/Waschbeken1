@@ -69,4 +69,15 @@ class SleepScoreTest {
         val s = night(460, 90, 95, 10, 450).score
         assertTrue(s >= 90, "score $s")
     }
+
+    @Test
+    fun veryLongNightLosesDurationPoints() {
+        // 12:16 h with a goal of 7:30: 10 % deep, 32 % REM, hardly awake
+        val n = night(736, 77, 239, 5, 450)
+        val duration = n.scoreParts.first { it.first == "Dauer" }.second
+        assertTrue(duration in 40..44, "Dauer $duration")
+        assertTrue(n.score in 78..82, "score ${n.score}")
+        // up to 1.5 h above the goal still counts fully
+        assertTrue(night(540, 100, 110, 10, 450).scoreParts.first().second == 55)
+    }
 }

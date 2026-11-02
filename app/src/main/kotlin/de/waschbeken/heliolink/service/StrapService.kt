@@ -146,6 +146,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             }
             checkForUpdateInBackground()
             checkBedtime()
+            checkNightBattery()
             handler.postDelayed(this, 5 * 60_000L)
         }
     }
@@ -168,6 +169,10 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         }
         createChannel()
         repo.controller = this
+        ContextCompat.registerReceiver(
+            this, bluetoothReceiver, android.content.IntentFilter(android.bluetooth.BluetoothAdapter.ACTION_STATE_CHANGED),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
         // React to settings that change the heart rate streaming (continuous recording).
         scope.launch {
             var last = prefs.continuousHrSeconds
@@ -199,7 +204,24 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         return START_STICKY
     }
 
+    /** Bluetooth switched back on: connect right away instead of after the next retry (up to a minute). */
+    private val bluetoothReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            val on = intent.getIntExtra(android.bluetooth.BluetoothAdapter.EXTRA_STATE, -1) == android.bluetooth.BluetoothAdapter.STATE_ON
+            if (on && !prefs.connectionPaused) {
+                handler.post {
+                    repo.log("Bluetooth ist wieder an – verbinde")
+                    connection?.connect()
+                }
+            }
+        }
+    }
+
     override fun onDestroy() {
+        try {
+            unregisterReceiver(bluetoothReceiver)
+        } catch (_: IllegalArgumentException) {
+        }
         scope.cancel()
         repo.controller = null
         handler.post {
@@ -875,6 +897,33 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         }
     }
 
+    /**
+     * In the evening (18–23 h): when the strap's battery will probably not last until the morning,
+     * say so once, so it can still be charged before going to bed and the night is recorded.
+     */
+    private fun checkNightBattery() {
+        if (prefs.lowBatteryAlert <= 0) return
+        val s = repo.state.value
+        val level = s.battery ?: return
+        if (s.charging) return
+        val now = ZonedDateTime.now()
+        if (now.hour !in 18..22 || prefs.nightBatteryDay == now.toLocalDate().toEpochDay()) return
+        val nowSec = now.toEpochSecond()
+        val perDay = de.waschbeken.heliolink.core.BatteryProfiles.drainPerDay(db.values(HealthDb.BATTERY, nowSec - 3 * 86_400L, nowSec + 60))
+            ?: return
+        val hoursLeft = level / (perDay / 24)
+        val morning = now.toLocalDate().plusDays(1).atTime(8, 0).atZone(now.zone)
+        val hoursNeeded = java.time.Duration.between(now, morning).toMinutes() / 60.0
+        if (hoursLeft >= hoursNeeded + 1) return
+        prefs.nightBatteryDay = now.toLocalDate().toEpochDay()
+        Notifications.show(
+            this, Notifications.ID_BATTERY, Notifications.CHANNEL_HEALTH,
+            "Strap-Akku reicht nicht für die Nacht",
+            "Noch $level % – das reicht für etwa ${hoursLeft.toInt()} Stunden. Lade den Strap vor dem Schlafen kurz, damit die Nacht aufgezeichnet wird.",
+            de.waschbeken.heliolink.ui.MainActivity.openIntent(this, de.waschbeken.heliolink.ui.Routes.settings("battery")),
+        )
+    }
+
     /** Monday morning: last week compared with the week before. */
     private fun weeklySummary() {
         val today = LocalDate.now()
@@ -924,6 +973,34 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         )
     }
 
+    /** In the first days of a month: the month before compared with the one before that. */
+    private fun monthlySummary() {
+        val today = LocalDate.now()
+        val month = today.withDayOfMonth(1)
+        if (!prefs.monthlySummary || today.dayOfMonth > 3 || prefs.monthlySummaryMonth == month.toEpochDay()) return
+        if (LocalTime.now().hour < 8) return
+        prefs.monthlySummaryMonth = month.toEpochDay()
+        val from = month.minusMonths(1)
+        val to = month.minusDays(1)
+        val now = de.waschbeken.heliolink.ui.progress.ProgressData.stats(db, prefs.profile, from, to)
+        if (now.nights == 0 && now.stepsTotal == 0L) return
+        val before = de.waschbeken.heliolink.ui.progress.ProgressData.stats(db, prefs.profile, from.minusMonths(1), from.minusDays(1))
+        fun delta(a: Int?, b: Int?, unit: String) = if (a == null || b == null || a == b) "" else
+            " (" + (if (a > b) "+" else "−") + kotlin.math.abs(a - b) + unit + ")"
+        val text = buildList {
+            now.sleepMinutes?.let { add("Ø ${de.waschbeken.heliolink.ui.formatHours(it)} Schlaf" + delta(it, before.sleepMinutes, " min")) }
+            now.sleepScore?.let { add("Score $it" + delta(it, before.sleepScore, "")) }
+            now.stepsPerDay?.let { add("Ø ${"%,d".format(java.util.Locale.GERMANY, it)} Schritte" + delta(it, before.stepsPerDay, "")) }
+            now.restingHr?.let { add("Ruhepuls $it" + delta(it, before.restingHr, " bpm")) }
+            if (now.workouts > 0) add("${now.workouts} Trainings")
+        }.joinToString(" · ")
+        val name = from.month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.GERMANY)
+        Notifications.show(
+            this, Notifications.ID_MONTHLY, Notifications.CHANNEL_HEALTH, "Dein $name im Rückblick", "$text · Tippen für Details",
+            de.waschbeken.heliolink.ui.MainActivity.openIntent(this, de.waschbeken.heliolink.ui.Routes.PROGRESS),
+        )
+    }
+
     /** Once a day: a clear warning when last night's values together point to an illness coming up. */
     private fun bodyCheckWarning() {
         val today = LocalDate.now()
@@ -948,6 +1025,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         de.waschbeken.heliolink.data.AutoBackup.runIfDueInBackground(this)
         try {
             weeklySummary()
+            monthlySummary()
             bodyCheckWarning()
             StressPrompt.check(this, db, prefs, repo.state.value.workout != null)
         } catch (e: Exception) {
