@@ -1,6 +1,8 @@
 package de.waschbeken.heliolink.ui.sleep
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -325,6 +327,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(
     onConfirm: () -> Unit,
 ) {
     item {
+        var explain by remember { mutableStateOf(false) }
         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
             Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(92.dp), contentAlignment = Alignment.Center) {
@@ -343,16 +346,23 @@ private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(
                         if (diff >= 0) "Ziel erreicht (+${formatMinutes(diff)})" else "${formatMinutes(-diff)} unter deinem Ziel",
                         style = MaterialTheme.typography.bodySmall,
                     )
-                    if (n.strapScore == null) {
-                        Text(
+                    Text(
+                        (if (n.strapScore != null) "Score vom Strap · HelioLink schätzt ${n.estimatedScore}\n" else "") +
                             n.scoreParts.joinToString(" · ") { (name, points, max) -> "$name $points/$max" },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-                        )
-                    }
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                    )
+                    Text(
+                        "Wie entsteht der Score? ›",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(top = 4.dp).clickable { explain = true },
+                    )
                 }
             }
         }
+        if (explain) ScoreExplanation(n, goal) { explain = false }
     }
     if (askCheck) {
         item {
@@ -584,4 +594,59 @@ private fun RangeContent(r: RangeData, period: Period, goal: Int, onOpen: (Local
             }
         }
     }
+}
+
+
+@Composable
+private fun ExplainPart(name: String, part: Triple<String, Int, Int>?, text: String) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(name, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            Text("${part?.second ?: 0} / ${part?.third ?: 0}", style = MaterialTheme.typography.titleSmall)
+        }
+        Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** What the score of a night is made of: the strap's own and HelioLink's estimate with its parts. */
+@Composable
+private fun ScoreExplanation(n: SleepSession, goal: Int, onDismiss: () -> Unit) {
+    val parts = n.scoreParts
+    fun part(name: String) = parts.firstOrNull { it.first == name }
+    fun share(stage: SleepStage) = if (n.asleepMinutes > 0) n.minutes(stage) * 100 / n.asleepMinutes else 0
+    val efficiency = n.asleepMinutes * 100 / n.durationMinutes.coerceAtLeast(1)
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("So entsteht der Score") },
+        text = {
+            Column(
+                Modifier.verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                n.strapScore?.let { strap ->
+                    Text("Score vom Strap: $strap", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "Den berechnet der Strap selbst nach Amazfits Formel. Sie ist nicht veröffentlicht; bekannt ist, dass sie " +
+                            "Dauer, Tief- und REM-Schlaf, Wachphasen und die Schlafenszeit einbezieht. Sehr langer oder sehr später " +
+                            "Schlaf gibt dort deutlich Abzug. Liefert der Strap einen Score, zeigt HelioLink diesen an.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Text("HelioLink-Schätzung: ${n.estimatedScore}", style = MaterialTheme.typography.titleMedium)
+                ExplainPart(
+                    "Dauer", part("Dauer"),
+                    "Volle Punkte ab deinem Schlafziel (${formatHours(goal)}), keine bei 3 Stunden darunter. Mehr als " +
+                        "1,5 Stunden über dem Ziel kostet bis zu 30 % – sehr langer Schlaf heißt meist Nachholen oder Erschöpfung. " +
+                        "Diese Nacht: ${formatHours(n.asleepMinutes)}.",
+                )
+                ExplainPart("Tief", part("Tief"), "Volle Punkte ab 20 % Tiefschlaf. Diese Nacht: ${share(SleepStage.DEEP)} %.")
+                ExplainPart("REM", part("REM"), "Volle Punkte ab 20 % REM-Schlaf. Diese Nacht: ${share(SleepStage.REM)} %.")
+                ExplainPart(
+                    "Ruhe", part("Ruhe"),
+                    "Wie viel der Zeit im Bett du geschlafen hast: volle Punkte ab 95 %, keine unter 75 %. Diese Nacht: $efficiency %.",
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } },
+    )
 }

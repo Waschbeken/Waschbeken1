@@ -1,5 +1,10 @@
 # Was ist neu in HelioLink
 
+## 1.0.30
+- Schlaf: Unter dem Score stehen jetzt immer der Score vom Strap und HelioLinks eigene Schätzung mit ihren Teilpunkten (Dauer, Tief, REM, Ruhe).
+- „Wie entsteht der Score?“ auf der Schlafseite erklärt beide Werte mit den Zahlen deiner Nacht.
+- HelioLinks Schätzung zieht bei sehr langem Schlaf (mehr als 1,5 Stunden über deinem Ziel) bis zu 30 % der Dauer-Punkte ab – 12 Stunden Schlaf gelten nicht mehr als perfekt.
+
 ## 1.0.29
 - Nach jedem Update zeigt HelioLink, was neu ist. Alle bisherigen Neuerungen findest du unter Mehr → Was ist neu.
 - Updates über Shizuku: HelioLink startet nach der Installation von selbst wieder, statt einfach zu verschwinden.
