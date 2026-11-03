@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.FitnessCenter
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Storage
@@ -78,6 +79,7 @@ enum class SettingsCategory(val key: String, val section: SettingsSection, val t
     BATTERY("battery", SettingsSection.STRAP, "Akku & Leistung", Icons.Default.BatteryChargingFull, "Profile: Akku sparen oder maximale Genauigkeit, Verbrauch pro Tag"),
     MOVEMENT("movement", SettingsSection.STRAP, "Bewegung & Ziele", Icons.AutoMirrored.Filled.DirectionsWalk, "Bewegungserinnerung, Nicht stören, Schrittziel, Trainingserkennung"),
     ALARMS("alarms", SettingsSection.STRAP, "Wecker", Icons.Default.Alarm, "Vibrationswecker mit Smart Wake auf dem Strap"),
+    REMINDERS("reminders", SettingsSection.STRAP, "Erinnerungen", Icons.Default.NotificationsActive, "Der Strap vibriert zu festen Zeiten – Tabletten, Trinken, Pause"),
     ARM("arm", SettingsSection.STRAP, "Am Arm vibrieren", Icons.Default.Vibration, "Anrufe und Nachrichten gewählter Apps"),
 
     APPEARANCE("appearance", SettingsSection.APP, "Darstellung", Icons.Default.Palette, "Hell/dunkel, Akzentfarbe, Material You, Schriftgröße"),
@@ -223,6 +225,7 @@ fun SettingsCategoryScreen(nav: NavHostController, key: String, onForget: () -> 
                 SettingsCategory.BATTERY -> BatteryPage(state)
                 SettingsCategory.MOVEMENT -> MovementPage(state)
                 SettingsCategory.ALARMS -> Unit
+                SettingsCategory.REMINDERS -> RemindersPage(state)
                 SettingsCategory.ARM -> ArmPage()
                 SettingsCategory.APPEARANCE -> AppearancePage()
                 SettingsCategory.HOME -> HomeTilesPage()

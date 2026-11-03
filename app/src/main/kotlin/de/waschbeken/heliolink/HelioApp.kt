@@ -35,6 +35,11 @@ class HelioApp : Application() {
             useShizuku = { prefs.shizukuInstall },
             beforeInstall = { if (prefs.autoBackupBeforeUpdate) de.waschbeken.heliolink.data.AutoBackup.run(this) },
         )
+        try {
+            de.waschbeken.heliolink.service.ReminderScheduler.schedule(this)
+        } catch (e: Exception) {
+            CrashReporter.nonFatal(this, e)
+        }
     }
 }
 

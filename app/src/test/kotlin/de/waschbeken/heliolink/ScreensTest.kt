@@ -91,6 +91,7 @@ class ScreensTest {
         open(Routes.TRAINING, "04-sport")
         open(Routes.BODY, "05-koerper")
         open(Routes.WHATS_NEW, "41-was-ist-neu")
+        open(Routes.ENTRIES, "42-eintraege")
         open(Routes.PROGRESS, "40-fortschritt")
         open(Routes.metric(Metric.HEART.key), "10-heart")
     }
@@ -132,6 +133,8 @@ class ScreensTest {
         open(Routes.TOOLS_FOCUS, "35-fokus")
         open(Routes.sleepEdit(LocalDate.now().toEpochDay()), "36-schlaf-bearbeiten")
         app.db.workouts().forEach { w -> open(Routes.workout(w.id), "37-training-${w.id}") }
+        open(Routes.WHATS_NEW, "41-was-ist-neu")
+        open(Routes.ENTRIES, "42-eintraege")
         open(Routes.PROGRESS, "40-fortschritt")
         listOf("Woche", "Jahr").forEach { click(it); shot("40-fortschritt-$it") }
         listOf("Schritte", "Ruhepuls").forEach { click(it); shot("40-fortschritt-kalender-$it") }

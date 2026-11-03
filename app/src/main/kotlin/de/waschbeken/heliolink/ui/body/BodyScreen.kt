@@ -161,6 +161,9 @@ fun BodyScreen(nav: NavHostController) {
                                 if (o.validTime > 0) "${o.drops} Abfälle laut Strap" + (o.score?.let { " · Bewertung $it" } ?: "") else "Vom Strap nicht auswertbar"
                             } ?: "Noch keine Auswertung vom Strap",
                         ) { nav.navigateToTab(Routes.SLEEP) }
+                        LinkRow("Alle Einträge", "Beschwerden und Schnell-Einträge der letzten Wochen – ändern oder löschen") {
+                            nav.navigate(Routes.ENTRIES)
+                        }
                     }
                 }
                 item { HistoryPanel(d) }

@@ -1,5 +1,10 @@
 # Was ist neu in HelioLink
 
+## 1.0.30
+- Neu: Erinnerungen am Arm (Mehr → Erinnerungen). Zur eingestellten Zeit vibriert der Strap und eine Benachrichtigung zeigt den Text – für Tabletten, Trinken, Pausen oder was du willst, mit Wochentagen und Stärke der Vibration.
+- Neue Seite „Alle Einträge“ (auf „Heute“ unter Schnell eintragen): alle Einträge und Beschwerden der letzten Wochen nach Tagen, filterbar nach Art; Uhrzeit ändern und löschen geht auch für frühere Tage.
+- Schneller und sparsamer: Die Schlafanalyse der letzten Wochen wird nur noch neu berechnet, wenn neue Daten oder Korrekturen da sind – die Startseite lädt dadurch zügiger und das Handy rechnet weniger im Hintergrund.
+
 ## 1.0.29
 - Nach jedem Update zeigt HelioLink, was neu ist. Alle bisherigen Neuerungen findest du unter Mehr → Was ist neu.
 - Neue Karte „Heute fällt auf“ auf der Startseite: nennt, was an deiner Nacht und deinem Tag deutlich anders war als sonst – länger oder später geschlafen, Ruhepuls, HRV, Hauttemperatur, Schritte.

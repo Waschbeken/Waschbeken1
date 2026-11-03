@@ -21,8 +21,39 @@ object Queries {
     fun dayWindow(date: LocalDate, zone: ZoneId): Pair<Long, Long> =
         date.atStartOfDay(zone).toEpochSecond() to date.plusDays(1).atStartOfDay(zone).toEpochSecond()
 
+    /** What a result of [nights] depends on besides the data, which [HealthDb.generation] stands for. */
+    private data class NightsKey(
+        val from: LocalDate,
+        val to: LocalDate,
+        val zone: String,
+        val applyEdits: Boolean,
+        val tuning: de.waschbeken.heliolink.core.SleepTuning,
+        val alwaysEstimate: Boolean,
+        val goal: Int,
+        val generation: Long,
+    )
+
+    /**
+     * The last results of [nights]: the start page alone asks for the nights of the last 60 days on
+     * every refresh. A change of the data or of the sleep settings makes a new key.
+     */
+    private val nightsCache = object : LinkedHashMap<NightsKey, Map<LocalDate, SleepSession>>(16, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<NightsKey, Map<LocalDate, SleepSession>>?) = size > 16
+    }
+
     /** All nights between [from] and [to] (dates of the mornings). The strap's own records win, corrections by hand win over both. */
     fun nights(db: HealthDb, from: LocalDate, to: LocalDate, zone: ZoneId, applyEdits: Boolean = true): Map<LocalDate, SleepSession> {
+        val prefs = db.prefs
+        val key = NightsKey(
+            from, to, zone.id, applyEdits, prefs.sleepTuning, prefs.sleepAlwaysEstimate, prefs.profile.sleepGoalMinutes, db.generation,
+        )
+        synchronized(nightsCache) { nightsCache[key] }?.let { return it }
+        val result = computeNights(db, from, to, zone, applyEdits)
+        synchronized(nightsCache) { nightsCache[key] = result }
+        return result
+    }
+
+    private fun computeNights(db: HealthDb, from: LocalDate, to: LocalDate, zone: ZoneId, applyEdits: Boolean): Map<LocalDate, SleepSession> {
         val prefs = db.prefs
         val tuning = prefs.sleepTuning
         val start = nightWindow(from, zone).first

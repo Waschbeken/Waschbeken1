@@ -262,16 +262,19 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         cv.put("ranges", edit.rangesText())
         cv.put("deleted", if (edit.deleted) 1 else 0)
         writableDatabase.insertWithOnConflict("sleep_edit", null, cv, SQLiteDatabase.CONFLICT_REPLACE)
+        changed()
     }
 
     fun deleteSleepEdit(night: Long) {
         writableDatabase.delete("sleep_edit", "night = ?", arrayOf(night.toString()))
+        changed()
     }
 
     fun sleepEditCount(): Int = readableDatabase.rawQuery("SELECT COUNT(*) FROM sleep_edit", null).use { if (it.moveToFirst()) it.getInt(0) else 0 }
 
     fun clearSleepEdits() {
         writableDatabase.delete("sleep_edit", null, null)
+        changed()
     }
 
     // ------------------------------------------------------------------ PAI
@@ -403,6 +406,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
             }
         } finally {
             db.execSQL("DETACH DATABASE bak")
+            changed()
         }
     }
 
@@ -804,6 +808,19 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
             db.setTransactionSuccessful()
         } finally {
             db.endTransaction()
+            changed()
         }
+    }
+
+    /**
+     * Grows with every change of the stored data (all inserts run in [transaction], plus sleep
+     * corrections and restores); caches of computed values, like the nights, compare it.
+     */
+    @Volatile
+    var generation = 0L
+        private set
+
+    private fun changed() {
+        generation++
     }
 }

@@ -86,6 +86,9 @@ jobs:
           SRC="$PWD/app/build/screenshots"
           DIR=$(mktemp -d)
           cp -r "$SRC"/. "$DIR"/
+          # The test reports too (with what the tests printed), to look into failures and gaps.
+          mkdir -p "$DIR/testberichte"
+          cp app/build/test-results/testDebugUnitTest/*.xml "$DIR/testberichte/" 2>/dev/null || true
           cd "$DIR"
           git init -q -b screenshots
           git add -A
