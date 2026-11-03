@@ -1,5 +1,8 @@
 # Was ist neu in HelioLink
 
+## 1.0.32
+- Schlafenszeit-Erinnerung auch ohne Wecker auf dem Strap: Sie rechnet dann mit deiner üblichen Aufwachzeit der letzten Nächte.
+
 ## 1.0.31
 - Erinnerungen können sich wiederholen: z. B. „Trinken“ alle 2 Stunden von 9 bis 18 Uhr oder „Augen entspannen“ jede Stunde.
 - Neue Seite „Hilfe & Tipps“ (Mehr → Über): Antworten zu fehlenden Werten, „Gestern“ auf der Startseite, Akku, Schlaf-Score, Verbindung, Firmware-Update, Shizuku und Sicherung – jeweils mit Sprung zur passenden Einstellung.

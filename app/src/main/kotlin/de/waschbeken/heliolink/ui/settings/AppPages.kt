@@ -269,7 +269,7 @@ internal fun NotificationsPage() {
         "Schlafenszeit-Erinnerung",
         listOf(0 to "Aus", 15 to "15 Minuten vorher", 30 to "30 Minuten vorher", 45 to "45 Minuten vorher", 60 to "1 Stunde vorher"),
         prefs.bedtimeReminder,
-        subtitle = "nächster Wecker minus Schlafziel",
+        subtitle = "Wecker (oder deine übliche Aufwachzeit) minus Schlafziel",
     ) { prefs.bedtimeReminder = it }
     SwitchSetting(
         "Wochenbericht",
