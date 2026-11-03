@@ -36,6 +36,25 @@ class RemindersTest {
     }
 
     @Test
+    fun repeatsWithinTheWindow() {
+        val water = Reminder(3, "Trinken", 9, 0, repeatMinutes = 120, endHour = 18, endMinute = 0)
+        assertEquals(listOf(540, 660, 780, 900, 1020), water.times())
+        assertEquals(ZonedDateTime.of(2026, 10, 30, 9, 0, 0, 0, zone), Reminders.next(listOf(water), now)!!.first)
+        assertEquals(ZonedDateTime.of(2026, 10, 30, 15, 0, 0, 0, zone), Reminders.next(listOf(water), now.withHour(13).withMinute(5))!!.first)
+        // After the last one of the day: tomorrow at the start.
+        assertEquals(ZonedDateTime.of(2026, 10, 31, 9, 0, 0, 0, zone), Reminders.next(listOf(water), now.withHour(17).withMinute(30))!!.first)
+        assertEquals("09:00–18:00 alle 2 h · täglich", water.schedule)
+        assertEquals(water, Reminder.decode(water.encode()))
+    }
+
+    @Test
+    fun readsTheOldFormat() {
+        val old = Reminder.decode("4|8|15|31|2|1|Tabletten")!!
+        assertEquals(Reminder(4, "Tabletten", 8, 15, days = 31, pulses = 2), old)
+        assertEquals(listOf(495), old.times())
+    }
+
+    @Test
     fun encodesAndDecodes() {
         val r = Reminder(7, "Pause | Augen", 21, 30, days = 0x60, pulses = 2)
         val back = Reminder.decode(r.encode())!!

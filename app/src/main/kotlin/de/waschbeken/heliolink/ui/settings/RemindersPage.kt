@@ -94,7 +94,13 @@ private fun ReminderDialog(r: Reminder, isNew: Boolean, onDismiss: () -> Unit, o
     var text by remember { mutableStateOf(r.text) }
     var days by remember { mutableIntStateOf(if (r.days == 0) 0x7f else r.days) }
     var pulses by remember { mutableIntStateOf(r.pulses) }
+    var repeat by remember { mutableIntStateOf(r.repeatMinutes) }
     val time = rememberTimePickerState(initialHour = r.hour, initialMinute = r.minute, is24Hour = true)
+    val until = rememberTimePickerState(
+        initialHour = if (r.repeatMinutes > 0) r.endHour else minOf(23, r.hour + 9),
+        initialMinute = if (r.repeatMinutes > 0) r.endMinute else r.minute,
+        is24Hour = true,
+    )
     val names = listOf("Mo", "Di", "Mi", "Do", "Fr", "Sa", "So")
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -104,11 +110,25 @@ private fun ReminderDialog(r: Reminder, isNew: Boolean, onDismiss: () -> Unit, o
                 OutlinedTextField(text, { text = it.take(60) }, label = { Text("Woran erinnern?") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("Tabletten", "Trinken", "Pause", "Bewegen", "Augen entspannen").forEach { t ->
-                        AssistChip(onClick = { text = t }, label = { Text(t) })
+                        AssistChip(onClick = {
+                            text = t
+                            // Water and breaks are usually repeated over the day.
+                            if (isNew && repeat == 0 && t in setOf("Trinken", "Bewegen", "Augen entspannen")) repeat = if (t == "Trinken") 120 else 60
+                        }, label = { Text(t) })
                     }
                 }
-                Text("Uhrzeit", style = MaterialTheme.typography.titleSmall)
+                Text(if (repeat > 0) "Ab" else "Uhrzeit", style = MaterialTheme.typography.titleSmall)
                 TimeInput(state = time)
+                Text("Wiederholen", style = MaterialTheme.typography.titleSmall)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(0 to "Nein", 30 to "alle 30 min", 60 to "jede Stunde", 120 to "alle 2 h", 180 to "alle 3 h").forEach { (m, label) ->
+                        FilterChip(selected = repeat == m, onClick = { repeat = m }, label = { Text(label) })
+                    }
+                }
+                if (repeat > 0) {
+                    Text("Bis", style = MaterialTheme.typography.titleSmall)
+                    TimeInput(state = until)
+                }
                 Text("Tage", style = MaterialTheme.typography.titleSmall)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     names.forEachIndexed { i, name ->
@@ -135,6 +155,9 @@ private fun ReminderDialog(r: Reminder, isNew: Boolean, onDismiss: () -> Unit, o
                             minute = time.minute,
                             days = if (days == 0x7f) 0 else days,
                             pulses = pulses,
+                            repeatMinutes = repeat,
+                            endHour = if (repeat > 0) until.hour else time.hour,
+                            endMinute = if (repeat > 0) until.minute else time.minute,
                         ),
                     )
                     onDismiss()
