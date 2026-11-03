@@ -89,6 +89,7 @@ object Routes {
     const val PROGRESS = "progress"
     const val WHATS_NEW = "whatsnew"
     const val ENTRIES = "entries"
+    const val HELP = "help"
 }
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
@@ -396,6 +397,7 @@ internal fun AppContent(pendingRoute: String?, onRouteShown: () -> Unit, onForge
             composable(Routes.PROGRESS) { de.waschbeken.heliolink.ui.progress.ProgressScreen(nav) }
             composable(Routes.WHATS_NEW) { WhatsNewScreen(nav) }
             composable(Routes.ENTRIES) { de.waschbeken.heliolink.ui.events.EntriesScreen(nav) }
+            composable(Routes.HELP) { HelpScreen(nav) }
             composable("metric/{type}") { MetricScreen(nav, it.arguments?.getString("type").orEmpty()) }
             composable("settings/{category}") { SettingsCategoryScreen(nav, it.arguments?.getString("category").orEmpty(), onForget) }
             composable("workout/{id}", listOf(navArgument("id") { type = NavType.LongType })) {

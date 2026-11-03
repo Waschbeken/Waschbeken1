@@ -879,22 +879,40 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
     private fun checkBedtime() {
         val before = prefs.bedtimeReminder
         if (before <= 0) return
-        val next = nextAlarm(db.alarms().filter { !it.deleted }.map { it.alarm }) ?: return
-        val bedtime = next.minusMinutes(prefs.profile.sleepGoalMinutes.toLong())
         val now = ZonedDateTime.now()
+        val alarm = nextAlarm(db.alarms().filter { !it.deleted }.map { it.alarm })?.takeIf { java.time.Duration.between(now, it).toHours() < 24 }
+        // Without a strap alarm: the usual wake-up time of the last nights.
+        val wake = alarm ?: usualWake(now) ?: return
+        val bedtime = wake.minusMinutes(prefs.profile.sleepGoalMinutes.toLong())
         val remind = bedtime.minusMinutes(before.toLong())
         val day = bedtime.toLocalDate().toEpochDay()
         if (now.isAfter(remind) && now.isBefore(bedtime) && prefs.bedtimeNotifiedDay != day) {
             prefs.bedtimeNotifiedDay = day
+            val goal = de.waschbeken.heliolink.ui.formatMinutes(prefs.profile.sleepGoalMinutes)
             Notifications.show(
                 this, Notifications.ID_BEDTIME, Notifications.CHANNEL_HEALTH,
                 "Bald Schlafenszeit",
-                "Wecker um %02d:%02d – für %s Schlaf ab %02d:%02d ins Bett.".format(
-                    next.hour, next.minute, de.waschbeken.heliolink.ui.formatMinutes(prefs.profile.sleepGoalMinutes), bedtime.hour, bedtime.minute,
-                ),
-                de.waschbeken.heliolink.ui.MainActivity.openIntent(this, de.waschbeken.heliolink.ui.Routes.ALARMS),
+                if (alarm != null) {
+                    "Wecker um %02d:%02d – für %s Schlaf ab %02d:%02d ins Bett.".format(alarm.hour, alarm.minute, goal, bedtime.hour, bedtime.minute)
+                } else {
+                    "Du wachst meist gegen %02d:%02d auf – für %s Schlaf ab %02d:%02d ins Bett.".format(wake.hour, wake.minute, goal, bedtime.hour, bedtime.minute)
+                },
+                de.waschbeken.heliolink.ui.MainActivity.openIntent(this, de.waschbeken.heliolink.ui.Routes.SLEEP),
             )
         }
+    }
+
+    /** The next usual wake-up: the average time of the last 7 nights' ends, at least 3 nights needed. */
+    private fun usualWake(now: ZonedDateTime): ZonedDateTime? {
+        val today = now.toLocalDate()
+        val ends = de.waschbeken.heliolink.data.Queries.nights(db, today.minusDays(7), today, now.zone).values
+            .filter { it.asleepMinutes >= 180 }
+            .map { java.time.Instant.ofEpochSecond(it.end).atZone(now.zone).let { t -> t.hour * 60 + t.minute } }
+            .filter { it in 3 * 60..13 * 60 }
+        if (ends.size < 3) return null
+        val minute = ends.average().toInt()
+        val candidate = today.atTime(minute / 60, minute % 60).atZone(now.zone)
+        return if (candidate.isAfter(now)) candidate else candidate.plusDays(1)
     }
 
     /**
@@ -1044,9 +1062,15 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 append(" · REM ${de.waschbeken.heliolink.ui.formatMinutes(night.minutes(SleepStage.REM))}")
             }
             night.minHeartRate?.let { append(" · Puls min. $it") }
+            // The most striking point of "Heute fällt auf", if any.
+            try {
+                de.waschbeken.heliolink.ui.home.HomeData.load(db, prefs.profile.stepGoal).insights.firstOrNull()?.let { append("\n").append(it.text) }
+            } catch (e: Exception) {
+                de.waschbeken.heliolink.data.CrashReporter.nonFatal(this@StrapService, e)
+            }
         }
         Notifications.show(
-            this, Notifications.ID_MORNING, Notifications.CHANNEL_HEALTH, "Guten Morgen! Deine Nacht", "$text · Tippen zum Ansehen oder Korrigieren",
+            this, Notifications.ID_MORNING, Notifications.CHANNEL_HEALTH, "Guten Morgen! Deine Nacht", "$text\nTippen zum Ansehen oder Korrigieren",
             de.waschbeken.heliolink.ui.MainActivity.openIntent(this, de.waschbeken.heliolink.ui.Routes.SLEEP),
         )
     }

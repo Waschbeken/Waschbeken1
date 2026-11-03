@@ -1,5 +1,14 @@
 # Was ist neu in HelioLink
 
+## 1.0.31
+- Erinnerungen können sich wiederholen: z. B. „Trinken“ alle 2 Stunden von 9 bis 18 Uhr oder „Augen entspannen“ jede Stunde.
+- Neue Seite „Hilfe & Tipps“ (Mehr → Über): Antworten zu fehlenden Werten, „Gestern“ auf der Startseite, Akku, Schlaf-Score, Verbindung, Firmware-Update, Shizuku und Sicherung – jeweils mit Sprung zur passenden Einstellung.
+- Erinnerungen: Hinweis mit direktem Link, falls Android die Benachrichtigungen für HelioLink blockiert.
+- Erinnerungen: Die Benachrichtigung hat jetzt einen Knopf „Erledigt“ – er trägt die Erinnerung (z. B. „Tabletten“) mit Uhrzeit als Eintrag ein, sichtbar in „Alle Einträge“ und im Arzt-Bericht.
+- Die Startseite zeigt unter dem Wecker die nächste Erinnerung.
+- Der Morgenbericht nennt jetzt auch das Wichtigste aus „Heute fällt auf“ (z. B. Ruhepuls deutlich höher als sonst).
+- Schlafenszeit-Erinnerung auch ohne Wecker auf dem Strap: Sie rechnet dann mit deiner üblichen Aufwachzeit der letzten Nächte.
+
 ## 1.0.30
 - Neu: Erinnerungen am Arm (Mehr → Erinnerungen). Zur eingestellten Zeit vibriert der Strap und eine Benachrichtigung zeigt den Text – für Tabletten, Trinken, Pausen oder was du willst, mit Wochentagen und Stärke der Vibration.
 - Neue Seite „Alle Einträge“ (auf „Heute“ unter Schnell eintragen): alle Einträge und Beschwerden der letzten Wochen nach Tagen, filterbar nach Art; Uhrzeit ändern und löschen geht auch für frühere Tage.
