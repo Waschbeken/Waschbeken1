@@ -135,6 +135,11 @@ class HomeData(
                     temperatureDeviation = tempDeviation,
                     stepsYesterday = week.firstOrNull { it.date == today.minusDays(1) }?.steps?.takeIf { it > 0 },
                     usualSteps = stepDays.takeIf { it.size >= 3 }?.map { it.steps }?.average(),
+                    sleepDebtMinutes = run {
+                        val goal = db.prefs.profile.sleepGoalMinutes
+                        val last7 = (before.filter { it.date > today.minusDays(7) } + listOfNotNull(night?.let { Queries.NightSummary.of(today, it) }))
+                        last7.takeIf { it.size >= 4 }?.sumOf { (goal - it.asleepMinutes).coerceAtLeast(0) }
+                    },
                 ),
             )
 

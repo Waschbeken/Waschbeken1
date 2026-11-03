@@ -10,11 +10,14 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTextClearance
+import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import de.waschbeken.heliolink.data.ThemeMode
@@ -118,6 +121,11 @@ class ScreensTest {
         open(Routes.TRAINING, "04-sport")
         open(Routes.BODY, "05-koerper")
         open(Routes.SETTINGS, "06-mehr")
+        compose.onAllNodes(hasSetTextAction()).onFirst().performTextInput("Akku")
+        settle()
+        shot("06-mehr-suche")
+        compose.onAllNodes(hasSetTextAction()).onFirst().performTextClearance()
+        settle()
 
         Metric.entries.forEach { m ->
             open(Routes.metric(m.key), "10-${m.key}")
