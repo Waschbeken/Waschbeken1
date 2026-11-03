@@ -46,6 +46,21 @@ internal fun RemindersPage(state: StrapUiState) {
         ReminderScheduler.schedule(context)
     }
 
+    // Without notifications the text of a reminder cannot show (the strap still vibrates).
+    val notificationsOn = androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
+    if (!notificationsOn) {
+        SettingsHeader("Benachrichtigungen sind aus")
+        SettingRow("Für HelioLink erlauben", "Sonst vibriert der Strap nur, ohne dass du den Text siehst – tippen") {
+            try {
+                context.startActivity(
+                    android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                )
+            } catch (_: android.content.ActivityNotFoundException) {
+            }
+        }
+    }
     SettingsHeader("Erinnerungen am Arm")
     SettingsNote(
         "Zur eingestellten Zeit vibriert der Strap und eine Benachrichtigung zeigt den Text – z. B. für Tabletten, " +
