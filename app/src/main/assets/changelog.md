@@ -1,6 +1,7 @@
 # Was ist neu in HelioLink
 
 ## 1.0.32
+- Der Morgenbericht nennt jetzt auch das Wichtigste aus „Heute fällt auf“ (z. B. Ruhepuls deutlich höher als sonst).
 - Schlafenszeit-Erinnerung auch ohne Wecker auf dem Strap: Sie rechnet dann mit deiner üblichen Aufwachzeit der letzten Nächte.
 
 ## 1.0.31

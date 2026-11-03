@@ -1062,9 +1062,15 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 append(" · REM ${de.waschbeken.heliolink.ui.formatMinutes(night.minutes(SleepStage.REM))}")
             }
             night.minHeartRate?.let { append(" · Puls min. $it") }
+            // The most striking point of "Heute fällt auf", if any.
+            try {
+                de.waschbeken.heliolink.ui.home.HomeData.load(db, prefs.profile.stepGoal).insights.firstOrNull()?.let { append("\n").append(it.text) }
+            } catch (e: Exception) {
+                de.waschbeken.heliolink.data.CrashReporter.nonFatal(this@StrapService, e)
+            }
         }
         Notifications.show(
-            this, Notifications.ID_MORNING, Notifications.CHANNEL_HEALTH, "Guten Morgen! Deine Nacht", "$text · Tippen zum Ansehen oder Korrigieren",
+            this, Notifications.ID_MORNING, Notifications.CHANNEL_HEALTH, "Guten Morgen! Deine Nacht", "$text\nTippen zum Ansehen oder Korrigieren",
             de.waschbeken.heliolink.ui.MainActivity.openIntent(this, de.waschbeken.heliolink.ui.Routes.SLEEP),
         )
     }
