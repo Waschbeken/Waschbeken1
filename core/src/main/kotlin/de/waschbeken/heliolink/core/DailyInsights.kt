@@ -28,6 +28,8 @@ object DailyInsights {
         val temperatureDeviation: Double? = null,
         val stepsYesterday: Int? = null,
         val usualSteps: Double? = null,
+        /** Minutes of sleep missing to the goal over the last 7 nights (nights above the goal do not make up for it). */
+        val sleepDebtMinutes: Int? = null,
     )
 
     private fun hm(minutes: Int): String {
@@ -90,6 +92,13 @@ object DailyInsights {
                         if (temperatureDeviation > 0) " – zusammen mit hohem Ruhepuls oft ein frühes Zeichen für einen Infekt." else ".",
                     if (temperatureDeviation > 0) Tone.WATCH else Tone.NEUTRAL,
                     abs(temperatureDeviation) / 0.4 * 1.1,
+                )
+            }
+            if (sleepDebtMinutes != null && sleepDebtMinutes >= 180) {
+                out += Insight(
+                    "In den letzten 7 Nächten fehlen dir zusammen ${hm(sleepDebtMinutes)} Schlaf zu deinem Ziel – heute früher ins Bett hilft.",
+                    Tone.WATCH,
+                    sleepDebtMinutes / 180.0 * 0.9,
                 )
             }
             if (stepsYesterday != null && usualSteps != null && usualSteps >= 1000) {

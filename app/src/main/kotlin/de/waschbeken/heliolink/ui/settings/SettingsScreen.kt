@@ -51,6 +51,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -110,6 +117,7 @@ fun SettingsScreen(nav: NavHostController) {
         if (c == SettingsCategory.ALARMS) nav.navigate(Routes.ALARMS) else nav.navigate(Routes.settings(c.key))
     }
 
+    var query by rememberSaveable { mutableStateOf("") }
     Scaffold(topBar = { TopAppBar(title = { Text("Einstellungen") }) }) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
@@ -117,6 +125,37 @@ fun SettingsScreen(nav: NavHostController) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             item { StrapCard(state, prefs.deviceName) { open(SettingsCategory.DEVICE) } }
+            item {
+                OutlinedTextField(
+                    query, { query = it },
+                    placeholder = { Text("Einstellungen durchsuchen") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = {
+                        if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, contentDescription = "Leeren") }
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                )
+            }
+            if (query.isNotBlank()) {
+                val q = query.trim().lowercase()
+                val extras = listOf(
+                    Triple("Fortschritt", "Ziele, Tage ohne, Kalender, Rückblick, Bericht, Arzt, PDF, Bestwerte", Routes.PROGRESS),
+                    Triple("Hilfe & Tipps", "Fragen, Probleme, fehlende Werte, Verbindung", Routes.HELP),
+                    Triple("Was ist neu", "Neuerungen, Versionen, Update", Routes.WHATS_NEW),
+                    Triple("Alle Einträge", "Koffein, Nikotin, Beschwerden, Verlauf, löschen", Routes.ENTRIES),
+                )
+                val categories = SettingsCategory.entries.filter { (it.title + " " + it.summary).lowercase().contains(q) }
+                val pages = extras.filter { (it.first + " " + it.second).lowercase().contains(q) }
+                item {
+                    SettingsGroup {
+                        if (categories.isEmpty() && pages.isEmpty()) SettingRow("Nichts gefunden", "Anderes Wort versuchen, z. B. „Akku“ oder „Schlaf“")
+                        categories.forEach { c -> CategoryRow(c.icon, c.title, c.summary) { open(c) } }
+                        pages.forEach { (title, summary, route) -> SettingRow(title, summary) { nav.navigate(route) } }
+                    }
+                }
+                return@LazyColumn
+            }
             item {
                 SettingsGroup {
                     CategoryRow(

@@ -34,6 +34,13 @@ class DailyInsightsTest {
     }
 
     @Test
+    fun sleepDebtFromThreeHours() {
+        assertTrue(DailyInsights.of(DailyInsights.Input(sleepDebtMinutes = 170)).isEmpty())
+        val list = DailyInsights.of(DailyInsights.Input(sleepDebtMinutes = 260))
+        assertTrue(list.single().text.contains("4:20 h Schlaf"), list.toString())
+    }
+
+    @Test
     fun temperatureAndHrvUseGermanNumbers() {
         val list = DailyInsights.of(DailyInsights.Input(temperatureDeviation = 0.55, hrv = 40.0, usualHrv = 50.0))
         assertTrue(list.any { it.text.contains("+0,6 °C") || it.text.contains("+0,5 °C") }, list.toString())
