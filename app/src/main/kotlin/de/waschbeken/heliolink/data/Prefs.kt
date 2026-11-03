@@ -299,6 +299,11 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getBoolean("progress_hint_seen", false)
         set(v) = edit { putBoolean("progress_hint_seen", v) }
 
+    /** Reminders on the arm (the strap vibrates at set times). */
+    var reminders: List<de.waschbeken.heliolink.core.Reminder>
+        get() = sp.getString("reminders", null)?.split('\n')?.mapNotNull { de.waschbeken.heliolink.core.Reminder.decode(it) } ?: emptyList()
+        set(v) = edit { putString("reminders", v.joinToString("\n") { it.encode() }) }
+
     /** Entries counted as "Tage ohne …" (e.g. Nikotin, Alkohol). */
     var withoutTags: List<String>
         get() = sp.getString("without_tags", null)?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()

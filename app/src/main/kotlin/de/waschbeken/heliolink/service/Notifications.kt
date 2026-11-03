@@ -15,6 +15,7 @@ object Notifications {
     const val CHANNEL_ALERTS = "alerts"
     const val CHANNEL_UPDATES = "updates"
     const val CHANNEL_HEALTH = "health"
+    const val CHANNEL_REMINDERS = "reminders"
 
     const val ID_BATTERY = 2
     const val ID_SYNC = 3
@@ -29,12 +30,16 @@ object Notifications {
     const val ID_STRESS = 12
     const val ID_MONTHLY = 13
 
+    /** Reminders use this plus their id. */
+    const val ID_REMINDER = 1000
+
     fun createChannels(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val nm = context.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(CHANNEL_ALERTS, "Warnungen", NotificationManager.IMPORTANCE_DEFAULT))
         nm.createNotificationChannel(NotificationChannel(CHANNEL_UPDATES, "App-Updates", NotificationManager.IMPORTANCE_DEFAULT))
         nm.createNotificationChannel(NotificationChannel(CHANNEL_HEALTH, "Schlaf & Erholung", NotificationManager.IMPORTANCE_DEFAULT))
+        nm.createNotificationChannel(NotificationChannel(CHANNEL_REMINDERS, "Erinnerungen", NotificationManager.IMPORTANCE_HIGH))
     }
 
     fun show(context: Context, id: Int, channel: String, title: String, text: String, intent: Intent? = null) {
