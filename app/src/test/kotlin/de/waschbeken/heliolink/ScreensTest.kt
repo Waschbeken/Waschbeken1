@@ -135,6 +135,9 @@ class ScreensTest {
         app.db.workouts().forEach { w -> open(Routes.workout(w.id), "37-training-${w.id}") }
         open(Routes.WHATS_NEW, "41-was-ist-neu")
         open(Routes.ENTRIES, "42-eintraege")
+        open(Routes.HELP, "43-hilfe")
+        click("In einem Diagramm fehlen Stunden oder Werte")
+        shot("43-hilfe-offen")
         open(Routes.PROGRESS, "40-fortschritt")
         listOf("Woche", "Jahr").forEach { click(it); shot("40-fortschritt-$it") }
         listOf("Schritte", "Ruhepuls").forEach { click(it); shot("40-fortschritt-kalender-$it") }

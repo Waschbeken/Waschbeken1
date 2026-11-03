@@ -163,6 +163,7 @@ fun SettingsScreen(nav: NavHostController) {
                             }
                         },
                     )
+                    SettingRow("Hilfe & Tipps", "Fehlende Werte, Akku, Score, Verbindung, Firmware-Update, Sicherung") { nav.navigate(Routes.HELP) }
                     SettingRow("Was ist neu", "Alle Neuerungen und Änderungen der letzten Versionen") { nav.navigate(Routes.WHATS_NEW) }
                     SettingRow("HelioLink ${BuildConfig.VERSION_NAME}", "Ohne Cloud – deine Daten bleiben auf dem Gerät. Für den Amazfit Helio Strap.")
                 }

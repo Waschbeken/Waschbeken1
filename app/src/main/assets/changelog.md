@@ -1,6 +1,8 @@
 # Was ist neu in HelioLink
 
 ## 1.0.31
+- Neue Seite „Hilfe & Tipps“ (Mehr → Über): Antworten zu fehlenden Werten, „Gestern“ auf der Startseite, Akku, Schlaf-Score, Verbindung, Firmware-Update, Shizuku und Sicherung – jeweils mit Sprung zur passenden Einstellung.
+- Erinnerungen: Hinweis mit direktem Link, falls Android die Benachrichtigungen für HelioLink blockiert.
 - Erinnerungen: Die Benachrichtigung hat jetzt einen Knopf „Erledigt“ – er trägt die Erinnerung (z. B. „Tabletten“) mit Uhrzeit als Eintrag ein, sichtbar in „Alle Einträge“ und im Arzt-Bericht.
 - Die Startseite zeigt unter dem Wecker die nächste Erinnerung.
 
