@@ -619,6 +619,20 @@ private fun AlarmCard(d: HomeData, onClick: () -> Unit) {
             }
             CountPill("Wecker", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer)
         }
+        val reminders = LocalContext.current.app.prefs.reminders
+        de.waschbeken.heliolink.core.Reminders.next(reminders, ZonedDateTime.now())?.let { (at, due) ->
+            val today = java.time.LocalDate.now()
+            val day = when (at.toLocalDate()) {
+                today -> "heute"
+                today.plusDays(1) -> "morgen"
+                else -> at.format(DateTimeFormatter.ofPattern("EEE", de.waschbeken.heliolink.ui.German))
+            }
+            Text(
+                "Nächste Erinnerung: ${due.joinToString { it.text }} · $day ${at.format(DateTimeFormatter.ofPattern("HH:mm"))}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

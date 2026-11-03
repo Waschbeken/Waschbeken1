@@ -1,5 +1,9 @@
 # Was ist neu in HelioLink
 
+## 1.0.31
+- Erinnerungen: Die Benachrichtigung hat jetzt einen Knopf „Erledigt“ – er trägt die Erinnerung (z. B. „Tabletten“) mit Uhrzeit als Eintrag ein, sichtbar in „Alle Einträge“ und im Arzt-Bericht.
+- Die Startseite zeigt unter dem Wecker die nächste Erinnerung.
+
 ## 1.0.30
 - Neu: Erinnerungen am Arm (Mehr → Erinnerungen). Zur eingestellten Zeit vibriert der Strap und eine Benachrichtigung zeigt den Text – für Tabletten, Trinken, Pausen oder was du willst, mit Wochentagen und Stärke der Vibration.
 - Neue Seite „Alle Einträge“ (auf „Heute“ unter Schnell eintragen): alle Einträge und Beschwerden der letzten Wochen nach Tagen, filterbar nach Art; Uhrzeit ändern und löschen geht auch für frühere Tage.
