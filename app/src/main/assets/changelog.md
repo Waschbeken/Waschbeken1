@@ -1,5 +1,9 @@
 # Was ist neu in HelioLink
 
+## 1.0.33
+- „Heute fällt auf“ ist in den Tab „Körper“ umgezogen – ganz oben, auf- und zuklappbar. Die Startseite ist dadurch wieder kürzer.
+- „Wie geht's dir heute?“ lässt sich zuklappen; zugeklappt steht in einer Zeile, was du heute eingetragen hast.
+
 ## 1.0.32
 - Suche unter „Mehr“: ein Wort wie „Akku“, „Wecker“ oder „Schlaf“ eintippen und direkt zur passenden Einstellung springen.
 - „Heute fällt auf“ meldet jetzt auch Schlafschuld: wenn dir in den letzten 7 Nächten zusammen 3 Stunden oder mehr zu deinem Schlafziel fehlen.
