@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -124,6 +127,10 @@ fun BodyScreen(nav: NavHostController) {
     val state by app.repo.state.collectAsStateWithLifecycle()
     var reload by remember { mutableIntStateOf(0) }
     val data by de.waschbeken.heliolink.ui.cachedDbValue("body", state.dataVersion, reload) { load(it) }
+    val stepGoal = app.prefs.profile.stepGoal
+    val insights by de.waschbeken.heliolink.ui.cachedDbValue("body-insights", state.dataVersion) {
+        de.waschbeken.heliolink.ui.home.HomeData.load(it, stepGoal).insights
+    }
     Scaffold(topBar = { TopAppBar(title = { Text("Körper") }) }) { padding ->
         de.waschbeken.heliolink.ui.SyncRefreshBox(Modifier.fillMaxSize().padding(padding)) {
             LazyColumn(
@@ -136,6 +143,7 @@ fun BodyScreen(nav: NavHostController) {
                     item { Text("Lade …") }
                     return@LazyColumn
                 }
+                insights?.takeIf { it.isNotEmpty() }?.let { list -> item { de.waschbeken.heliolink.ui.home.InsightsCard(list) } }
                 item { FeelingCard(d) { reload++ } }
                 item { CheckPanel(d.check) }
                 item { Panel { Text("Helfer", style = MaterialTheme.typography.titleMedium); HelperRow(nav) } }
@@ -203,8 +211,31 @@ private fun FeelingCard(d: BodyData, onChanged: () -> Unit) {
         withContext(Dispatchers.IO) { app.db.setFeeling(today, score, note.trim()) }
         app.repo.dataChanged()
     }
+    val sections = de.waschbeken.heliolink.ui.rememberSections()
+    val open = sections.isOpen("body-feeling", default = true)
     Panel(color = MaterialTheme.colorScheme.primaryContainer) {
-        Text("Wie geht's dir heute?", style = MaterialTheme.typography.titleLarge)
+        Row(
+            Modifier.fillMaxWidth().clickable { sections.toggle("body-feeling", default = true) },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Wie geht's dir heute?", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Icon(
+                if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = if (open) "Zuklappen" else "Aufklappen",
+            )
+        }
+        if (!open) {
+            // Closed: what was entered today in one line.
+            val parts = listOfNotNull(
+                FEELINGS.getOrNull(score - 1)?.let { (face, label) -> "$face $label" },
+            ) + d.todaySymptoms.keys
+            Text(
+                parts.joinToString(" · ").ifEmpty { "Heute noch nichts eingetragen – tippen zum Aufklappen" },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            return@Panel
+        }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             FEELINGS.forEachIndexed { i, (face, label) ->
                 val value = i + 1

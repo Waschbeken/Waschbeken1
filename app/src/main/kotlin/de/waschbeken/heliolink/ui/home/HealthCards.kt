@@ -39,6 +39,13 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.ui.graphics.Color
+import de.waschbeken.heliolink.ui.Panel
 
 /** Early warning on the start page when last night looked unusual. */
 @Composable
@@ -204,6 +211,47 @@ fun RhythmHintCard(rows: List<de.waschbeken.heliolink.data.HealthDb.RhythmRow>, 
                 style = MaterialTheme.typography.bodySmall,
             )
             androidx.compose.material3.TextButton(onClick = onSeen) { Text("Verstanden") }
+        }
+    }
+}
+
+
+/** "Heute fällt auf": the few things that differ clearly from your normal; opens and closes. */
+@Composable
+fun InsightsCard(list: List<de.waschbeken.heliolink.core.DailyInsights.Insight>) {
+    val sections = de.waschbeken.heliolink.ui.rememberSections()
+    val open = sections.isOpen("body-insights", default = true)
+    Panel {
+        androidx.compose.foundation.layout.Row(
+            Modifier.fillMaxWidth().clickable { sections.toggle("body-insights", default = true) },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Heute fällt auf", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            Icon(
+                if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                contentDescription = if (open) "Zuklappen" else "Aufklappen",
+            )
+        }
+        if (!open) {
+            Text(
+                "${list.size} ${if (list.size == 1) "Punkt" else "Punkte"} – tippen zum Aufklappen",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            return@Panel
+        }
+        list.forEach { insight ->
+            androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.Top) {
+                val color = when (insight.tone) {
+                    de.waschbeken.heliolink.core.DailyInsights.Tone.GOOD -> Color(0xFF30A46C)
+                    de.waschbeken.heliolink.core.DailyInsights.Tone.WATCH -> Color(0xFFF76B15)
+                    de.waschbeken.heliolink.core.DailyInsights.Tone.NEUTRAL -> MaterialTheme.colorScheme.primary
+                }
+                androidx.compose.foundation.layout.Box(
+                    Modifier.padding(top = 6.dp, end = 10.dp).size(8.dp).background(color, androidx.compose.foundation.shape.CircleShape),
+                )
+                Text(insight.text, style = MaterialTheme.typography.bodyMedium)
+            }
         }
     }
 }
