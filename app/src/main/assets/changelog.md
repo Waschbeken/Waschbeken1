@@ -1,5 +1,12 @@
 # Was ist neu in HelioLink
 
+## 1.0.34
+- PAI neu wie in Gadgetbridge: ein Ring mit deinem PAI-Stand in der Mitte. Was heute dazukam, ist im Ring orange abgesetzt und steht als „+X heute“ darunter.
+- Unter dem Ring zeigen Balken, wie viel PAI jeder der letzten 7 Tage gebracht hat, dazu die Minuten mit leicht, mittel und hoch erhöhtem Puls.
+- Die PAI-Kachel auf „Heute“ zeigt den Stand als Balken mit dem heutigen Anteil.
+- Weniger Text: Die Erklärungen „Was bedeutet das?“ stecken jetzt hinter dem ⓘ oben rechts auf den Detailseiten.
+- Die Gesten-Hinweise unter den Diagrammen („Finger halten …“) und viele Erklärsätze sind weg. Die Gesten stehen jetzt unter Hilfe & Tipps.
+
 ## 1.0.33
 - „Heute fällt auf“ ist in den Tab „Körper“ umgezogen – ganz oben, auf- und zuklappbar. Die Startseite ist dadurch wieder kürzer.
 - „Wie geht's dir heute?“ lässt sich zuklappen; zugeklappt steht in einer Zeile, was du heute eingetragen hast.

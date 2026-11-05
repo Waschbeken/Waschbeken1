@@ -76,10 +76,6 @@ fun RecordDialog(connected: Boolean, onDismiss: () -> Unit, onStart: (Int?) -> U
         title = { Text("Puls aufzeichnen") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    "Der Strap misst jede Sekunde. Die Aufzeichnung wird gespeichert und erscheint unter Training und im Tab „Daten“.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     durations.forEach { (seconds, label) ->
                         FilterChip(selected = choice == seconds, onClick = { choice = seconds }, label = { Text(label) })

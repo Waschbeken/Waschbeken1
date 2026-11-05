@@ -99,12 +99,14 @@ fun NightCharts(
                 Text("Gestrichelt: dein Schnitt (%.1f °C)".format(l.reference), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                if (zoom.zoomed) "${hhmm(zoom.start)} – ${hhmm(zoom.end)} · alle Diagramme zoomen mit" else "Leiste unten: Schlafphasen · Finger halten: Werte · zwei Finger: zoomen",
-                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f),
-            )
-            if (zoom.zoomed) TextButton(onClick = { zoom.reset() }) { Text("Ganze Nacht") }
+        if (zoom.zoomed) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "${hhmm(zoom.start)} – ${hhmm(zoom.end)} · alle Diagramme zoomen mit",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { zoom.reset() }) { Text("Ganze Nacht") }
+            }
         }
     }
 }

@@ -185,7 +185,6 @@ fun SubstancesSection(dataVersion: Int) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Text("Grobe Schätzung: Koffein halbiert sich in etwa 5 h, Nikotin in etwa 2 h.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

@@ -229,7 +229,7 @@ private fun OxygenPanel(o: de.waschbeken.heliolink.core.OxygenDrops.Result?, str
             )
         }
         if (o == null) {
-            Text("Der Strap wertet selbst aus, wie oft der Sauerstoff im Schlaf abfällt. Keine Diagnose.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (strap == null) Text("Keine Werte für diese Nacht.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             return@Panel
         }
         Text(
@@ -277,11 +277,6 @@ private fun BedtimePanel(dataVersion: Int) {
             "Score Ø ${r.score.roundToInt()} statt ${r.otherScore.roundToInt()} in den übrigen Nächten (${r.nights} von ${r.total} Nächten der letzten 90 Tage).",
             style = MaterialTheme.typography.bodyMedium,
         )
-        Text(
-            "Ein Zusammenhang, kein Beweis: Späte Nächte haben oft auch andere Gründe (Wochenende, Ausgehen).",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 
@@ -295,11 +290,6 @@ private fun Naps(naps: List<SleepSession>) {
                 Text(formatMinutes(s.asleepMinutes), style = MaterialTheme.typography.bodyMedium)
             }
         }
-        Text(
-            "Kurzer Schlaf am Tag – bis 20 Minuten erfrischt, länger kann die Nacht verkürzen.",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 
@@ -418,10 +408,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(
                 TextButton(onClick = onEdit) { Text("Korrigieren") }
             }
             Hypnogram(n.stages)
-            Text(
-                "Finger halten: Phase mit Beginn, Ende und Dauer · zwei Finger oder Doppeltipp: zoomen",
-                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
     item {
