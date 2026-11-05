@@ -230,7 +230,6 @@ fun CooldownCard(until: Long) {
                 if (left > 0) "Bleib ruhig stehen oder geh langsam – noch $left s." else "Gleich fertig …",
                 style = MaterialTheme.typography.bodyMedium,
             )
-            Text("Wie stark der Puls in der ersten Minute fällt, zeigt, wie fit dein Herz-Kreislauf-System ist.", style = MaterialTheme.typography.bodySmall)
         }
     }
 }

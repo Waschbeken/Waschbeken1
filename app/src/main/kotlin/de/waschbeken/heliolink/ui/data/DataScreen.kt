@@ -266,17 +266,18 @@ fun DataScreen(nav: NavHostController) {
     }
 }
 
-/** "Zwei Finger zum Zoomen" and a button back to the whole day. */
+/** While zoomed: the visible time range and a button back to the whole day (gestures are explained under Hilfe). */
 @Composable
 private fun ZoomHint(zoom: TimeZoom) {
+    if (!zoom.zoomed) return
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            if (zoom.zoomed) "${clock(zoom.start)} – ${clock(zoom.end)}" else "Finger halten: Werte · zwei Finger oder Doppeltipp: zoomen",
+            "${clock(zoom.start)} – ${clock(zoom.end)}",
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),
         )
-        if (zoom.zoomed) TextButton(onClick = { zoom.reset() }) { Text("Ganzer Tag") }
+        TextButton(onClick = { zoom.reset() }) { Text("Ganzer Tag") }
     }
 }
 
@@ -534,22 +535,7 @@ private fun ValuePage(
 
 @Composable
 private fun PaiPage(d: DayData) {
-    val zone = ZoneId.systemDefault()
-    val latest = d.pai.lastOrNull()
-    if (latest == null) {
-        NoData("Keine PAI-Werte.")
-        return
-    }
-    val byDay = d.pai.associateBy { Instant.ofEpochSecond(it.timestamp).atZone(zone).toLocalDate() }
-    val days = (6 downTo 0).map { d.date.minusDays(it.toLong()) }
-    Panel {
-        Row {
-            Metric("PAI (7 Tage)", "${latest.total.toInt()}", Modifier.weight(1f), color = Palette.Pai)
-            Metric("Heute verdient", "%.1f".format(latest.today), Modifier.weight(1f))
-        }
-        BarChart(days.map { byDay[it]?.total ?: 0f }, Palette.Pai, labels = days.map { it.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.GERMANY).take(2) }, goal = 100f)
-        Text("Minuten mit erhöhtem Puls: leicht ${latest.lowMinutes} · mittel ${latest.moderateMinutes} · hoch ${latest.highMinutes}", style = MaterialTheme.typography.bodySmall)
-    }
+    de.waschbeken.heliolink.ui.metrics.PaiOverview(d.pai, d.date)
 }
 
 @Composable

@@ -161,10 +161,6 @@ fun TrainingScreen(nav: NavHostController) {
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
                             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text("Training starten", style = MaterialTheme.typography.titleLarge)
-                                Text(
-                                    "Der Strap misst sekündlich deinen Puls. Du siehst Zone, Kalorien und Verlauf – und kannst es als TCX exportieren.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
                                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     sports.forEach { (name, _) -> FilterChip(selected = sport == name, onClick = { sport = name }, label = { Text(name) }) }
                                 }
@@ -396,12 +392,14 @@ fun WorkoutDetailScreen(nav: NavHostController, id: Long) {
                             areas = (0..4).map { i -> Triple(lower[i].toFloat(), if (i < 4) lower[i + 1].toFloat() else 260f, Palette.zones[i]) },
                             markers = listOf(Triple(minP.first, minP.second, "${minP.second.toInt()}"), Triple(maxP.first, maxP.second, "${maxP.second.toInt()}")),
                         )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                if (zoom.zoomed) "Ausschnitt ${formatDuration(zoom.start - w.start)} – ${formatDuration(zoom.end - w.start)}" else "${p.size} Werte · zwei Finger oder Doppeltipp zum Zoomen",
-                                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f),
-                            )
-                            if (zoom.zoomed) TextButton(onClick = { zoom.reset() }) { Text("Alles") }
+                        if (zoom.zoomed) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    "Ausschnitt ${formatDuration(zoom.start - w.start)} – ${formatDuration(zoom.end - w.start)}",
+                                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f),
+                                )
+                                TextButton(onClick = { zoom.reset() }) { Text("Alles") }
+                            }
                         }
                     }
                 }

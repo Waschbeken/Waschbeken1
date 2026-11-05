@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material3.Card
@@ -236,7 +237,8 @@ private fun load(db: HealthDb, metric: Metric, period: Period, date: LocalDate, 
             }
         }
         Metric.STRESS -> copy(stress = db.stress(start, end))
-        Metric.PAI -> copy(pai = db.pai(start - 86400, end))
+        // A week before the period for the daily bars under the ring.
+        Metric.PAI -> copy(pai = db.pai(start - 7 * 86400, end))
         Metric.SPO2 -> copy(values = db.values(HealthDb.SPO2, start, end))
         Metric.HRV -> copy(values = db.values(HealthDb.HRV, start, end))
         Metric.TEMPERATURE -> copy(values = db.values(HealthDb.TEMPERATURE, start, end))
@@ -267,7 +269,27 @@ fun MetricScreen(nav: NavHostController, key: String) {
     val data by de.waschbeken.heliolink.ui.cachedDbValue("metric-${metric.key}-$period-$date", state.dataVersion, tick) { load(it, metric, period, date, profile) }
     val startRecording = de.waschbeken.heliolink.ui.record.rememberRecordStarter(nav)
 
-    Scaffold(topBar = { BackTopBar(metric.title, onBack = { nav.popBackStack() }) }) { padding ->
+    var showAbout by remember { mutableStateOf(false) }
+    Scaffold(
+        topBar = {
+            BackTopBar(metric.title, onBack = { nav.popBackStack() }) {
+                androidx.compose.material3.IconButton(onClick = { showAbout = true }) {
+                    androidx.compose.material3.Icon(
+                        androidx.compose.material.icons.Icons.Outlined.Info,
+                        contentDescription = "Was bedeutet ${metric.title}?",
+                    )
+                }
+            }
+        },
+    ) { padding ->
+        if (showAbout) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showAbout = false },
+                title = { Text(metric.title) },
+                text = { Text(metric.about, style = MaterialTheme.typography.bodyMedium) },
+                confirmButton = { androidx.compose.material3.TextButton(onClick = { showAbout = false }) { Text("OK") } },
+            )
+        }
         de.waschbeken.heliolink.ui.SyncRefreshBox(Modifier.fillMaxSize().padding(padding)) {
             LazyColumn(
                 Modifier.fillMaxSize(),
@@ -313,12 +335,6 @@ fun MetricScreen(nav: NavHostController, key: String) {
                 if (metric == Metric.HRV) item { HrvStatusPanel(state.dataVersion) }
                 if (metric == Metric.HRV) item { SdnnPanel(state.dataVersion) }
                 if (metric == Metric.STRESS) item { StressTriggersPanel(state.dataVersion) }
-                item {
-                    Panel(color = MaterialTheme.colorScheme.surfaceContainerLow) {
-                        Text("Was bedeutet das?", style = MaterialTheme.typography.titleSmall)
-                        Text(metric.about, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
             }
         }
     }
@@ -343,8 +359,7 @@ private fun StressTriggersPanel(dataVersion: Int) {
         val list = counts.orEmpty()
         if (list.isEmpty()) {
             Text(
-                "Nach längerem hohem Stress fragt HelioLink „Was war los?“ (Einstellungen → Benachrichtigungen). " +
-                    "Deine Antworten erscheinen hier – oder trag jetzt selbst ein, was dich stresst.",
+                "Noch nichts eingetragen.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -391,8 +406,7 @@ private fun RhythmPanel(dataVersion: Int) {
         Text("Herzrhythmus", style = MaterialTheme.typography.titleMedium)
         if (list.isEmpty()) {
             Text(
-                "Wird geprüft, sobald der Puls live läuft (Live-Puls, Puls-Aufzeichnung, Atemübung) und du ruhig bist: " +
-                    "je 64 Herzschläge auf einen unregelmäßigen Rhythmus.",
+                "Noch nicht geprüft – braucht Live-Puls in Ruhe.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -409,12 +423,14 @@ private fun RhythmPanel(dataVersion: Int) {
                 (irregular.lastOrNull()?.let { " · zuletzt unregelmäßig am " + java.time.Instant.ofEpochSecond(it.timestamp).atZone(ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("d.M. 'um' HH:mm")) } ?: ""),
             style = MaterialTheme.typography.bodyMedium,
         )
-        Text(
-            "Der optische Sensor stört sich an Bewegung und lockerem Sitz – einzelne Treffer heißen wenig. Kommt es öfter vor oder " +
-                "spürst du Herzstolpern, Schwindel oder Atemnot, lass es ärztlich mit einem EKG prüfen. Keine Diagnose.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        if (irregular.isNotEmpty()) {
+            Text(
+                "Der optische Sensor stört sich an Bewegung und lockerem Sitz – einzelne Treffer heißen wenig. Kommt es öfter vor oder " +
+                    "spürst du Herzstolpern, Schwindel oder Atemnot, lass es ärztlich mit einem EKG prüfen. Keine Diagnose.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -440,8 +456,7 @@ private fun SdnnPanel(dataVersion: Int) {
             tooltip = { i -> "${days[i].dayOfMonth}.${days[i].monthValue}.: " + (byDay[days[i]]?.joinToString(", ") { "${it.value} ms" } ?: "keine Werte") },
         )
         Text(
-            "Zuletzt ${list.last().value} ms. SDNN ist ein zweites HRV-Maß, das der Strap 3–4 Mal am Tag selbst berechnet " +
-                "(Streuung der Herzschlag-Abstände über mehrere Minuten). Auch hier zählt der Vergleich mit deinen eigenen Werten.",
+            "Zuletzt ${list.last().value} ms",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -606,12 +621,14 @@ private fun HeartDay(d: MetricData, profile: UserProfile, live: Int?, onRecord: 
                 strip = minuteStrip(d.activity, d.stages),
                 events = d.events,
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (dayZoom.zoomed) "${clock(dayZoom.start)} – ${clock(dayZoom.end)}" else "Finger halten: Werte · zwei Finger oder Doppeltipp: zoomen",
-                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f),
-                )
-                if (dayZoom.zoomed) TextButton(onClick = { dayZoom.reset() }) { Text("Ganzer Tag") }
+            if (dayZoom.zoomed) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "${clock(dayZoom.start)} – ${clock(dayZoom.end)}",
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { dayZoom.reset() }) { Text("Ganzer Tag") }
+                }
             }
         }
         Panel {
@@ -905,21 +922,15 @@ private fun PaiContent(d: MetricData) {
     val zone = ZoneId.systemDefault()
     val byDay = d.pai.associateBy { java.time.Instant.ofEpochSecond(it.timestamp).atZone(zone).toLocalDate() }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        val latest = d.pai.lastOrNull()
-        if (latest == null) {
-            Panel { Text("Keine PAI-Werte in diesem Zeitraum.", style = MaterialTheme.typography.bodyMedium) }
-            return@Column
-        }
-        TileRow("PAI (7 Tage)" to "${latest.total.toInt()}", "Heute verdient" to "%.1f".format(latest.today))
+        // The ring shows the last day of the period (today for the current one).
+        val last = if (period == Period.DAY) d.date else d.buckets.lastOrNull()?.to ?: d.date
+        val now = LocalDate.now()
+        PaiOverview(d.pai, if (last.isAfter(now)) now else last)
         if (period != Period.DAY) {
             Panel {
                 Text("PAI-Stand ${period.perBar}", style = MaterialTheme.typography.titleSmall)
                 BarChart(Buckets.average(d.buckets) { byDay[it]?.total?.toDouble() }.map { it ?: 0f }, Palette.Pai, labels = d.buckets.map { it.label }, goal = 100f)
             }
-        }
-        Panel {
-            Text("Minuten mit erhöhtem Puls (heute)", style = MaterialTheme.typography.titleSmall)
-            Text("leicht ${latest.lowMinutes} · mittel ${latest.moderateMinutes} · hoch ${latest.highMinutes} min", style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

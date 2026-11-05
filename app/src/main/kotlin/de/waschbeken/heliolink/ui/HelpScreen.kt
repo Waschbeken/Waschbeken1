@@ -37,6 +37,12 @@ private val HELP = listOf(
         Routes.settings("sync"), "Datenstand öffnen",
     ),
     HelpItem(
+        "Diagramme bedienen",
+        "Finger auf einem Diagramm halten zeigt die Werte an dieser Stelle (beim Schlaf die Phase mit Beginn und Dauer). Mit zwei " +
+            "Fingern oder einem Doppeltipp zoomst du hinein; „Ganzer Tag“ bzw. „Ganze Nacht“ setzt den Zoom zurück. Das ⓘ oben " +
+            "auf den Detailseiten erklärt, was ein Wert bedeutet.",
+    ),
+    HelpItem(
         "Warum steht auf „Heute“ morgens noch „Gestern“?",
         "Nach Mitternacht zeigt die Startseite den Vortag, bis du aufgewacht bist – sonst stünde dort nachts überall 0. Sobald nach " +
             "der Nacht ein paar wache Minuten mit dem Strap aufgezeichnet sind (oder spätestens um 12 Uhr), wechselt sie auf den neuen Tag. " +

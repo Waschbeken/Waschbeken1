@@ -407,11 +407,6 @@ fun EntryEffectsList(dataVersion: Int) {
                     )
                 }
             }
-            Text(
-                "Verglichen wird mit derselben Uhrzeit an Tagen ohne den Eintrag; nur ruhige Minuten zählen (Strap getragen, wach, kaum Schritte).",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }

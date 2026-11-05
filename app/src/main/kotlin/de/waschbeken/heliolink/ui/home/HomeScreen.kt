@@ -538,11 +538,17 @@ private fun TileGrid(d: HomeData, state: StrapUiState, stepGoal: Int, hidden: Se
         )
     }
     add(Tile.PAI) { m ->
+        // A value from an earlier day still gives the total, but nothing was added today yet.
+        val pai = d.pai
+        val paiToday = pai?.takeIf {
+            java.time.Instant.ofEpochSecond(it.timestamp).atZone(java.time.ZoneId.systemDefault()).toLocalDate() == d.date
+        }?.today ?: 0f
         StatTile(
             "PAI", d.pai?.total?.toInt()?.toString() ?: "–", m,
-            caption = d.pai?.let { "heute +${"%.1f".format(it.today)} · Ziel 100" } ?: "keine Daten",
+            caption = d.pai?.let { "heute +${de.waschbeken.heliolink.ui.metrics.paiGain(paiToday)}" } ?: "keine Daten",
             icon = Icons.Default.Bolt, tint = Palette.Pai,
             onClick = { nav.navigate(Routes.metric("pai")) },
+            extra = if (pai == null) null else ({ de.waschbeken.heliolink.ui.metrics.PaiBar(pai.total, paiToday) }),
         )
     }
     add(Tile.TEMPERATURE) { m ->

@@ -285,12 +285,6 @@ private fun FeelingCard(d: BodyData, onChanged: () -> Unit) {
             label = { Text("Notiz (optional), z. B. „Erkältung im Büro“") },
             modifier = Modifier.fillMaxWidth(),
         )
-        Text(
-            "Beschwerden zählen wie Schnell-Einträge: sie stehen in den Diagrammen und in „Was deinem Schlaf guttut“. " +
-                "Die Frühwarnung weist darauf hin, wenn auffällige Nachtwerte dazu passen.",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer,
-        )
     }
 }
 

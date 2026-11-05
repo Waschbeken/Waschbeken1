@@ -184,10 +184,6 @@ fun AlarmsScreen(nav: NavHostController) {
                             }
                         } else {
                             Text("Kein Wecker aktiv", style = MaterialTheme.typography.titleLarge)
-                            Text(
-                                "Der Strap weckt dich mit Vibration – leise, ohne Handy. Mit „Smart“ weckt er bis zu 30 Minuten früher in einer Leichtschlafphase.",
-                                style = MaterialTheme.typography.bodySmall,
-                            )
                         }
                     }
                 }
