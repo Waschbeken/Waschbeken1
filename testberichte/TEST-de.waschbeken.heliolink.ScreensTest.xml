@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="de.waschbeken.heliolink.ScreensTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-11-05T13:51:33.453Z" hostname="runnervmwuk1x" time="382.289">
+  <properties/>
+  <testcase name="darkTheme" classname="de.waschbeken.heliolink.ScreensTest" time="23.764"/>
+  <testcase name="emptyDatabase" classname="de.waschbeken.heliolink.ScreensTest" time="173.681"/>
+  <testcase name="demoData" classname="de.waschbeken.heliolink.ScreensTest" time="184.844"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

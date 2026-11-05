@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="de.waschbeken.heliolink.RemindersUiTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-11-05T13:51:31.118Z" hostname="runnervmwuk1x" time="2.328">
+  <properties/>
+  <testcase name="createRepeatingReminder" classname="de.waschbeken.heliolink.RemindersUiTest" time="2.328"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
