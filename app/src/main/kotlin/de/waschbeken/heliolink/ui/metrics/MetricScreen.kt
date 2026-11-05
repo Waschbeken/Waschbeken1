@@ -96,7 +96,8 @@ enum class Metric(val key: String, val title: String, val color: Color, val abou
         "heart", "Herzfrequenz", Palette.Heart,
         "Der Strap misst den Puls im eingestellten Intervall (Einstellungen → Messungen). Der Ruhepuls ist ein guter " +
             "Gradmesser für Fitness und Erholung: sinkt er über Wochen, wirst du fitter; steigt er plötzlich, kann das auf Stress, " +
-            "zu wenig Schlaf oder eine beginnende Erkältung hindeuten.",
+            "zu wenig Schlaf oder eine beginnende Erkältung hindeuten. Den Herzrhythmus prüft HelioLink, wenn der Puls live " +
+            "läuft und du ruhig bist (je 64 Schläge).",
     ),
     STEPS(
         "steps", "Schritte", Palette.Steps,
@@ -105,7 +106,8 @@ enum class Metric(val key: String, val title: String, val color: Color, val abou
     STRESS(
         "stress", "Stress", Palette.Stress,
         "Der Stresswert (0–100) wird aus der Herzfrequenzvariabilität berechnet. Unter 40 ist entspannt, über 80 hoch. " +
-            "Sport erhöht den Wert kurzzeitig ebenfalls.",
+            "Sport erhöht den Wert kurzzeitig ebenfalls. Nach längerem hohem Stress fragt HelioLink „Was war los?“ – " +
+            "deine Antworten stehen unter „Deine Stress-Auslöser“.",
     ),
     SPO2(
         "spo2", "Blutsauerstoff (SpO₂)", Palette.Spo2,
@@ -117,7 +119,8 @@ enum class Metric(val key: String, val title: String, val color: Color, val abou
             "höher als sonst heißt meist gut erholt, deutlich niedriger heißt Belastung. Der Strap misst sie selbst alle ein " +
             "bis zwei Minuten, Tag und Nacht, und HelioLink holt sie beim Abruf. Läuft der Puls live (Live-Puls, Aufzeichnung, " +
             "Training), rechnet HelioLink zusätzlich jede Minute aus den Herzschlag-Abständen. Werte in Bewegung schwanken stark; " +
-            "am aussagekräftigsten ist die HRV im Schlaf.",
+            "am aussagekräftigsten ist die HRV im Schlaf. SDNN ist ein zweites HRV-Maß, das der Strap 3–4 Mal am Tag über " +
+            "mehrere Minuten selbst berechnet.",
     ),
     TEMPERATURE(
         "temperature", "Hauttemperatur", Palette.Temperature,
@@ -127,7 +130,8 @@ enum class Metric(val key: String, val title: String, val color: Color, val abou
     PAI(
         "pai", "PAI", Palette.Pai,
         "PAI (Personal Activity Intelligence) bewertet, wie sehr Aktivität deinen Puls hebt. Wer über 7 Tage mindestens " +
-            "100 PAI hält, profitiert laut Studien deutlich für die Herzgesundheit.",
+            "100 PAI hält, profitiert laut Studien deutlich für die Herzgesundheit. Der Ring zeigt deinen Stand der letzten " +
+            "7 Tage, orange ist der Teil, der am gewählten Tag dazukam.",
     ),
     RESPIRATION(
         "respiration", "Atemfrequenz", Palette.Breath,
