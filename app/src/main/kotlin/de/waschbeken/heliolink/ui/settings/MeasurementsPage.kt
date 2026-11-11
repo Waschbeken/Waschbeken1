@@ -62,9 +62,9 @@ internal fun MeasurementsPage(state: StrapUiState) {
     val s = rememberStrapSettings(state)
     val config = s.config
     if (config == null) {
-        SettingsNote(
+        SettingsStatus(
             if (state.connected) "Lade Einstellungen vom Strap …"
-            else "Diese Einstellungen werden direkt auf dem Strap gespeichert. Verbinde den Strap, um sie zu ändern.",
+            else "Verbinde den Strap, um diese Einstellungen zu ändern.",
         )
         return
     }
@@ -146,7 +146,7 @@ internal fun MovementPage(state: StrapUiState) {
     val prefs = LocalContext.current.app.prefs
     prefsTick()
     if (config == null) {
-        SettingsNote(if (state.connected) "Lade Einstellungen vom Strap …" else "Verbinde den Strap, um diese Einstellungen zu ändern.")
+        SettingsStatus(if (state.connected) "Lade Einstellungen vom Strap …" else "Verbinde den Strap, um diese Einstellungen zu ändern.")
         return
     }
 
@@ -206,7 +206,7 @@ internal fun MovementPage(state: StrapUiState) {
         ) { s.set(HealthSetting.WORKOUT_DETECTION_SENSITIVITY, it) }
     }
     if (categories == null && sensitivity == null) {
-        SettingsNote("Dein Strap meldet keine Trainingserkennung.")
+        SettingsStatus("Dein Strap meldet keine Trainingserkennung.")
     }
     SettingsNote("Trainings mit sekündlichem Puls startest du im Tab „Training“.")
 }

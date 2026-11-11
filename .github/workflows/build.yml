@@ -71,6 +71,15 @@ jobs:
       - name: Tests
         run: ./gradlew --no-daemon :core:test
 
+      # Robolectric downloads its Android image from Maven Central while the tests start. A busy
+      # server (HTTP 429) must not fail a build or hold back a release, so the image is kept between runs.
+      - name: Robolectric-Android-Abbild zwischenspeichern
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ hashFiles('app/build.gradle.kts') }}
+          restore-keys: robolectric-
+
       # Opens every screen with an empty database and with demo data (Robolectric) and takes screenshots.
       - name: App-Seiten testen
         run: ./gradlew --no-daemon :app:testDebugUnitTest

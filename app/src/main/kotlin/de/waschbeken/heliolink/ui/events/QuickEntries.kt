@@ -248,11 +248,6 @@ fun QuickEntryCard(dataVersion: Int, helpers: @Composable () -> Unit = {}, onSho
                 "Heute eingetragen", open, count = list.size,
                 summary = list.takeLast(4).reversed().joinToString(", ") { "${it.tag} ${clock(it.timestamp)}" },
             ) { sections.toggle("home-events") }
-            if (open) Text(
-                "Tippe auf eine Uhrzeit, um sie zu ändern.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
             if (open) list.reversed().forEach { e ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(

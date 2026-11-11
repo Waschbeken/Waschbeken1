@@ -196,7 +196,7 @@ internal fun DataPage(state: StrapUiState) {
         if (restoring) "Stelle wieder her …" else "Ersetzt alle Daten und Einstellungen auf diesem Handy",
         enabled = !restoring,
     ) { confirmRestore = true }
-    SettingsNote(
+    SettingsStatus(
         "Die Sicherung enthält deinen Auth-Key. Gib sie nicht weiter." +
             if (prefs.backupPassword != null) " Sie wird mit deinem Passwort verschlüsselt." else "",
     )

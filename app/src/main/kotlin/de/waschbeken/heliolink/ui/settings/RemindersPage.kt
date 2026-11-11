@@ -66,7 +66,7 @@ internal fun RemindersPage(state: StrapUiState) {
         "Zur eingestellten Zeit vibriert der Strap und eine Benachrichtigung zeigt den Text – z. B. für Tabletten, " +
             "Trinken oder eine Pause. Vibrieren kann der Strap nur, wenn HelioLink verbunden ist; sonst kommt nur die Benachrichtigung.",
     )
-    if (list.isEmpty()) SettingsNote("Noch keine Erinnerung – unten eine anlegen.")
+    if (list.isEmpty()) SettingsStatus("Noch keine Erinnerung.")
     list.forEach { r ->
         SwitchSetting(r.text.ifBlank { "Erinnerung" }, r.schedule + " · ${r.pulses}× vibrieren", r.enabled) { on ->
             save(list.map { if (it.id == r.id) it.copy(enabled = on) else it })

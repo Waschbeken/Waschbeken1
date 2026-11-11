@@ -18,6 +18,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.BatteryChargingFull
@@ -257,7 +259,23 @@ fun SettingsCategoryScreen(nav: NavHostController, key: String, onForget: () -> 
     val app = LocalContext.current.app
     val state by app.repo.state.collectAsStateWithLifecycle()
     val category = SettingsCategory.entries.firstOrNull { it.key == key } ?: SettingsCategory.DEVICE
-    Scaffold(topBar = { BackTopBar(category.title, onBack = { nav.popBackStack() }, subtitle = category.section.title) }) { padding ->
+    val notes = androidx.compose.runtime.remember(key) { SettingsNotes() }
+    Scaffold(
+        topBar = {
+            BackTopBar(category.title, onBack = { nav.popBackStack() }, subtitle = category.section.title) {
+                if (notes.present.value) {
+                    androidx.compose.material3.IconButton(onClick = { notes.show.value = !notes.show.value }) {
+                        Icon(
+                            if (notes.show.value) Icons.Filled.Info else Icons.Outlined.Info,
+                            contentDescription = if (notes.show.value) "Erklärungen ausblenden" else "Erklärungen anzeigen",
+                            tint = if (notes.show.value) MaterialTheme.colorScheme.primary else androidx.compose.material3.LocalContentColor.current,
+                        )
+                    }
+                }
+            }
+        },
+    ) { padding ->
+        androidx.compose.runtime.CompositionLocalProvider(LocalSettingsNotes provides notes) {
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(bottom = 32.dp)) {
             when (category) {
                 SettingsCategory.DEVICE -> DevicePage(state, onForget)
@@ -279,6 +297,7 @@ fun SettingsCategoryScreen(nav: NavHostController, key: String, onForget: () -> 
                 SettingsCategory.PRIVACY -> PrivacyPage()
                 SettingsCategory.DATA -> DataPage(state)
             }
+        }
         }
     }
 }

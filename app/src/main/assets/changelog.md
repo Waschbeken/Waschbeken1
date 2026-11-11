@@ -1,5 +1,12 @@
 # Was ist neu in HelioLink
 
+## 1.0.35
+- „Heute“ beginnt jetzt mit vier Ringen: Erholung, Schlaf, Schritte und PAI – jeweils mit dem Wert in der Mitte und dem Fortschritt zum Ziel. Tippen öffnet die Details; ein Tipp auf „Erholung“ zeigt, woraus sich die Punkte zusammensetzen.
+- Die übrigen Werte (Ruhepuls, Stress, SpO₂, HRV, Hauttemperatur, Atmung, Akku) stehen direkt darunter als kleine Kacheln. Die Startseite ist dadurch deutlich kürzer.
+- „Puls live“ ist nur noch eine Zeile mit Schalter.
+- Einstellungen: Die Erklärtexte sind ausgeblendet. Das ⓘ oben rechts blendet sie auf der jeweiligen Seite ein. Hinweise zum Zustand (z. B. „Strap nicht verbunden“) bleiben sichtbar.
+- Unter Startseite schaltest du Ringe und Kacheln wie bisher ein oder aus.
+
 ## 1.0.34
 - PAI neu wie in Gadgetbridge: ein Ring mit deinem PAI-Stand in der Mitte. Was heute dazukam, ist im Ring orange abgesetzt und steht als „+X heute“ darunter.
 - Unter dem Ring zeigen Balken, wie viel PAI jeder der letzten 7 Tage gebracht hat, dazu die Minuten mit leicht, mittel und hoch erhöhtem Puls.
