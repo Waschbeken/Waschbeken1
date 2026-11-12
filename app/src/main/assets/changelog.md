@@ -1,5 +1,8 @@
 # Was ist neu in HelioLink
 
+## 1.0.37
+- Keine sichtbaren Änderungen: Aufräumarbeiten im Code und neue automatische Tests für Datenbank-Updates, den Gadgetbridge-Import und die Erinnerungen. Das macht künftige Updates sicherer.
+
 ## 1.0.36
 - „Heute“: Unter den Ringen steht jetzt immer, wie die Erholung entsteht – der Durchschnitt aus Schlaf, HRV und Ruhepuls, jeweils mit Punkten und dem Wert dahinter (z. B. „HRV 57 ms · Ø 56“).
 - „Dein Körper arbeitet mehr als sonst“ lässt sich einklappen: Dann bleiben nur die Überschrift und die auffälligen Werte stehen.
