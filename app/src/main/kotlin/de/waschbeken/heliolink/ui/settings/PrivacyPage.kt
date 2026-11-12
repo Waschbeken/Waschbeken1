@@ -55,6 +55,10 @@ internal fun PrivacyPage() {
         "Einzige Verbindung ins Internet: die Suche nach Updates bei GitHub. Dabei wird nur die Liste der Versionen " +
             "abgerufen und beim Update die neue App geladen – GitHub sieht deine IP-Adresse und die Uhrzeit, sonst nichts.",
     )
+    SettingsStatus(
+        "Standort: nur während eines Trainings, bei dem du „Strecke mit Handy-GPS“ einschaltest – direkt vom GPS-Chip, ohne " +
+            "Google-Dienste und ohne Kartenmaterial aus dem Internet. Die Strecke bleibt auf dem Handy; im CSV-Export steht nur ihre Länge.",
+    )
     SwitchSetting(
         "Automatisch nach Updates suchen",
         if (prefs.autoCheckUpdates) "An – alle paar Stunden" else "Aus – HelioLink geht nur online, wenn du „Nach Updates suchen“ tippst",

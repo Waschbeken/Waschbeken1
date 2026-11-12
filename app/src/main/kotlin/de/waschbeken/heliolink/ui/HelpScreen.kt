@@ -62,6 +62,15 @@ private val HELP = listOf(
         Routes.SLEEP, "Schlaf öffnen",
     ),
     HelpItem(
+        "Strecke beim Training aufzeichnen",
+        "Der Strap hat kein GPS – die Strecke kommt vom Handy. Im Tab „Sport“ vor dem Start „Strecke mit Handy-GPS“ antippen und " +
+            "den genauen Standort erlauben; das Handy muss beim Training dabei sein. Am Anfang kurz unter freiem Himmel warten, bis " +
+            "„GPS ±… m“ erscheint. Danach zeigt das Training die Strecke (gefärbt nach Pulszone), Distanz, Pace und die Zeit pro " +
+            "Kilometer; als GPX oder TCX lässt sie sich z. B. in Strava oder Komoot laden. Bricht die Aufzeichnung bei ausgeschaltetem " +
+            "Bildschirm ab, stelle HelioLink in den Android-Einstellungen unter Akku auf „Nicht optimieren“.",
+        Routes.TRAINING, "Sport öffnen",
+    ),
+    HelpItem(
         "Der Strap verbindet sich nicht",
         "Der Strap spricht nur mit einer App gleichzeitig: Zepp oder Gadgetbridge dürfen nicht verbunden sein. Bluetooth muss an sein " +
             "und der Strap in der Nähe. Unter Gerät & Verbindung hilft „Neu verbinden“; meldet die App „Auth-Key abgelehnt“, wurde der Strap " +

@@ -20,6 +20,8 @@ import de.waschbeken.heliolink.app
 import de.waschbeken.heliolink.ble.LinkState
 import de.waschbeken.heliolink.ble.StrapConnection
 import de.waschbeken.heliolink.core.Calories
+import de.waschbeken.heliolink.core.Track
+import de.waschbeken.heliolink.core.TrackPoint
 import de.waschbeken.heliolink.core.DeviceInfo
 import de.waschbeken.heliolink.core.FetchType
 import de.waschbeken.heliolink.core.HealthSetting
@@ -224,6 +226,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         }
         scope.cancel()
         repo.controller = null
+        route.stop()
         handler.post {
             connection?.close()
             connection = null
@@ -420,9 +423,9 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         }
     }
 
-    override fun startWorkout(sport: String) = begin(sport, null)
+    override fun startWorkout(sport: String, gps: Boolean) = begin(sport, null, gps = gps)
 
-    override fun startIntervals(sport: String, plan: IntervalPlan) = begin(sport, null, plan)
+    override fun startIntervals(sport: String, plan: IntervalPlan, gps: Boolean) = begin(sport, null, plan, gps)
 
     override fun startRecording(seconds: Int?) = begin(RECORDING_SPORT, seconds)
 
@@ -431,7 +434,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         if (w?.plannedEnd != null && System.currentTimeMillis() / 1000 >= w.plannedEnd - 1) stopWorkout()
     }
 
-    private fun begin(sport: String, seconds: Int?, intervals: IntervalPlan? = null) {
+    private fun begin(sport: String, seconds: Int?, intervals: IntervalPlan? = null, gps: Boolean = false) {
         handler.post {
             if (repo.state.value.workout != null) return@post
             endCooldown()
@@ -442,7 +445,12 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             lastVibration = 0
             if (sport != RECORDING_SPORT) prefs.defaultSport = sport
             val end = seconds?.let { start + it }
-            repo.update { it.copy(workout = LiveWorkout(id, sport, start, plannedEnd = end, intervals = intervals)) }
+            lastTrackPoint = null
+            routeMetres = 0.0
+            val tracking = gps && route.start(thread.looper)
+            if (gps && !tracking) repo.log("Strecke: kein Zugriff auf das GPS")
+            if (tracking) setForegroundLocation(true)
+            repo.update { it.copy(workout = LiveWorkout(id, sport, start, plannedEnd = end, intervals = intervals, gps = tracking)) }
             handler.removeCallbacks(plannedStop)
             if (seconds != null) handler.postDelayed(plannedStop, seconds * 1000L)
             lastPhase = null
@@ -462,8 +470,12 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             handler.removeCallbacks(intervalTick)
             val w = repo.state.value.workout ?: return@post
             val end = System.currentTimeMillis() / 1000
+            if (w.gps) {
+                route.stop()
+                setForegroundLocation(false)
+            }
             db.finishWorkout(
-                Workout(w.id, w.sport, w.start, end, w.avgHr, w.maxHr, w.calories.roundToInt(), w.zoneSeconds)
+                Workout(w.id, w.sport, w.start, end, w.avgHr, w.maxHr, w.calories.roundToInt(), w.zoneSeconds, distance = w.distance.roundToInt())
             )
             // Heart rate recovery: keep measuring for a minute after a workout (not after a plain recording).
             val state = repo.state.value
@@ -477,6 +489,40 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             suggestMaxHeartRate(w.maxHr)
             updateHeartRateStreaming()
             updateNotification()
+        }
+    }
+
+    // ------------------------------------------------------------------ route from the phone's GPS
+
+    private val route by lazy { RouteTracker(this) { onRouteFix(it) } }
+    private var lastTrackPoint: TrackPoint? = null
+    private var routeMetres = 0.0
+
+    /** A position from the GPS (on the strap thread): kept when it continues the route, see [Track.accepts]. */
+    private fun onRouteFix(p: TrackPoint) {
+        val w = repo.state.value.workout?.takeIf { it.gps } ?: return
+        val last = lastTrackPoint
+        if (Track.accepts(last, p)) {
+            if (last != null) routeMetres += Track.distance(last, p)
+            lastTrackPoint = p
+            db.addTrackPoint(w.id, p)
+        }
+        val metres = routeMetres
+        repo.update { s -> s.copy(workout = s.workout?.copy(distance = metres, gpsAccuracy = p.accuracy ?: 0f, gpsAt = p.timestamp)) }
+    }
+
+    /**
+     * Android only lets a service read the location with the screen off while it is declared as a
+     * location service, so the type is added for a workout with a route and taken back afterwards.
+     */
+    private fun setForegroundLocation(on: Boolean) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+        val type = ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or (if (on) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0)
+        try {
+            ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(), type)
+        } catch (e: Exception) {
+            // Without it the route still records while the app is open.
+            repo.log("Strecke im Hintergrund nicht möglich: ${e.message}")
         }
     }
 
@@ -842,9 +888,10 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         workoutHrSum += event.bpm
         val samples = w.samples + 1
         val kcal = w.calories + Calories.perMinute(event.bpm, profile.weightKg.toDouble(), profile.age, profile.male) * elapsed / 60.0
+        // Copy from the newest state: the route updates the same workout from its own callback.
         repo.update {
             it.copy(
-                workout = w.copy(
+                workout = it.workout?.copy(
                     samples = samples,
                     avgHr = (workoutHrSum / samples).toInt(),
                     maxHr = maxOf(w.maxHr, event.bpm),
@@ -1179,7 +1226,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
         }
         val parts = ArrayList<String>()
         s.battery?.let { parts += "Akku $it %" + if (s.charging) " ⚡" else "" }
-        s.workout?.let { parts += "Training läuft · Ø ${it.avgHr} bpm" }
+        s.workout?.let { parts += "Training läuft · Ø ${it.avgHr} bpm" + if (it.gps) " · ${Track.distanceText(it.distance)}" else "" }
         if (prefs.notificationShowsHr && s.heartRate != null && System.currentTimeMillis() - s.heartRateAt < 30_000) {
             parts += "♥ ${s.heartRate} bpm"
         }

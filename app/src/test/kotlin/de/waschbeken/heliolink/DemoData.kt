@@ -10,12 +10,16 @@ import de.waschbeken.heliolink.core.SleepRecord
 import de.waschbeken.heliolink.core.SleepStage
 import de.waschbeken.heliolink.core.StrapAlarm
 import de.waschbeken.heliolink.core.StressSample
+import de.waschbeken.heliolink.core.Track
+import de.waschbeken.heliolink.core.TrackPoint
 import de.waschbeken.heliolink.core.ValueSample
 import de.waschbeken.heliolink.data.HealthDb
 import de.waschbeken.heliolink.data.Workout
 import de.waschbeken.heliolink.service.RECORDING_SPORT
 import java.time.LocalDate
 import java.time.ZoneId
+import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.random.Random
 
@@ -24,6 +28,20 @@ import kotlin.random.Random
  * that has been worn for a while: nights with sleep stages, a day rhythm, workouts, entries.
  */
 object DemoData {
+    /** A closed loop with a few bends, one position every 5 s, slower in the last third, gently up and down. */
+    fun demoRoute(start: Long, seconds: Int): List<TrackPoint> {
+        val out = ArrayList<TrackPoint>()
+        var angle = 0.0
+        for (s in 0..seconds step 5) {
+            val radius = 900.0 * (1 + 0.22 * sin(3 * angle) + 0.08 * cos(5 * angle)) // metres from the middle
+            val lat = 52.5145 + radius * sin(angle) / 111_195.0
+            val lon = 13.3501 + radius * cos(angle) / (111_195.0 * cos(Math.toRadians(52.5145)))
+            out += TrackPoint(start + s, lat, lon, altitude = 38.0 + 14 * sin(angle * 2), accuracy = 6f)
+            angle += (if (s > seconds * 2 / 3) 0.011 else 0.0145)
+        }
+        return out
+    }
+
     fun fill(db: HealthDb, days: Int = 35, zone: ZoneId = ZoneId.systemDefault()) {
         val rnd = Random(42)
         val now = System.currentTimeMillis() / 1000 / 60 * 60
@@ -155,7 +173,12 @@ object DemoData {
             val start = today.minusDays(k.toLong()).atStartOfDay(zone).toEpochSecond() + 17 * 3600
             val id = db.startWorkout(if (k == 9) "Radfahren" else "Laufen", start)
             for (s in 0 until 40 * 60 step 5) db.addWorkoutHr(id, start + s, (120 + 30 * sin(s / 300.0) + rnd.nextInt(0, 10)).toInt())
-            db.finishWorkout(Workout(id, "Laufen", start, start + 40 * 60, 146, 172, 410, listOf(120, 600, 900, 600, 180)))
+            // The newest run has a route from the phone's GPS: a loop of about 6 km through a park.
+            val route = if (k == 2) demoRoute(start, 40 * 60) else emptyList()
+            route.forEach { db.addTrackPoint(id, it) }
+            db.finishWorkout(
+                Workout(id, "Laufen", start, start + 40 * 60, 146, 172, 410, listOf(120, 600, 900, 600, 180), distance = Track.length(route).roundToInt()),
+            )
             db.setWorkoutHrr(id, 24)
         }
         val recStart = now - 50 * 60

@@ -302,7 +302,8 @@ fun HomeScreen(nav: NavHostController) {
                                         is de.waschbeken.heliolink.data.Workout -> ActivityRow(
                                             if (row.sport == de.waschbeken.heliolink.service.RECORDING_SPORT) Icons.Default.FiberManualRecord else Icons.Default.Favorite,
                                             row.sport,
-                                            "${formatDuration(row.end - row.start)} · Ø ${row.avgHr} bpm · ${row.calories} kcal" +
+                                            (if (row.distance > 0) "${de.waschbeken.heliolink.core.Track.distanceText(row.distance.toDouble())} · " else "") +
+                                                "${formatDuration(row.end - row.start)} · Ø ${row.avgHr} bpm · ${row.calories} kcal" +
                                                 (de.waschbeken.heliolink.ui.events.notesText(row.tags, row.note)?.let { "\n$it" } ?: ""),
                                             Instant.ofEpochSecond(row.start),
                                         ) { nav.navigate(Routes.workout(row.id)) }
