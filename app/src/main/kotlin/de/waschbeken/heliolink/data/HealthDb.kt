@@ -36,86 +36,14 @@ data class Workout(
 
 data class HrPoint(val timestamp: Long, val bpm: Int)
 
-class HealthDb(private val context: Context, name: String = DB_NAME) : SQLiteOpenHelper(context, name, null, 10) {
+class HealthDb(private val context: Context, name: String = DB_NAME) : SQLiteOpenHelper(context, name, null, HealthDbSchema.VERSION) {
 
-    override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL(
-            "CREATE TABLE activity (ts INTEGER PRIMARY KEY, kind INTEGER, intensity INTEGER, steps INTEGER, " +
-                "hr INTEGER, sleep INTEGER, deep INTEGER, rem INTEGER)"
-        )
-        db.execSQL("CREATE TABLE stress (ts INTEGER PRIMARY KEY, value INTEGER)")
-        db.execSQL(
-            "CREATE TABLE workout (id INTEGER PRIMARY KEY AUTOINCREMENT, sport TEXT, start INTEGER, end INTEGER, " +
-                "avg_hr INTEGER, max_hr INTEGER, kcal INTEGER, zones TEXT)"
-        )
-        db.execSQL("CREATE TABLE workout_hr (workout INTEGER, ts INTEGER, bpm INTEGER)")
-        db.execSQL("CREATE INDEX workout_hr_idx ON workout_hr (workout, ts)")
-        createV2(db)
-        createV3(db)
-        createV4(db)
-        createV5(db)
-        createV6(db)
-        createV7(db)
-        createV8(db)
-        createV9(db)
-        createV10(db)
-    }
+    override fun onCreate(db: SQLiteDatabase) = HealthDbSchema.create(db)
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        if (oldVersion < 2) createV2(db)
-        if (oldVersion < 3) createV3(db)
-        if (oldVersion < 4) createV4(db)
-        if (oldVersion < 5) createV5(db)
-        if (oldVersion < 6) createV6(db)
-        if (oldVersion < 7) createV7(db)
-        if (oldVersion < 8) createV8(db)
-        if (oldVersion < 9) createV9(db)
-        if (oldVersion < 10) createV10(db)
-    }
-
-    /** Version 4: PAI, skin temperature, breathing rate, battery history and alarms. */
-    private fun createV4(db: SQLiteDatabase) {
-        db.execSQL(
-            "CREATE TABLE IF NOT EXISTS pai (ts INTEGER PRIMARY KEY, today REAL, total REAL, low INTEGER, " +
-                "moderate INTEGER, high INTEGER)"
-        )
-        for (t in listOf(TEMPERATURE, RESPIRATION, BATTERY)) {
-            db.execSQL("CREATE TABLE IF NOT EXISTS $t (ts INTEGER PRIMARY KEY, value INTEGER)")
-        }
-        db.execSQL(
-            "CREATE TABLE IF NOT EXISTS alarm (position INTEGER PRIMARY KEY, enabled INTEGER, smart INTEGER, " +
-                "hour INTEGER, minute INTEGER, repetition INTEGER, label TEXT, pending INTEGER, deleted INTEGER)"
-        )
-    }
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = HealthDbSchema.upgrade(db, oldVersion)
 
     /** The app's settings (sleep tuning is read while building nights). */
     val prefs: Prefs get() = (context.applicationContext as de.waschbeken.heliolink.HelioApp).prefs
-
-    /** Version 5: sleep corrections by hand. */
-    private fun createV5(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE IF NOT EXISTS sleep_edit (night INTEGER PRIMARY KEY, start INTEGER, end INTEGER, ranges TEXT, deleted INTEGER)")
-        db.execSQL("CREATE TABLE IF NOT EXISTS sleep_tag (night INTEGER, tag TEXT, PRIMARY KEY (night, tag))")
-    }
-
-    /** Version 6: notes on recordings and quick entries (caffeine, nicotine, …) at any time. */
-    private fun createV6(db: SQLiteDatabase) {
-        db.execSQL("ALTER TABLE workout ADD COLUMN tags TEXT")
-        db.execSQL("ALTER TABLE workout ADD COLUMN note TEXT")
-        db.execSQL("CREATE TABLE IF NOT EXISTS event (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER, tag TEXT, note TEXT)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS event_ts ON event (ts)")
-    }
-
-    /** Version 7: heart rhythm checks from the beat intervals while the pulse is streamed, heart rate recovery after workouts. */
-    private fun createV7(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE IF NOT EXISTS rhythm (ts INTEGER PRIMARY KEY, beats INTEGER, hr INTEGER, nrmssd INTEGER, irregular INTEGER)")
-        db.execSQL("ALTER TABLE workout ADD COLUMN hrr INTEGER")
-    }
-
-    /** Version 8: the strap's SDNN values and its nightly oxygen drop summary. */
-    private fun createV8(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE IF NOT EXISTS $SDNN (ts INTEGER PRIMARY KEY, value INTEGER)")
-        db.execSQL("CREATE TABLE IF NOT EXISTS odi (day INTEGER PRIMARY KEY, valid INTEGER, odi INTEGER, score INTEGER, drops INTEGER)")
-    }
 
     fun insertOdi(nights: List<OdiNight>) = transaction { db ->
         val cv = ContentValues()
@@ -137,18 +65,6 @@ class HealthDb(private val context: Context, name: String = DB_NAME) : SQLiteOpe
             while (c.moveToNext()) out += OdiNight(c.getLong(0), c.getLong(1), c.getLong(2), if (c.isNull(3)) null else c.getInt(3), c.getInt(4))
         }
         return out
-    }
-
-    /** Version 9: how the user feels each day (1–5) with a note. */
-    private fun createV9(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE IF NOT EXISTS feeling (day INTEGER PRIMARY KEY, score INTEGER, note TEXT)")
-    }
-
-    /** Version 10: the route of a workout from the phone's GPS and its length. */
-    private fun createV10(db: SQLiteDatabase) {
-        db.execSQL("ALTER TABLE workout ADD COLUMN distance INTEGER")
-        db.execSQL("CREATE TABLE IF NOT EXISTS workout_track (workout INTEGER, ts INTEGER, lat REAL, lon REAL, alt REAL, acc REAL)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS workout_track_idx ON workout_track (workout, ts)")
     }
 
     data class Feeling(val day: Long, val score: Int, val note: String)
@@ -437,11 +353,6 @@ class HealthDb(private val context: Context, name: String = DB_NAME) : SQLiteOpe
         }
     }
 
-    /** Version 3: heart rate values the app records itself (more often than once a minute). */
-    private fun createV3(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE IF NOT EXISTS hr (ts INTEGER PRIMARY KEY, bpm INTEGER)")
-    }
-
     fun insertHr(ts: Long, bpm: Int) {
         val cv = ContentValues()
         cv.put("ts", ts)
@@ -458,64 +369,10 @@ class HealthDb(private val context: Context, name: String = DB_NAME) : SQLiteOpe
     }
 
     /** Writes every table from [from] (epoch seconds, 0 = everything) as CSV files into [zip]. */
-    fun exportCsv(zip: java.util.zip.ZipOutputStream, from: Long) {
-        val tables = listOf(
-            Triple("aktivitaet.csv", "SELECT ts, kind, intensity, steps, hr, sleep, deep, rem FROM activity WHERE ts >= ? ORDER BY ts",
-                "zeit,unix,typ,intensitaet,schritte,puls,schlaf,tiefschlaf,rem"),
-            Triple("puls_app.csv", "SELECT ts, bpm FROM hr WHERE ts >= ? ORDER BY ts", "zeit,unix,puls"),
-            Triple("stress.csv", "SELECT ts, value FROM stress WHERE ts >= ? ORDER BY ts", "zeit,unix,stress"),
-            Triple("spo2.csv", "SELECT ts, value FROM spo2 WHERE ts >= ? ORDER BY ts", "zeit,unix,spo2"),
-            Triple("ruhepuls.csv", "SELECT ts, value FROM resting_hr WHERE ts >= ? ORDER BY ts", "zeit,unix,ruhepuls"),
-            Triple("hrv.csv", "SELECT ts, value FROM hrv WHERE ts >= ? ORDER BY ts", "zeit,unix,hrv_ms"),
-            Triple("schlaf.csv", "SELECT start, end, score, segments FROM sleep_record WHERE end >= ? ORDER BY start", "zeit,unix_start,unix_ende,score,phasen"),
-            // The routes themselves stay out of this export (they show where you live); a workout gives its own as GPX or TCX.
-            Triple("trainings.csv", "SELECT start, end, sport, avg_hr, max_hr, kcal, zones, id, tags, note, distance FROM workout WHERE end > start AND start >= ? ORDER BY start",
-                "zeit,unix_start,unix_ende,sport,puls_avg,puls_max,kcal,zonen_sekunden,id,stichwoerter,notiz,strecke_meter"),
-            Triple("eintraege.csv", "SELECT ts, tag, note FROM event WHERE ts >= ? ORDER BY ts", "zeit,unix,eintrag,notiz"),
-            Triple("pai.csv", "SELECT ts, today, total, low, moderate, high FROM pai WHERE ts >= ? ORDER BY ts",
-                "zeit,unix,pai_heute,pai_gesamt,min_leicht,min_mittel,min_hoch"),
-            Triple("hauttemperatur.csv", "SELECT ts, value FROM temperature WHERE ts >= ? ORDER BY ts", "zeit,unix,temperatur_hundertstel_grad"),
-            Triple("atemfrequenz.csv", "SELECT ts, value FROM respiration WHERE ts >= ? ORDER BY ts", "zeit,unix,atemzuege_pro_minute"),
-            Triple("akku.csv", "SELECT ts, value FROM battery WHERE ts >= ? ORDER BY ts", "zeit,unix,akku_prozent"),
-            Triple("training_puls.csv", "SELECT ts, bpm, workout FROM workout_hr WHERE ts >= ? ORDER BY ts", "zeit,unix,puls,training_id"),
-        )
-        val fmt = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-        val zone = java.time.ZoneId.systemDefault()
-        for ((name, sql, header) in tables) {
-            zip.putNextEntry(java.util.zip.ZipEntry(name))
-            val w = zip.bufferedWriter()
-            w.write(header)
-            w.write("\n")
-            readableDatabase.rawQuery(sql, arrayOf(from.toString())).use { c ->
-                while (c.moveToNext()) {
-                    w.write(java.time.Instant.ofEpochSecond(c.getLong(0)).atZone(zone).format(fmt))
-                    for (i in 0 until c.columnCount) {
-                        w.write(",")
-                        val v = c.getString(i).orEmpty()
-                        val clean = v.replace('\n', ' ')
-                        w.write(if (clean.contains(',') || clean.contains(';') || clean.contains('"')) "\"" + clean.replace("\"", "\"\"") + "\"" else clean)
-                    }
-                    w.write("\n")
-                }
-            }
-            w.flush()
-            zip.closeEntry()
-        }
-    }
+    fun exportCsv(zip: java.util.zip.ZipOutputStream, from: Long) = HealthDbExport.csv(readableDatabase, zip, from)
 
     /** The database file for the backup; call [close] first so everything is written. */
     fun databaseFile(): java.io.File = context.getDatabasePath(databaseName)
-
-    /** Version 2: sleep records with stages, SpO2, resting heart rate and HRV. */
-    private fun createV2(db: SQLiteDatabase) {
-        db.execSQL(
-            "CREATE TABLE IF NOT EXISTS sleep_record (day INTEGER PRIMARY KEY, updated INTEGER, start INTEGER, " +
-                "end INTEGER, score INTEGER, segments TEXT)"
-        )
-        for (t in listOf("spo2", "resting_hr", "hrv")) {
-            db.execSQL("CREATE TABLE IF NOT EXISTS $t (ts INTEGER PRIMARY KEY, value INTEGER)")
-        }
-    }
 
     fun insertSleepRecords(records: List<SleepRecord>) = transaction { db ->
         val cv = ContentValues()
@@ -830,19 +687,7 @@ class HealthDb(private val context: Context, name: String = DB_NAME) : SQLiteOpe
         return out
     }
 
-    fun exportActivityCsv(): String {
-        val sb = StringBuilder("timestamp,kind,intensity,steps,heart_rate,sleep,deep_sleep,rem_sleep\n")
-        readableDatabase.rawQuery("SELECT ts, kind, intensity, steps, hr, sleep, deep, rem FROM activity ORDER BY ts", null).use { c ->
-            while (c.moveToNext()) {
-                for (i in 0 until 8) {
-                    if (i > 0) sb.append(',')
-                    sb.append(c.getLong(i))
-                }
-                sb.append('\n')
-            }
-        }
-        return sb.toString()
-    }
+    fun exportActivityCsv(): String = HealthDbExport.activityCsv(readableDatabase)
 
     /** Deletes all health data and workouts. */
     fun clearAll() = transaction { db ->

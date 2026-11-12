@@ -59,4 +59,45 @@ class DbMigrationTest {
         db.close()
         file.delete()
     }
+
+    /** Tables and their columns, as SQLite reports them. */
+    private fun schema(db: SQLiteDatabase): Map<String, List<String>> {
+        val tables = db.rawQuery("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name != 'android_metadata'", null)
+            .use { c -> buildList { while (c.moveToNext()) add(c.getString(0)) } }
+        return tables.sorted().associateWith { t ->
+            db.rawQuery("PRAGMA table_info($t)", null).use { c -> buildList { while (c.moveToNext()) add(c.getString(1)) } }.sorted()
+        }
+    }
+
+    /** A database from the very first version ends up exactly like a new one, with every table under its right name. */
+    @Test
+    fun upgradeFromFirstVersionEqualsFreshInstall() {
+        val context = ApplicationProvider.getApplicationContext<HelioApp>()
+        val fresh = HealthDb(context, "fresh.db")
+        val freshSchema = schema(fresh.readableDatabase)
+        fresh.close()
+
+        val file = context.getDatabasePath("old-v1.db")
+        file.parentFile?.mkdirs()
+        file.delete()
+        SQLiteDatabase.openOrCreateDatabase(file, null).use { old ->
+            old.execSQL("CREATE TABLE activity (ts INTEGER PRIMARY KEY, kind INTEGER, intensity INTEGER, steps INTEGER, hr INTEGER, sleep INTEGER, deep INTEGER, rem INTEGER)")
+            old.execSQL("CREATE TABLE stress (ts INTEGER PRIMARY KEY, value INTEGER)")
+            old.execSQL("CREATE TABLE workout (id INTEGER PRIMARY KEY AUTOINCREMENT, sport TEXT, start INTEGER, end INTEGER, avg_hr INTEGER, max_hr INTEGER, kcal INTEGER, zones TEXT)")
+            old.execSQL("CREATE TABLE workout_hr (workout INTEGER, ts INTEGER, bpm INTEGER)")
+            old.version = 1
+        }
+        val upgraded = HealthDb(context, "old-v1.db")
+        assertEquals(freshSchema, schema(upgraded.readableDatabase))
+        upgraded.close()
+
+        val expected = listOf(
+            "activity", "alarm", "battery", "event", "feeling", "hr", "hrv", "hrv_sdnn", "odi", "pai", "respiration", "resting_hr",
+            "rhythm", "sleep_edit", "sleep_record", "sleep_tag", "spo2", "stress", "temperature", "workout", "workout_hr", "workout_track",
+        )
+        assertEquals(expected, freshSchema.keys.toList())
+        assertTrue(freshSchema.getValue("workout").containsAll(listOf("tags", "note", "hrr", "distance")))
+        context.getDatabasePath("fresh.db").delete()
+        file.delete()
+    }
 }
