@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -132,6 +133,10 @@ class ScreensTest {
             periods("10-${m.key}")
         }
         SettingsCategory.entries.forEach { c -> open(Routes.settings(c.key), "20-${c.key}") }
+        // The explanations of a settings page sit behind the ⓘ in the top bar.
+        open(Routes.settings(SettingsCategory.BATTERY.key), "20-battery")
+        clickDescription("Erklärungen anzeigen")
+        shot("20-battery-erklaerungen")
 
         open(Routes.RECORDING, "30-aufzeichnung")
         open(Routes.ALARMS, "31-wecker")
@@ -169,6 +174,13 @@ class ScreensTest {
 
     private fun click(text: String) {
         val nodes = compose.onAllNodes(hasText(text) and hasClickAction())
+        if (nodes.fetchSemanticsNodes().isEmpty()) return
+        nodes.onFirst().performSemanticsAction(SemanticsActions.OnClick)
+        settle()
+    }
+
+    private fun clickDescription(text: String) {
+        val nodes = compose.onAllNodes(hasContentDescription(text) and hasClickAction())
         if (nodes.fetchSemanticsNodes().isEmpty()) return
         nodes.onFirst().performSemanticsAction(SemanticsActions.OnClick)
         settle()

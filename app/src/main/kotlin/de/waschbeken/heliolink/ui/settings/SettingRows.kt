@@ -54,6 +54,35 @@ fun SettingsHeader(title: String) {
 
 @Composable
 fun SettingsNote(text: String) {
+    // Explanations stay out of the way until the page's ⓘ asks for them.
+    val notes = LocalSettingsNotes.current
+    if (notes != null) {
+        androidx.compose.runtime.SideEffect { notes.present.value = true }
+        if (!notes.show.value) return
+    }
+    SettingsStatus(text)
+}
+
+/** Whether explanations show right now – for a header that only stands above an explanation. */
+@Composable
+fun settingsNotesShown(): Boolean {
+    val notes = LocalSettingsNotes.current ?: return true
+    androidx.compose.runtime.SideEffect { notes.present.value = true }
+    return notes.show.value
+}
+
+/** State of the explanations on a settings page: whether there are any, and whether the ⓘ in the top bar shows them. */
+class SettingsNotes {
+    val present = androidx.compose.runtime.mutableStateOf(false)
+    val show = androidx.compose.runtime.mutableStateOf(false)
+}
+
+/** Null outside a settings page: explanations show as usual there. */
+val LocalSettingsNotes = androidx.compose.runtime.compositionLocalOf<SettingsNotes?> { null }
+
+/** A line that always shows: what is going on right now (loading, not connected, a warning), not an explanation. */
+@Composable
+fun SettingsStatus(text: String) {
     Text(
         text,
         style = MaterialTheme.typography.bodySmall,

@@ -185,7 +185,9 @@ internal fun SyncPage(state: StrapUiState) {
         enabled = state.connected && !state.syncing,
     ) { confirmReload = true }
 
-    SettingsHeader("Datenstand")
+    // Before the first sync there is nothing to list; the header then only stands above the explanation.
+    val notesShown = settingsNotesShown()
+    if (notesShown || de.waschbeken.heliolink.core.FetchType.entries.any { prefs.get(it) != null }) SettingsHeader("Datenstand")
     SettingsNote(
         "Bis wann HelioLink die Daten vom Strap hat; im Protokoll steht pro Abruf „Daten bis …“. Fehlen in einem " +
             "Diagramm Stunden, tippe die Datenart an: dann holt HelioLink die letzten 7 Tage davon noch einmal.",
@@ -348,8 +350,8 @@ internal fun AppearancePage() {
         }
     }
     val name = AccentPresets.firstOrNull { it.first == prefs.accentColor }?.second
-    if (name != null && !prefs.dynamicColor) SettingsNote("Gewählt: $name")
-    if (prefs.dynamicColor) SettingsNote("Material You ist an – die Akzentfarbe gilt, sobald du es ausschaltest.")
+    if (name != null && !prefs.dynamicColor) SettingsStatus("Gewählt: $name")
+    if (prefs.dynamicColor) SettingsStatus("Material You ist an – die Akzentfarbe gilt, sobald du es ausschaltest.")
 
     SettingsHeader("Schriftgröße")
     var scale by remember { mutableFloatStateOf(prefs.fontScale) }
@@ -375,8 +377,8 @@ internal fun AppearancePage() {
 internal fun HomeTilesPage() {
     val prefs = LocalContext.current.app.prefs
     prefsTick()
-    SettingsHeader("Kacheln auf „Heute“")
-    SettingsNote("Schalter blendet eine Kachel ein oder aus, die Pfeile ändern die Reihenfolge.")
+    SettingsHeader("Ringe und Kacheln auf „Heute“")
+    SettingsNote("Schalter blendet einen Wert ein oder aus, die Pfeile ändern die Reihenfolge der Kacheln. Schritte, Schlaf und PAI stehen als Ringe oben.")
     val hidden = prefs.hiddenTiles
     val saved = prefs.tileOrder
     val order = Tile.entries.sortedBy { t -> saved.indexOf(t.name).let { if (it < 0) 100 + t.ordinal else it } }
@@ -388,7 +390,12 @@ internal fun HomeTilesPage() {
         prefs.tileOrder = list
     }
     order.forEachIndexed { i, tile ->
-        SettingRow(tile.title, if (tile.name in hidden) "ausgeblendet" else null, trailing = {
+        val note = when {
+            tile.name in hidden -> "ausgeblendet"
+            tile.ring -> "als Ring oben"
+            else -> null
+        }
+        SettingRow(tile.title, note, trailing = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { move(i, -1) }, enabled = i > 0) { Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Nach oben") }
                 IconButton(onClick = { move(i, 1) }, enabled = i < order.lastIndex) { Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Nach unten") }
@@ -512,7 +519,7 @@ internal fun UpdatesPage() {
         validate = { if (it.count { c -> c == '/' } != 1) "Format: besitzer/name" else null },
     ) { prefs.updateRepo = it }
     if (BuildConfig.DEBUG) {
-        SettingsNote("Dies ist eine Test-Version (debug). Updates installieren die normale Version zusätzlich.")
+        SettingsStatus("Dies ist eine Test-Version (debug). Updates installieren die normale Version zusätzlich.")
     }
 }
 

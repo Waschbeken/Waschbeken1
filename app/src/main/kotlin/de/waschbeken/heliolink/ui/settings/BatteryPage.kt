@@ -80,9 +80,9 @@ internal fun BatteryPage(state: StrapUiState) {
 
     SettingsHeader("Profil")
     if (config == null) {
-        SettingsNote(
+        SettingsStatus(
             if (state.connected) "Lade Einstellungen vom Strap …"
-            else "Die Profile stellen die Messungen auf dem Strap um. Verbinde den Strap, um eines zu wählen.",
+            else "Verbinde den Strap, um ein Profil zu wählen.",
         )
     } else {
         val current = BatteryProfiles.current(config)
@@ -108,8 +108,8 @@ internal fun BatteryPage(state: StrapUiState) {
                 }
             }
         }
-        if (current == null) SettingsNote("Aktuell: eigene Einstellungen (unter „Messungen“). Ein Profil stellt sie neu ein.")
-        if (state.pendingSettings.isNotEmpty()) SettingsNote("Wird zum Strap übertragen …")
+        if (current == null) SettingsStatus("Aktuell: eigene Einstellungen (unter „Messungen“).")
+        if (state.pendingSettings.isNotEmpty()) SettingsStatus("Wird zum Strap übertragen …")
     }
 
     SettingsHeader("Sparen ohne Datenverlust")
@@ -162,7 +162,7 @@ internal fun BatteryPage(state: StrapUiState) {
     }
     SettingsNote("HelioLink selbst braucht im Hintergrund kaum Akku: Es wartet auf den Strap und ruft nur im eingestellten Abstand Daten ab.")
 
-    SettingsHeader("Was am meisten Akku kostet")
+    if (settingsNotesShown()) SettingsHeader("Was am meisten Akku kostet")
     SettingsNote(
         "1. Live-Puls und Pulsaufzeichnung (Puls im Sekundentakt)\n" +
             "2. Puls an andere Geräte senden\n" +

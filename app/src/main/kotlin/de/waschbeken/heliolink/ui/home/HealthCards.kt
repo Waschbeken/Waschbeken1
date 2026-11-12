@@ -156,11 +156,8 @@ fun SubstancesSection(dataVersion: Int) {
             Text("Koffein: ca. ${level.toInt()} mg jetzt · ca. ${atBed.toInt()} mg zur Schlafenszeit", style = MaterialTheme.typography.bodyMedium)
             LinearProgressIndicator(progress = { (level / 400.0).toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(6.dp))
             Text(
-                inBody(Substances.timeBelow(list, kind, 25.0, t), t, "unter 25 mg") + " " + when {
-                    atBed >= 50 -> "Zur Schlafenszeit ist noch genug da, um Einschlafen und Tiefschlaf zu stören."
-                    atBed >= 25 -> "Zur Schlafenszeit wenig – empfindliche Menschen merken das."
-                    else -> "Zur Schlafenszeit kaum noch etwas."
-                },
+                inBody(Substances.timeBelow(list, kind, 25.0, t), t, "unter 25 mg") +
+                    if (atBed >= 50) " Zur Schlafenszeit ist noch genug da, um den Schlaf zu stören." else "",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -179,8 +176,7 @@ fun SubstancesSection(dataVersion: Int) {
             )
             LinearProgressIndicator(progress = { share.toFloat().coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(6.dp))
             Text(
-                inBody(Substances.timeBelow(list, kind, lastAmount * 0.1, t), t, "unter 10 %") + " " +
-                    "Nikotin hebt Puls und Wachheit – kurz vor dem Schlafen macht es das Einschlafen schwerer.",
+                inBody(Substances.timeBelow(list, kind, lastAmount * 0.1, t), t, "unter 10 %"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

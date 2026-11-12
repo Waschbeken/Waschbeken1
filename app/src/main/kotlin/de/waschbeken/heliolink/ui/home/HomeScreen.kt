@@ -104,10 +104,10 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Date
 
-/** Tiles of the dashboard; the user can hide them in the settings. */
-enum class Tile(val title: String) {
-    STEPS("Schritte"), SLEEP("Schlaf"), HEART("Ruhepuls"), STRESS("Stress"), SPO2("SpO₂"), HRV("HRV"),
-    PAI("PAI"), TEMPERATURE("Hauttemperatur"), BREATH("Atemfrequenz"), BATTERY("Akku"),
+/** Values on "Heute", as rings on top or as tiles; the user can hide them in the settings. */
+enum class Tile(val title: String, /** Shown as a ring on top instead of a tile. */ val ring: Boolean = false) {
+    STEPS("Schritte", ring = true), SLEEP("Schlaf", ring = true), HEART("Ruhepuls"), STRESS("Stress"), SPO2("SpO₂"), HRV("HRV"),
+    PAI("PAI", ring = true), TEMPERATURE("Hauttemperatur"), BREATH("Atemfrequenz"), BATTERY("Akku"),
 }
 
 private fun greeting(): String {
@@ -210,7 +210,18 @@ fun HomeScreen(nav: NavHostController) {
                     }
                 }
                 val d = data
-                item { HeroCard(state, d, profile.stepGoal) { nav.navigateToTab(Routes.SLEEP) } }
+                // The strap's live counter only for today; before waking up the page shows the previous day.
+                val todaySteps = state.steps?.toInt()?.takeIf { d?.date == java.time.LocalDate.now() } ?: d?.week?.lastOrNull()?.steps ?: 0
+                if (d != null && d.date != java.time.LocalDate.now()) item { SectionHeader("Gestern – bis du aufwachst") }
+                item {
+                    RingsCard(
+                        d, todaySteps, profile.stepGoal, profile.sleepGoalMinutes, hidden,
+                        detailsOpen = sections.isOpen("home-readiness", default = false),
+                        onToggleDetails = { sections.toggle("home-readiness", default = false) },
+                        openSleep = { nav.navigateToTab(Routes.SLEEP) },
+                        openMetric = { nav.navigate(Routes.metric(it)) },
+                    )
+                }
                 d?.bodyCheck?.takeIf { it.level != de.waschbeken.heliolink.core.BodyCheck.Level.NORMAL }?.let { check ->
                     item { BodyCheckCard(check, d.bodyCheckHints) }
                 }
@@ -222,6 +233,7 @@ fun HomeScreen(nav: NavHostController) {
                     }
                 }
                 item { de.waschbeken.heliolink.ui.record.RecordingBanner(nav) }
+                if (d != null) item { TileGrid(d, state, hidden, order, nav) }
                 item {
                     LiveHeartCard(state, profile.maxHeartRate, d?.resting?.let { profile.zoneRest(it) }, onRecord = startRecording) {
                         controller?.setLiveHeartRate(it)
@@ -230,8 +242,6 @@ fun HomeScreen(nav: NavHostController) {
                 item { de.waschbeken.heliolink.ui.events.QuickEntryCard(state.dataVersion, onShowAll = { nav.navigate(Routes.ENTRIES) }) }
                 item { de.waschbeken.heliolink.ui.progress.GoalsSummaryCard(state.dataVersion) { nav.navigate(Routes.PROGRESS) } }
                 if (d != null) {
-                    item { SectionHeader(if (d.date == java.time.LocalDate.now()) "Heute im Überblick" else "Gestern – bis du aufwachst") }
-                    item { TileGrid(d, state, profile.stepGoal, hidden, order, nav) }
                     item {
                         Panel(onClick = { nav.navigateToTab(Routes.DATA) }) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -372,50 +382,7 @@ private fun ConnectionCard(state: StrapUiState) {
     }
 }
 
-/** Big card on top: recovery when known, else steps. */
-@Composable
-private fun HeroCard(state: StrapUiState, d: HomeData?, stepGoal: Int, openSleep: () -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), onClick = openSleep) {
-        Column(Modifier.padding(20.dp)) {
-            val readiness = d?.readiness
-            if (readiness != null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(84.dp), contentAlignment = Alignment.Center) {
-                        ProgressRing(readiness.score / 100f, scoreColor(readiness.score), Modifier.size(84.dp))
-                        Text("${readiness.score}", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(Modifier.width(16.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Erholung", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                        Text(readiness.label, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "Punkte von 100: " + readiness.parts.joinToString(" · ") { "${it.first} ${it.second}" },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                    }
-                }
-            } else {
-                Text("Erholung", style = MaterialTheme.typography.labelLarge)
-                Text("Sobald Schlaf- und Pulsdaten da sind, siehst du hier, wie erholt du bist.", style = MaterialTheme.typography.bodyMedium)
-            }
-            d?.night?.let { n ->
-                Spacer(Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Bedtime, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        "Letzte Nacht ${formatHours(n.asleepMinutes)} · Score ${n.score}" + if (n.estimated) " (geschätzt)" else "",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                Spacer(Modifier.height(6.dp))
-                StackedBar(SleepStage.entries.map { n.minutes(it).toFloat() to Palette.stage(it) }, Modifier.fillMaxWidth().height(8.dp))
-            }
-        }
-    }
-}
-
+/** Live pulse in one row: tap records every second, the switch turns the live value on. */
 @Composable
 private fun LiveHeartCard(state: StrapUiState, maxHr: Int, rest: Int?, onRecord: () -> Unit, onToggle: (Boolean) -> Unit) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -428,159 +395,91 @@ private fun LiveHeartCard(state: StrapUiState, maxHr: Int, rest: Int?, onRecord:
     val fresh = state.heartRate != null && now - state.heartRateAt < 30_000
     val bpm = state.heartRate.takeIf { fresh }
     val zone = bpm?.let { HeartRateZones.zoneOf(it, maxHr, rest) } ?: -1
+    val line = when {
+        state.workout != null -> "${state.workout.sport} läuft"
+        state.recordingHr -> "Aufzeichnung läuft"
+        zone >= 0 -> "Zone ${zone + 1} · ${HeartRateZones.names[zone]}" + (state.hrv?.let { " · HRV ${it.toInt()} ms" } ?: "")
+        else -> null
+    }
     Panel(onClick = onRecord) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.Favorite, contentDescription = null, tint = Palette.Heart)
-            Spacer(Modifier.width(8.dp))
-            Text("Puls live", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            Switch(checked = state.liveHeartRate, onCheckedChange = onToggle, enabled = state.connected)
-        }
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(bpm?.toString() ?: "–", fontSize = 48.sp, fontWeight = FontWeight.Bold, color = if (zone >= 0) Palette.zones[zone] else Palette.Heart)
-            Spacer(Modifier.width(8.dp))
-            Column(Modifier.padding(bottom = 10.dp)) {
-                Text("bpm", style = MaterialTheme.typography.bodyMedium)
-                if (zone >= 0) Text("Zone ${zone + 1} · ${HeartRateZones.names[zone]}", style = MaterialTheme.typography.bodySmall)
-            }
-            Spacer(Modifier.weight(1f))
-            state.hrv?.takeIf { fresh }?.let {
-                Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(bottom = 10.dp)) {
-                    Text("${it.toInt()} ms", style = MaterialTheme.typography.titleMedium)
-                    Text("HRV live", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text("Puls live", style = MaterialTheme.typography.titleMedium)
+                if (line != null) {
+                    Text(line, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                 }
             }
-        }
-        if (zone >= 0) StackedBar((0..4).map { (if (it == zone) 1f else 0.15f) to Palette.zones[it] }, Modifier.fillMaxWidth().height(6.dp))
-        when {
-            state.workout != null -> Text("${state.workout.sport} läuft – tippen zum Ansehen", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            state.connected -> Text("Tippen, um den Puls jede Sekunde aufzuzeichnen", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            state.recordingHr -> Text("Puls-Aufzeichnung läuft", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            !state.liveHeartRate && !fresh -> Text(
-                "Einschalten, um den Puls in Echtzeit zu sehen.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (bpm != null) {
+                Text("$bpm", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = if (zone >= 0) Palette.zones[zone] else Palette.Heart)
+                Text(" bpm", style = MaterialTheme.typography.bodySmall)
+                Spacer(Modifier.width(10.dp))
+            }
+            Switch(checked = state.liveHeartRate, onCheckedChange = onToggle, enabled = state.connected)
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+/** The other values of the day as compact tiles; steps, sleep and PAI are the rings on top. */
 @Composable
-private fun TileGrid(d: HomeData, state: StrapUiState, stepGoal: Int, hidden: Set<String>, order: List<String>, nav: NavHostController) {
+private fun TileGrid(d: HomeData, state: StrapUiState, hidden: Set<String>, order: List<String>, nav: NavHostController) {
     val added = ArrayList<Pair<Tile, @Composable (Modifier) -> Unit>>()
     fun add(tile: Tile, content: @Composable (Modifier) -> Unit) {
         if (tile.name !in hidden) added += tile to content
     }
-    // The strap's live counter only for today; before waking up the page shows the previous day.
-    val todaySteps = (state.steps?.toInt()?.takeIf { d.date == java.time.LocalDate.now() } ?: d.week.lastOrNull()?.steps ?: 0)
-    add(Tile.STEPS) { m ->
-        StatTile(
-            "Schritte", todaySteps.fmt(), m,
-            caption = "${todaySteps * 100 / stepGoal.coerceAtLeast(1)} % von ${stepGoal.fmt()}",
-            icon = Icons.AutoMirrored.Filled.DirectionsWalk, tint = Palette.Steps,
-            onClick = { nav.navigate(Routes.metric("steps")) },
-        ) {
-            Spacer(Modifier.height(6.dp))
-            StackedBar(listOf((todaySteps.toFloat() / stepGoal).coerceAtMost(1f) to Palette.Steps, (1f - todaySteps.toFloat() / stepGoal).coerceAtLeast(0f) to Color.Transparent), Modifier.fillMaxWidth().height(6.dp))
-        }
-    }
-    add(Tile.SLEEP) { m ->
-        val n = d.night
-        StatTile(
-            "Schlaf", n?.let { formatHours(it.asleepMinutes) } ?: "–", m,
-            caption = n?.let {
-                "Score ${it.score}" + when {
-                    it.edited -> " · korrigiert"
-                    it.estimated -> " · geschätzt"
-                    else -> " · Tief ${formatMinutes(it.minutes(SleepStage.DEEP))}"
-                }
-            } ?: "keine Daten",
-            icon = Icons.Default.Bedtime, tint = Palette.Sleep,
-            onClick = { nav.navigateToTab(Routes.SLEEP) },
-        )
-    }
     add(Tile.HEART) { m ->
         val trend = if (d.resting != null && d.restingBaseline != null) d.resting - d.restingBaseline else null
-        StatTile(
-            "Ruhepuls", d.resting?.let { "$it bpm" } ?: "–", m,
-            caption = trend?.let { "%+.0f zum Schnitt".format(it) } ?: "Herzfrequenz",
-            icon = Icons.Default.MonitorHeart, tint = Palette.Heart,
-            onClick = { nav.navigate(Routes.metric("heart")) },
-        ) {
-            val values = d.hrPoints.takeLast(240).map { it.second }
-            if (values.size > 2) Sparkline(values, Palette.Heart)
-        }
+        MiniTile(
+            "Ruhepuls", d.resting?.let { "$it bpm" } ?: "–", m, Icons.Default.MonitorHeart, Palette.Heart,
+            detail = trend?.let { "%+.0f".format(it) },
+        ) { nav.navigate(Routes.metric("heart")) }
     }
     add(Tile.STRESS) { m ->
         val avg = d.stress.map { it.stress }.takeIf { it.isNotEmpty() }?.average()?.toInt()
-        StatTile(
-            "Stress", avg?.toString() ?: "–", m,
-            caption = avg?.let { stressLabel(it) } ?: "keine Daten",
-            icon = Icons.Default.Psychology, tint = avg?.let { stressColor(it) } ?: Palette.Stress,
-            onClick = { nav.navigate(Routes.metric("stress")) },
-        )
+        MiniTile(
+            "Stress", avg?.toString() ?: "–", m, Icons.Default.Psychology, avg?.let { stressColor(it) } ?: Palette.Stress,
+            detail = avg?.let { stressLabel(it) },
+        ) { nav.navigate(Routes.metric("stress")) }
     }
     add(Tile.SPO2) { m ->
         val v = d.spo2.map { it.value }
-        StatTile(
-            "SpO₂", if (v.isEmpty()) "–" else "${v.average().toInt()} %", m,
-            caption = if (v.isEmpty()) "keine Messung" else "min. ${v.min()} % · ${v.size} Messungen",
-            icon = Icons.Default.WaterDrop, tint = Palette.Spo2,
-            onClick = { nav.navigate(Routes.metric("spo2")) },
-        )
+        MiniTile(
+            "SpO₂", if (v.isEmpty()) "–" else "${v.average().toInt()} %", m, Icons.Default.WaterDrop, Palette.Spo2,
+            detail = if (v.isEmpty()) null else "min. ${v.min()}",
+        ) { nav.navigate(Routes.metric("spo2")) }
     }
     add(Tile.HRV) { m ->
-        StatTile(
-            "HRV nachts", d.hrvNight?.let { "${it.toInt()} ms" } ?: "–", m,
-            caption = hrvCaption(d),
-            icon = Icons.Default.Favorite, tint = Palette.Hrv,
-            onClick = { nav.navigate(Routes.metric("hrv")) },
-        )
-    }
-    add(Tile.PAI) { m ->
-        // A value from an earlier day still gives the total, but nothing was added today yet.
-        val pai = d.pai
-        val paiToday = pai?.takeIf {
-            java.time.Instant.ofEpochSecond(it.timestamp).atZone(java.time.ZoneId.systemDefault()).toLocalDate() == d.date
-        }?.today ?: 0f
-        StatTile(
-            "PAI", d.pai?.total?.toInt()?.toString() ?: "–", m,
-            caption = d.pai?.let { "heute +${de.waschbeken.heliolink.ui.metrics.paiGain(paiToday)}" } ?: "keine Daten",
-            icon = Icons.Default.Bolt, tint = Palette.Pai,
-            onClick = { nav.navigate(Routes.metric("pai")) },
-            extra = if (pai == null) null else ({ de.waschbeken.heliolink.ui.metrics.PaiBar(pai.total, paiToday) }),
-        )
+        // The status word is too long next to the value, so it goes into the line below.
+        MiniTile(
+            d.hrvStatus?.let { "HRV · ${it.status.label}" } ?: "HRV nachts",
+            d.hrvNight?.let { "${it.toInt()} ms" } ?: "–", m, Icons.Default.Favorite, Palette.Hrv,
+            detail = d.hrvBaseline?.takeIf { d.hrvNight != null }?.let { "Ø ${it.toInt()}" },
+        ) { nav.navigate(Routes.metric("hrv")) }
     }
     add(Tile.TEMPERATURE) { m ->
-        StatTile(
-            "Hauttemperatur", d.tempNight?.let { "%.1f °C".format(it) } ?: "–", m,
-            caption = d.tempDeviation?.let { "%+.1f °C zur Basis".format(it) } ?: "nachts",
-            icon = Icons.Default.Thermostat, tint = Palette.Temperature,
-            onClick = { nav.navigate(Routes.metric("temperature")) },
-        )
+        MiniTile(
+            "Hauttemperatur", d.tempNight?.let { "%.1f °C".format(it) } ?: "–", m, Icons.Default.Thermostat, Palette.Temperature,
+            detail = d.tempDeviation?.let { "%+.1f".format(it) },
+        ) { nav.navigate(Routes.metric("temperature")) }
     }
     add(Tile.BREATH) { m ->
-        StatTile(
-            "Atemfrequenz", d.breathNight?.let { "%.0f /min".format(it) } ?: "–", m,
-            caption = "im Schlaf",
-            icon = Icons.Default.Air, tint = Palette.Breath,
-            onClick = { nav.navigate(Routes.metric("respiration")) },
-        )
+        MiniTile(
+            "Atemfrequenz", d.breathNight?.let { "%.0f /min".format(it) } ?: "–", m, Icons.Default.Air, Palette.Breath,
+        ) { nav.navigate(Routes.metric("respiration")) }
     }
     add(Tile.BATTERY) { m ->
-        StatTile(
-            "Akku", state.battery?.let { "$it %" } ?: "–", m,
-            caption = if (state.charging) "lädt" else d.batteryDays?.let { "reicht noch ca. %.1f Tage".format(it) } ?: "Strap",
-            icon = Icons.Default.BatteryStd, tint = Palette.Battery,
-            onClick = { nav.navigate(Routes.metric("battery")) },
-        )
+        MiniTile(
+            "Akku", state.battery?.let { "$it %" } ?: "–", m, Icons.Default.BatteryStd, Palette.Battery,
+            detail = if (state.charging) "lädt" else d.batteryDays?.let { "≈ %.1f Tage".format(it) },
+        ) { nav.navigate(Routes.metric("battery")) }
     }
     val tiles = added.sortedBy { (t, _) -> order.indexOf(t.name).let { if (it < 0) 100 + t.ordinal else it } }.map { it.second }
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         tiles.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // a single last tile takes the whole row
                 row.forEach { it(Modifier.weight(1f)) }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
             }
         }
     }
@@ -611,7 +510,6 @@ private fun AlarmCard(d: HomeData, onClick: () -> Unit) {
                 val next = d.nextAlarm
                 if (next == null) {
                     Text("Kein Wecker aktiv", style = MaterialTheme.typography.titleSmall)
-                    Text("Der Strap kann dich sanft per Vibration wecken.", style = MaterialTheme.typography.bodySmall)
                 } else {
                     val left = Duration.between(ZonedDateTime.now(), next)
                     Text(

@@ -46,12 +46,12 @@ internal fun PrivacyPage() {
     prefsTick()
 
     SettingsHeader("Was verlässt dein Handy?")
-    SettingsNote(
+    SettingsStatus(
         "Gesundheitsdaten: nie. Kein Konto, keine Cloud, keine Werbung, keine Analyse – Puls, Schlaf und alles " +
             "andere liegen nur in HelioLink auf diesem Handy.",
     )
-    SettingsNote("Android-Cloud-Sicherung (Google, Xiaomi …): für HelioLink ausgeschaltet. Nur eine direkte Übertragung von Handy zu Handy nimmt die Daten mit.")
-    SettingsNote(
+    SettingsStatus("Android-Cloud-Sicherung (Google, Xiaomi …): für HelioLink ausgeschaltet. Nur eine direkte Übertragung von Handy zu Handy nimmt die Daten mit.")
+    SettingsStatus(
         "Einzige Verbindung ins Internet: die Suche nach Updates bei GitHub. Dabei wird nur die Liste der Versionen " +
             "abgerufen und beim Update die neue App geladen – GitHub sieht deine IP-Adresse und die Uhrzeit, sonst nichts.",
     )
