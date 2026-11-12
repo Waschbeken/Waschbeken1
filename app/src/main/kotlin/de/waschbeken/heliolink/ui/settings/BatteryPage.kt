@@ -162,7 +162,7 @@ internal fun BatteryPage(state: StrapUiState) {
     }
     SettingsNote("HelioLink selbst braucht im Hintergrund kaum Akku: Es wartet auf den Strap und ruft nur im eingestellten Abstand Daten ab.")
 
-    SettingsHeader("Was am meisten Akku kostet")
+    if (settingsNotesShown()) SettingsHeader("Was am meisten Akku kostet")
     SettingsNote(
         "1. Live-Puls und Pulsaufzeichnung (Puls im Sekundentakt)\n" +
             "2. Puls an andere Geräte senden\n" +

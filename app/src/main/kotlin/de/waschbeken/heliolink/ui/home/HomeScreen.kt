@@ -450,9 +450,11 @@ private fun TileGrid(d: HomeData, state: StrapUiState, hidden: Set<String>, orde
         ) { nav.navigate(Routes.metric("spo2")) }
     }
     add(Tile.HRV) { m ->
+        // The status word is too long next to the value, so it goes into the line below.
         MiniTile(
-            "HRV nachts", d.hrvNight?.let { "${it.toInt()} ms" } ?: "–", m, Icons.Default.Favorite, Palette.Hrv,
-            detail = d.hrvStatus?.status?.label ?: d.hrvBaseline?.takeIf { d.hrvNight != null }?.let { "Ø ${it.toInt()}" },
+            d.hrvStatus?.let { "HRV · ${it.status.label}" } ?: "HRV nachts",
+            d.hrvNight?.let { "${it.toInt()} ms" } ?: "–", m, Icons.Default.Favorite, Palette.Hrv,
+            detail = d.hrvBaseline?.takeIf { d.hrvNight != null }?.let { "Ø ${it.toInt()}" },
         ) { nav.navigate(Routes.metric("hrv")) }
     }
     add(Tile.TEMPERATURE) { m ->
@@ -476,8 +478,8 @@ private fun TileGrid(d: HomeData, state: StrapUiState, hidden: Set<String>, orde
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         tiles.chunked(2).forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // a single last tile takes the whole row
                 row.forEach { it(Modifier.weight(1f)) }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
             }
         }
     }

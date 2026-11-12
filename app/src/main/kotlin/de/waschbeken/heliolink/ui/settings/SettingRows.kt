@@ -63,6 +63,14 @@ fun SettingsNote(text: String) {
     SettingsStatus(text)
 }
 
+/** Whether explanations show right now – for a header that only stands above an explanation. */
+@Composable
+fun settingsNotesShown(): Boolean {
+    val notes = LocalSettingsNotes.current ?: return true
+    androidx.compose.runtime.SideEffect { notes.present.value = true }
+    return notes.show.value
+}
+
 /** State of the explanations on a settings page: whether there are any, and whether the ⓘ in the top bar shows them. */
 class SettingsNotes {
     val present = androidx.compose.runtime.mutableStateOf(false)
