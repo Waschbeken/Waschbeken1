@@ -185,7 +185,9 @@ internal fun SyncPage(state: StrapUiState) {
         enabled = state.connected && !state.syncing,
     ) { confirmReload = true }
 
-    SettingsHeader("Datenstand")
+    // Before the first sync there is nothing to list; the header then only stands above the explanation.
+    val notesShown = settingsNotesShown()
+    if (notesShown || de.waschbeken.heliolink.core.FetchType.entries.any { prefs.get(it) != null }) SettingsHeader("Datenstand")
     SettingsNote(
         "Bis wann HelioLink die Daten vom Strap hat; im Protokoll steht pro Abruf „Daten bis …“. Fehlen in einem " +
             "Diagramm Stunden, tippe die Datenart an: dann holt HelioLink die letzten 7 Tage davon noch einmal.",

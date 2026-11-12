@@ -69,7 +69,8 @@ internal fun RingsCard(
 ) {
     val rings = ArrayList<Ring>()
     val readiness = d?.readiness
-    rings += Ring("Erholung", readiness?.score?.toString() ?: "–", readiness?.label ?: "", onToggleDetails) { m ->
+    // "Mittel – lockerer Tag" is too long under a ring; the first word says it.
+    rings += Ring("Erholung", readiness?.score?.toString() ?: "–", readiness?.label?.substringBefore(" –") ?: "", onToggleDetails) { m ->
         ProgressRing((readiness?.score ?: 0) / 100f, readiness?.let { scoreColor(it.score) } ?: Palette.Hrv, m)
     }
     if (Tile.SLEEP.name !in hidden) {
