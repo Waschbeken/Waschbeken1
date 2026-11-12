@@ -1,5 +1,9 @@
 # Was ist neu in HelioLink
 
+## 1.0.38
+- Schlaf (Woche, Monat und länger): neuer Abschnitt „Schlafrhythmus“. Jede Nacht ist ein Balken von Einschlafen bis Aufwachen; hell hinterlegt sind deine üblichen Zeiten.
+- Dazu: wann du im Schnitt ins Bett gehst und aufstehst und wie stark das schwankt („sehr regelmäßig“ bis „unregelmäßig“), wie weit sich das Wochenende verschiebt und welchen Score deine Nächte zur üblichen Zeit im Vergleich zu Nächten eine Stunde oder mehr daneben haben.
+
 ## 1.0.37
 - Keine sichtbaren Änderungen: Aufräumarbeiten im Code und neue automatische Tests für Datenbank-Updates, den Gadgetbridge-Import und die Erinnerungen. Das macht künftige Updates sicherer.
 

@@ -534,28 +534,7 @@ private fun RangeContent(r: RangeData, period: Period, goal: Int, onOpen: (Local
             StatTile("Ø Tiefschlaf", formatMinutes(nights.map { it.minutes(SleepStage.DEEP) }.average().roundToInt()), Modifier.weight(1f), tint = Palette.Deep)
             StatTile("Ø REM", formatMinutes(nights.map { it.minutes(SleepStage.REM) }.average().roundToInt()), Modifier.weight(1f), tint = Palette.Rem)
         }
-        // consistency: spread of bedtimes and wake-up times
-        fun minutesOfDay(epoch: Long): Int {
-            val t = Instant.ofEpochSecond(epoch).atZone(zone)
-            val m = t.hour * 60 + t.minute
-            return if (m < 12 * 60) m + 24 * 60 else m // after midnight counts as late evening
-        }
-        val bed = nights.map { minutesOfDay(it.start) }
-        val wake = nights.map { Instant.ofEpochSecond(it.end).atZone(zone).let { t -> t.hour * 60 + t.minute } }
-        fun hm(m: Int) = "%02d:%02d".format((m / 60) % 24, m % 60)
-        fun spread(v: List<Int>) = if (v.size < 2) 0 else kotlin.math.sqrt(v.map { (it - v.average()) * (it - v.average()) }.average()).roundToInt()
-        Panel {
-            Text("Regelmäßigkeit", style = MaterialTheme.typography.titleMedium)
-            Text("Ø ins Bett: ${hm(bed.average().roundToInt())} (± ${spread(bed)} min)", style = MaterialTheme.typography.bodyMedium)
-            Text("Ø aufgestanden: ${hm(wake.average().roundToInt())} (± ${spread(wake)} min)", style = MaterialTheme.typography.bodyMedium)
-            Text(
-                if (spread(bed) <= 30) "Sehr regelmäßig – gut für erholsamen Schlaf." else "Feste Schlafenszeiten verbessern meist Schlafqualität und Erholung.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            val debt = nights.sumOf { (goal - it.asleepMinutes).coerceAtLeast(0) }
-            if (debt > 0) Text("Schlafdefizit zum Ziel: ${formatMinutes(debt)}", style = MaterialTheme.typography.bodyMedium)
-        }
+        SleepRhythmPanel(nights, goal)
         if (!period.long) Text("Nächte", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
         if (!period.long) r.nights.entries.sortedByDescending { it.key }.forEach { (d, n) ->
             Panel(onClick = { onOpen(d) }) {
