@@ -53,15 +53,26 @@ fun BodyCheckCard(result: BodyCheck.Result, hints: List<String>) {
     val alert = result.level == BodyCheck.Level.ALERT
     val container = if (alert) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.tertiaryContainer
     val content = if (alert) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onTertiaryContainer
+    // Collapsed, the card keeps its title and the values that stand out; the advice folds away.
+    val sections = de.waschbeken.heliolink.ui.rememberSections()
+    val open = sections.isOpen("home-bodycheck", default = true)
     Card(colors = CardDefaults.cardColors(containerColor = container, contentColor = content)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.fillMaxWidth().clickable { sections.toggle("home-bodycheck", default = true) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Icon(Icons.Default.HealthAndSafety, contentDescription = null)
                 Spacer(Modifier.width(10.dp))
                 Text(
                     if (alert) "Dein Körper arbeitet mehr als sonst" else "Letzte Nacht war etwas anders",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                Icon(
+                    if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (open) "Zuklappen" else "Aufklappen",
                 )
             }
             Text(
@@ -69,6 +80,7 @@ fun BodyCheckCard(result: BodyCheck.Result, hints: List<String>) {
                     if (result.nights > 1) " – seit ${result.nights} Nächten" else "",
                 style = MaterialTheme.typography.bodyMedium,
             )
+            if (!open) return@Column
             Text(
                 if (alert) {
                     "So sieht es oft aus, bevor man krank wird. Gönn dir heute Ruhe, trink genug und schlaf früh. " +

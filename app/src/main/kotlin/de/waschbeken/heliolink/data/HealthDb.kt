@@ -13,6 +13,7 @@ import de.waschbeken.heliolink.core.SleepEdit
 import de.waschbeken.heliolink.core.SleepRecord
 import de.waschbeken.heliolink.core.SleepStage
 import de.waschbeken.heliolink.core.StressSample
+import de.waschbeken.heliolink.core.TrackPoint
 import de.waschbeken.heliolink.core.ValueSample
 
 data class Workout(
@@ -29,11 +30,13 @@ data class Workout(
     val note: String = "",
     /** Heart rate drop in the first minute after the end (bpm), null if not measured. */
     val hrr: Int? = null,
+    /** Metres along the route recorded with the phone's GPS, 0 without one. */
+    val distance: Int = 0,
 )
 
 data class HrPoint(val timestamp: Long, val bpm: Int)
 
-class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME, null, 9) {
+class HealthDb(private val context: Context, name: String = DB_NAME) : SQLiteOpenHelper(context, name, null, 10) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -55,6 +58,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         createV7(db)
         createV8(db)
         createV9(db)
+        createV10(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -66,6 +70,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         if (oldVersion < 7) createV7(db)
         if (oldVersion < 8) createV8(db)
         if (oldVersion < 9) createV9(db)
+        if (oldVersion < 10) createV10(db)
     }
 
     /** Version 4: PAI, skin temperature, breathing rate, battery history and alarms. */
@@ -137,6 +142,13 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
     /** Version 9: how the user feels each day (1–5) with a note. */
     private fun createV9(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE IF NOT EXISTS feeling (day INTEGER PRIMARY KEY, score INTEGER, note TEXT)")
+    }
+
+    /** Version 10: the route of a workout from the phone's GPS and its length. */
+    private fun createV10(db: SQLiteDatabase) {
+        db.execSQL("ALTER TABLE workout ADD COLUMN distance INTEGER")
+        db.execSQL("CREATE TABLE IF NOT EXISTS workout_track (workout INTEGER, ts INTEGER, lat REAL, lon REAL, alt REAL, acc REAL)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS workout_track_idx ON workout_track (workout, ts)")
     }
 
     data class Feeling(val day: Long, val score: Int, val note: String)
@@ -456,8 +468,9 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
             Triple("ruhepuls.csv", "SELECT ts, value FROM resting_hr WHERE ts >= ? ORDER BY ts", "zeit,unix,ruhepuls"),
             Triple("hrv.csv", "SELECT ts, value FROM hrv WHERE ts >= ? ORDER BY ts", "zeit,unix,hrv_ms"),
             Triple("schlaf.csv", "SELECT start, end, score, segments FROM sleep_record WHERE end >= ? ORDER BY start", "zeit,unix_start,unix_ende,score,phasen"),
-            Triple("trainings.csv", "SELECT start, end, sport, avg_hr, max_hr, kcal, zones, id, tags, note FROM workout WHERE end > start AND start >= ? ORDER BY start",
-                "zeit,unix_start,unix_ende,sport,puls_avg,puls_max,kcal,zonen_sekunden,id,stichwoerter,notiz"),
+            // The routes themselves stay out of this export (they show where you live); a workout gives its own as GPX or TCX.
+            Triple("trainings.csv", "SELECT start, end, sport, avg_hr, max_hr, kcal, zones, id, tags, note, distance FROM workout WHERE end > start AND start >= ? ORDER BY start",
+                "zeit,unix_start,unix_ende,sport,puls_avg,puls_max,kcal,zonen_sekunden,id,stichwoerter,notiz,strecke_meter"),
             Triple("eintraege.csv", "SELECT ts, tag, note FROM event WHERE ts >= ? ORDER BY ts", "zeit,unix,eintrag,notiz"),
             Triple("pai.csv", "SELECT ts, today, total, low, moderate, high FROM pai WHERE ts >= ? ORDER BY ts",
                 "zeit,unix,pai_heute,pai_gesamt,min_leicht,min_mittel,min_hoch"),
@@ -491,7 +504,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
     }
 
     /** The database file for the backup; call [close] first so everything is written. */
-    fun databaseFile(): java.io.File = context.getDatabasePath(DB_NAME)
+    fun databaseFile(): java.io.File = context.getDatabasePath(databaseName)
 
     /** Version 2: sleep records with stages, SpO2, resting heart rate and HRV. */
     private fun createV2(db: SQLiteDatabase) {
@@ -581,7 +594,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         const val SDNN = "hrv_sdnn"
         private val VALUE_TABLES = setOf(SPO2, RESTING_HR, HRV, TEMPERATURE, RESPIRATION, BATTERY, SDNN)
         private val ALL_TABLES = listOf(
-            "activity", "stress", "workout", "workout_hr", "sleep_record", SPO2, RESTING_HR, HRV, "hr",
+            "activity", "stress", "workout", "workout_hr", "workout_track", "sleep_record", SPO2, RESTING_HR, HRV, "hr",
             "pai", TEMPERATURE, RESPIRATION, BATTERY, "alarm", "sleep_edit", "sleep_tag", "event", "rhythm", SDNN, "odi", "feeling",
         )
     }
@@ -717,7 +730,41 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
         cv.put("max_hr", w.maxHr)
         cv.put("kcal", w.calories)
         cv.put("zones", w.zoneSeconds.joinToString(","))
+        cv.put("distance", w.distance)
         writableDatabase.update("workout", cv, "id = ?", arrayOf(w.id.toString()))
+    }
+
+    /** A position of the running workout's route. */
+    fun addTrackPoint(workout: Long, p: TrackPoint) {
+        val cv = ContentValues()
+        cv.put("workout", workout)
+        cv.put("ts", p.timestamp)
+        cv.put("lat", p.lat)
+        cv.put("lon", p.lon)
+        // Locals: a property from the core module cannot be smart-cast here.
+        val altitude = p.altitude
+        val accuracy = p.accuracy
+        if (altitude != null) cv.put("alt", altitude) else cv.putNull("alt")
+        if (accuracy != null) cv.put("acc", accuracy) else cv.putNull("acc")
+        writableDatabase.insert("workout_track", null, cv)
+    }
+
+    /** The route of a workout in the order it was recorded, empty without GPS. */
+    fun track(workout: Long): List<TrackPoint> {
+        val out = ArrayList<TrackPoint>()
+        readableDatabase.rawQuery(
+            "SELECT ts, lat, lon, alt, acc FROM workout_track WHERE workout = ? ORDER BY ts",
+            arrayOf(workout.toString()),
+        ).use { c ->
+            while (c.moveToNext()) {
+                out += TrackPoint(
+                    c.getLong(0), c.getDouble(1), c.getDouble(2),
+                    if (c.isNull(3)) null else c.getDouble(3),
+                    if (c.isNull(4)) null else c.getFloat(4),
+                )
+            }
+        }
+        return out
     }
 
     fun setWorkoutHrr(id: Long, drop: Int) {
@@ -742,13 +789,14 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
 
     fun deleteWorkout(id: Long) = transaction { db ->
         db.delete("workout_hr", "workout = ?", arrayOf(id.toString()))
+        db.delete("workout_track", "workout = ?", arrayOf(id.toString()))
         db.delete("workout", "id = ?", arrayOf(id.toString()))
     }
 
     fun workouts(): List<Workout> {
         val out = ArrayList<Workout>()
         readableDatabase.rawQuery(
-            "SELECT id, sport, start, end, avg_hr, max_hr, kcal, zones, tags, note, hrr FROM workout WHERE end > start ORDER BY start DESC",
+            "SELECT id, sport, start, end, avg_hr, max_hr, kcal, zones, tags, note, hrr, distance FROM workout WHERE end > start ORDER BY start DESC",
             null,
         ).use { c ->
             while (c.moveToNext()) {
@@ -764,6 +812,7 @@ class HealthDb(private val context: Context) : SQLiteOpenHelper(context, DB_NAME
                     tags = c.getString(8).orEmpty().split(",").filter { it.isNotBlank() },
                     note = c.getString(9).orEmpty(),
                     hrr = if (c.isNull(10)) null else c.getInt(10),
+                    distance = if (c.isNull(11)) 0 else c.getInt(11),
                 )
             }
         }

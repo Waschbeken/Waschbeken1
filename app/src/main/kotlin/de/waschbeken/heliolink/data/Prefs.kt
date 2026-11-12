@@ -417,6 +417,11 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getString("default_sport", null) ?: "Laufen"
         set(v) = edit { putString("default_sport", v) }
 
+    /** Record the route of a workout with the phone's GPS. */
+    var workoutGps: Boolean
+        get() = sp.getBoolean("workout_gps", false)
+        set(v) = edit { putBoolean("workout_gps", v) }
+
     /** Last focus timer ("focus,break,rounds" in seconds). */
     var focusPlan: String?
         get() = sp.getString("focus_plan", null)

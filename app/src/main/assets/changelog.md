@@ -1,5 +1,14 @@
 # Was ist neu in HelioLink
 
+## 1.0.36
+- „Heute“: Unter den Ringen steht jetzt immer, wie die Erholung entsteht – der Durchschnitt aus Schlaf, HRV und Ruhepuls, jeweils mit Punkten und dem Wert dahinter (z. B. „HRV 57 ms · Ø 56“).
+- „Dein Körper arbeitet mehr als sonst“ lässt sich einklappen: Dann bleiben nur die Überschrift und die auffälligen Werte stehen.
+- Training mit Strecke: Im Tab „Sport“ vor dem Start „Strecke mit Handy-GPS“ antippen – das Handy zeichnet dann die Strecke auf (der Strap hat kein GPS). Android fragt dabei einmal nach dem genauen Standort.
+- Während des Trainings siehst du Distanz und Pace (beim Radfahren km/h) und wie genau das GPS gerade ist.
+- Nach dem Training: die Strecke als Zeichnung, gefärbt nach Pulszone und mit Kilometerpunkten, dazu Distanz, Pace, Zeit in Bewegung, Höhenmeter und die Zeit für jeden Kilometer mit Durchschnittspuls.
+- Export: TCX enthält jetzt auch die Strecke; neu ist „GPX speichern“ für Karten-Apps wie Komoot.
+- Deine Strecken bleiben auf dem Handy: Der Standort kommt direkt vom GPS-Chip, ohne Google-Dienste und ohne Karten aus dem Internet. Im CSV-Export steht nur die Länge.
+
 ## 1.0.35
 - „Heute“ beginnt jetzt mit vier Ringen: Erholung, Schlaf, Schritte und PAI – jeweils mit dem Wert in der Mitte und dem Fortschritt zum Ziel. Tippen öffnet die Details; ein Tipp auf „Erholung“ zeigt, woraus sich die Punkte zusammensetzen.
 - Die übrigen Werte (Ruhepuls, Stress, SpO₂, HRV, Hauttemperatur, Atmung, Akku) stehen direkt darunter als kleine Kacheln. Die Startseite ist dadurch deutlich kürzer.

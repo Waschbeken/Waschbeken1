@@ -56,7 +56,9 @@ import de.waschbeken.heliolink.app
 import de.waschbeken.heliolink.core.ActivityDetector
 import de.waschbeken.heliolink.core.DetectedActivity
 import de.waschbeken.heliolink.core.HeartRateZones
+import de.waschbeken.heliolink.core.Gpx
 import de.waschbeken.heliolink.core.Tcx
+import de.waschbeken.heliolink.core.Track
 import de.waschbeken.heliolink.data.HealthDb
 import de.waschbeken.heliolink.data.Workout
 import de.waschbeken.heliolink.service.LiveWorkout
@@ -140,6 +142,8 @@ fun TrainingScreen(nav: NavHostController) {
     val controller = app.repo.controller
     var sport by remember { mutableStateOf(app.prefs.defaultSport) }
     var useIntervals by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    var useGps by remember { mutableStateOf(app.prefs.workoutGps && de.waschbeken.heliolink.service.RouteTracker.permitted(context)) }
     var plan by remember { mutableStateOf(de.waschbeken.heliolink.core.IntervalPlan.decode(app.prefs.intervalPlan) ?: de.waschbeken.heliolink.core.IntervalPlan.PRESETS[0]) }
     val summary by de.waschbeken.heliolink.ui.cachedDbValue("training-summary", state.dataVersion, tick) { loadTrainingSummary(it, profile) }
     val rest = profile.zoneRest(data?.restingHr)
@@ -171,8 +175,12 @@ fun TrainingScreen(nav: NavHostController) {
                                     leadingIcon = { Icon(Icons.Default.Timer, contentDescription = null) },
                                 )
                                 if (useIntervals) IntervalChooser(plan) { plan = it }
+                                GpsChoice(useGps) {
+                                    useGps = it
+                                    app.prefs.workoutGps = it
+                                }
                                 Button(
-                                    onClick = { if (useIntervals) controller?.startIntervals(sport, plan) else controller?.startWorkout(sport) },
+                                    onClick = { if (useIntervals) controller?.startIntervals(sport, plan, useGps) else controller?.startWorkout(sport, useGps) },
                                     enabled = state.connected,
                                     modifier = Modifier.fillMaxWidth(),
                                 ) {
@@ -257,7 +265,8 @@ fun TrainingScreen(nav: NavHostController) {
                                         Column(Modifier.weight(1f)) {
                                             Text("${w.sport} · ${dateTime(w.start)}", style = MaterialTheme.typography.titleSmall)
                                             Text(
-                                                "${formatDuration(w.end - w.start)} · Ø ${w.avgHr} · max. ${w.maxHr} bpm · ${w.calories} kcal",
+                                                (if (w.distance > 0) "${Track.distanceText(w.distance.toDouble())} · " else "") +
+                                                    "${formatDuration(w.end - w.start)} · Ø ${w.avgHr} · max. ${w.maxHr} bpm · ${w.calories} kcal",
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                             )
@@ -306,6 +315,7 @@ private fun LiveWorkoutCard(live: LiveWorkout, bpm: Int?, maxHr: Int, rest: Int?
                     Text(if (zone >= 0) "Zone ${zone + 1} · ${HeartRateZones.names[zone]}" else "unter Zone 1")
                 }
             }
+            if (live.gps) LiveRoute(live, now)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 StatTile("Ø Puls", "${live.avgHr}", Modifier.weight(1f))
                 StatTile("Max", "${live.maxHr}", Modifier.weight(1f))
@@ -326,13 +336,18 @@ private fun LiveWorkoutCard(live: LiveWorkout, bpm: Int?, maxHr: Int, rest: Int?
     }
 }
 
-/** TCX with every recorded heart rate value; Strava, Garmin Connect & Co. import it. */
+/** TCX with every recorded heart rate value and the route, if there is one; Strava, Garmin Connect & Co. import it. */
 private fun tcxOf(context: Context, w: Workout): String {
     val sport = sports.firstOrNull { it.first == w.sport }?.second ?: "Other"
     val points = context.app.db.workoutHr(w.id).map { Tcx.Point(it.timestamp, it.bpm) }
-    return Tcx.write(sport, w.start, w.end, points, w.calories)
+    return Tcx.write(sport, w.start, w.end, points, w.calories, context.app.db.track(w.id))
 }
 
+/** The route alone as GPX, with the heart rate at every position. */
+private fun gpxOf(context: Context, w: Workout): String =
+    Gpx.write("${w.sport} ${dateTime(w.start)}", context.app.db.track(w.id), context.app.db.workoutHr(w.id).map { it.timestamp to it.bpm })
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun WorkoutDetailScreen(nav: NavHostController, id: Long) {
     val context = LocalContext.current
@@ -340,6 +355,7 @@ fun WorkoutDetailScreen(nav: NavHostController, id: Long) {
     val scope = rememberCoroutineScope()
     val workout by dbValue(id) { db -> db.workouts().firstOrNull { it.id == id } }
     val points by dbValue(id) { it.workoutHr(id) }
+    val track by dbValue(id) { it.track(id) }
     val profile = app.prefs.profile
     var confirmDelete by remember { mutableStateOf(false) }
     val w = workout
@@ -348,6 +364,11 @@ fun WorkoutDetailScreen(nav: NavHostController, id: Long) {
         val ww = w ?: return@rememberSaveFile
         context.contentResolver.openOutputStream(uri)?.use { it.write(tcxOf(context, ww).toByteArray()) }
     }
+    val saveGpx = rememberSaveFile("application/gpx+xml", "Strecke gespeichert") { uri ->
+        val ww = w ?: return@rememberSaveFile
+        context.contentResolver.openOutputStream(uri)?.use { it.write(gpxOf(context, ww).toByteArray()) }
+    }
+    val route = track.orEmpty()
 
     Scaffold(topBar = { BackTopBar(w?.sport ?: "Training", onBack = { nav.popBackStack() }, subtitle = w?.let { dateTime(it.start) }) }) { padding ->
         if (w == null) return@Scaffold
@@ -368,6 +389,7 @@ fun WorkoutDetailScreen(nav: NavHostController, id: Long) {
                     StatTile("Max. Puls", "${w.maxHr} bpm", Modifier.weight(1f), tint = Palette.Heart)
                 }
             }
+            if (route.size >= 2) item { RoutePanels(w, route, points.orEmpty(), profile.maxHeartRate, null) }
             w.hrr?.let { drop ->
                 item {
                     StatTile(
@@ -421,8 +443,9 @@ fun WorkoutDetailScreen(nav: NavHostController, id: Long) {
                 }
             }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { saveTcx(fileName) }) { Text("TCX speichern") }
+                    if (route.size >= 2) TextButton(onClick = { saveGpx(fileName.removeSuffix(".tcx") + ".gpx") }) { Text("GPX speichern") }
                     TextButton(onClick = {
                         scope.launch {
                             val file = withContext(Dispatchers.IO) { exportFile(context, fileName).apply { writeText(tcxOf(context, w)) } }

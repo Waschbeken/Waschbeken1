@@ -112,6 +112,12 @@ class ScreensTest {
     private fun visitAll(name: String) {
         start(name, ThemeMode.LIGHT)
         shot("01-heute")
+        // The early warning folds up to its title and values (only there when the demo night calls for it).
+        if (compose.onAllNodes(hasText("Dein Körper arbeitet mehr als sonst") and hasClickAction()).fetchSemanticsNodes().isNotEmpty()) {
+            click("Dein Körper arbeitet mehr als sonst")
+            shot("01-heute-koerper-zu")
+            click("Dein Körper arbeitet mehr als sonst")
+        }
 
         open(Routes.DATA, "02-daten")
         listOf("Puls", "Schlaf", "Schlaf-Woche", "Schritte", "Schritte-Woche", "Stress", "SpO₂", "HRV", "Temperatur", "Atmung", "PAI", "Akku")
@@ -120,6 +126,20 @@ class ScreensTest {
         open(Routes.SLEEP, "03-schlaf")
         periods("03-schlaf")
         open(Routes.TRAINING, "04-sport")
+        // A running workout that records its route with the phone's GPS.
+        val nowSeconds = System.currentTimeMillis() / 1000
+        app.repo.update {
+            it.copy(
+                workout = de.waschbeken.heliolink.service.LiveWorkout(
+                    999, "Laufen", nowSeconds - 754, samples = 700, avgHr = 148, maxHr = 171, calories = 132.0,
+                    zoneSeconds = listOf(60, 200, 300, 150, 44), gps = true, distance = 2345.0, gpsAccuracy = 6f, gpsAt = nowSeconds,
+                ),
+            )
+        }
+        settle()
+        shot("04-sport-live")
+        app.repo.update { it.copy(workout = null) }
+        settle()
         open(Routes.BODY, "05-koerper")
         open(Routes.SETTINGS, "06-mehr")
         compose.onAllNodes(hasSetTextAction()).onFirst().performTextInput("Akku")
