@@ -1,6 +1,8 @@
 # Was ist neu in HelioLink
 
 ## 1.0.36
+- „Heute“: Unter den Ringen steht jetzt immer, wie die Erholung entsteht – der Durchschnitt aus Schlaf, HRV und Ruhepuls, jeweils mit Punkten und dem Wert dahinter (z. B. „HRV 57 ms · Ø 56“).
+- „Dein Körper arbeitet mehr als sonst“ lässt sich einklappen: Dann bleiben nur die Überschrift und die auffälligen Werte stehen.
 - Training mit Strecke: Im Tab „Sport“ vor dem Start „Strecke mit Handy-GPS“ antippen – das Handy zeichnet dann die Strecke auf (der Strap hat kein GPS). Android fragt dabei einmal nach dem genauen Standort.
 - Während des Trainings siehst du Distanz und Pace (beim Radfahren km/h) und wie genau das GPS gerade ist.
 - Nach dem Training: die Strecke als Zeichnung, gefärbt nach Pulszone und mit Kilometerpunkten, dazu Distanz, Pace, Zeit in Bewegung, Höhenmeter und die Zeit für jeden Kilometer mit Durchschnittspuls.

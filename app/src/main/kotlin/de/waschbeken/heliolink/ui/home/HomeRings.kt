@@ -17,6 +17,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import kotlin.math.roundToInt
+import de.waschbeken.heliolink.core.Readiness
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -53,7 +58,7 @@ private class Ring(
 /**
  * The day at a glance like Gadgetbridge's dashboard: recovery, sleep, steps and PAI as rings with
  * the value in the middle. Sleep, steps and PAI follow the tiles the user hid in the settings.
- * Tapping the recovery ring shows what its points are made of.
+ * Below the rings stands what the recovery points are made of.
  */
 @Composable
 internal fun RingsCard(
@@ -62,15 +67,13 @@ internal fun RingsCard(
     stepGoal: Int,
     sleepGoalMinutes: Int,
     hidden: Set<String>,
-    detailsOpen: Boolean,
-    onToggleDetails: () -> Unit,
     openSleep: () -> Unit,
     openMetric: (String) -> Unit,
 ) {
     val rings = ArrayList<Ring>()
     val readiness = d?.readiness
     // "Mittel – lockerer Tag" is too long under a ring; the first word says it.
-    rings += Ring("Erholung", readiness?.score?.toString() ?: "–", readiness?.label?.substringBefore(" –") ?: "", onToggleDetails) { m ->
+    rings += Ring("Erholung", readiness?.score?.toString() ?: "–", readiness?.label?.substringBefore(" –") ?: "", openSleep) { m ->
         ProgressRing((readiness?.score ?: 0) / 100f, readiness?.let { scoreColor(it.score) } ?: Palette.Hrv, m)
     }
     if (Tile.SLEEP.name !in hidden) {
@@ -105,13 +108,50 @@ internal fun RingsCard(
                     rings.forEach { RingItem(it, size) }
                 }
             }
-            if (detailsOpen && readiness != null) {
-                Text(
-                    "Erholung aus: " + readiness.parts.joinToString(" · ") { "${it.first} ${it.second}" },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    modifier = Modifier.padding(horizontal = 6.dp),
-                )
+            if (readiness != null && d != null) ReadinessParts(readiness, d)
+        }
+    }
+}
+
+/**
+ * How the recovery points come about: the mean of the parts, each with its points (0–100) and the
+ * value behind it – last night's score, the HRV and the resting heart rate against your own average.
+ */
+@Composable
+private fun ReadinessParts(r: Readiness, d: HomeData) {
+    val onCard = MaterialTheme.colorScheme.onPrimaryContainer
+    Column(Modifier.padding(horizontal = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        HorizontalDivider(color = onCard.copy(alpha = 0.15f))
+        Text(
+            "Erholung ${r.score} = Durchschnitt aus " + r.parts.joinToString(", ") { it.first },
+            style = MaterialTheme.typography.labelMedium,
+            color = onCard,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            r.parts.forEach { (name, points) ->
+                val basis = when (name) {
+                    "Schlaf" -> d.night?.let { "Score ${it.score}" }
+                    "HRV" -> d.hrvNight?.let { v -> "${v.roundToInt()} ms" + (d.hrvBaseline?.let { " · Ø ${it.roundToInt()}" } ?: "") }
+                    "Ruhepuls" -> d.resting?.let { v -> "$v bpm" + (d.restingBaseline?.let { " · Ø ${it.roundToInt()}" } ?: "") }
+                    else -> null
+                }
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text("$points", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = scoreColor(points))
+                        Spacer(Modifier.width(4.dp))
+                        Text(name, style = MaterialTheme.typography.labelMedium, color = onCard, maxLines = 1)
+                    }
+                    LinearProgressIndicator(
+                        progress = { points / 100f },
+                        modifier = Modifier.fillMaxWidth().height(4.dp),
+                        color = scoreColor(points),
+                        trackColor = onCard.copy(alpha = 0.12f),
+                        drawStopIndicator = {},
+                    )
+                    if (basis != null) {
+                        Text(basis, style = MaterialTheme.typography.labelSmall, color = onCard.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
             }
         }
     }

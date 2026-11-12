@@ -112,6 +112,12 @@ class ScreensTest {
     private fun visitAll(name: String) {
         start(name, ThemeMode.LIGHT)
         shot("01-heute")
+        // The early warning folds up to its title and values (only there when the demo night calls for it).
+        if (compose.onAllNodes(hasText("Dein Körper arbeitet mehr als sonst") and hasClickAction()).fetchSemanticsNodes().isNotEmpty()) {
+            click("Dein Körper arbeitet mehr als sonst")
+            shot("01-heute-koerper-zu")
+            click("Dein Körper arbeitet mehr als sonst")
+        }
 
         open(Routes.DATA, "02-daten")
         listOf("Puls", "Schlaf", "Schlaf-Woche", "Schritte", "Schritte-Woche", "Stress", "SpO₂", "HRV", "Temperatur", "Atmung", "PAI", "Akku")

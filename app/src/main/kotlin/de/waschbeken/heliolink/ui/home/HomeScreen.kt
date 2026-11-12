@@ -216,8 +216,6 @@ fun HomeScreen(nav: NavHostController) {
                 item {
                     RingsCard(
                         d, todaySteps, profile.stepGoal, profile.sleepGoalMinutes, hidden,
-                        detailsOpen = sections.isOpen("home-readiness", default = false),
-                        onToggleDetails = { sections.toggle("home-readiness", default = false) },
                         openSleep = { nav.navigateToTab(Routes.SLEEP) },
                         openMetric = { nav.navigate(Routes.metric(it)) },
                     )
@@ -433,7 +431,8 @@ private fun TileGrid(d: HomeData, state: StrapUiState, hidden: Set<String>, orde
         val trend = if (d.resting != null && d.restingBaseline != null) d.resting - d.restingBaseline else null
         MiniTile(
             "Ruhepuls", d.resting?.let { "$it bpm" } ?: "–", m, Icons.Default.MonitorHeart, Palette.Heart,
-            detail = trend?.let { "%+.0f".format(it) },
+            // "-0" for a fraction of a beat says nothing
+            detail = trend?.let { kotlin.math.round(it).toInt() }?.takeIf { it != 0 }?.let { "%+d".format(it) },
         ) { nav.navigate(Routes.metric("heart")) }
     }
     add(Tile.STRESS) { m ->
