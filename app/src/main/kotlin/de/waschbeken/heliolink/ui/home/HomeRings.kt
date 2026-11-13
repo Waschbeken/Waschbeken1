@@ -122,11 +122,6 @@ private fun ReadinessParts(r: Readiness, d: HomeData) {
     val onCard = MaterialTheme.colorScheme.onPrimaryContainer
     Column(Modifier.padding(horizontal = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         HorizontalDivider(color = onCard.copy(alpha = 0.15f))
-        Text(
-            "Erholung ${r.score} = Durchschnitt aus " + r.parts.joinToString(", ") { it.first },
-            style = MaterialTheme.typography.labelMedium,
-            color = onCard,
-        )
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             r.parts.forEach { (name, points) ->
                 val basis = when (name) {
@@ -139,7 +134,7 @@ private fun ReadinessParts(r: Readiness, d: HomeData) {
                     Row(verticalAlignment = Alignment.Bottom) {
                         Text("$points", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = scoreColor(points))
                         Spacer(Modifier.width(4.dp))
-                        Text(name, style = MaterialTheme.typography.labelMedium, color = onCard, maxLines = 1)
+                        de.waschbeken.heliolink.ui.FitText(name, MaterialTheme.typography.labelMedium, onCard)
                     }
                     LinearProgressIndicator(
                         progress = { points / 100f },

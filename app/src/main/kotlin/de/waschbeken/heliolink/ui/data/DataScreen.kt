@@ -84,6 +84,7 @@ import de.waschbeken.heliolink.ui.dbValue
 import de.waschbeken.heliolink.ui.fmt
 import de.waschbeken.heliolink.ui.formatDuration
 import de.waschbeken.heliolink.ui.formatMinutes
+import de.waschbeken.heliolink.ui.shortMinutes
 import de.waschbeken.heliolink.ui.formatHours
 import de.waschbeken.heliolink.ui.minuteStrip
 import de.waschbeken.heliolink.ui.navigateToTab
@@ -421,9 +422,10 @@ private fun SleepPage(d: DayData, nav: NavHostController) {
         Text("Nacht ${clock(n.start)} – ${clock(n.end)}", style = MaterialTheme.typography.titleMedium)
         Hypnogram(n.stages)
         Row {
-            Metric("Schlaf", formatMinutes(n.asleepMinutes), Modifier.weight(1f))
-            Metric("Tief", formatMinutes(n.minutes(SleepStage.DEEP)), Modifier.weight(1f), color = Palette.Deep)
-            Metric("REM", formatMinutes(n.minutes(SleepStage.REM)), Modifier.weight(1f), color = Palette.Rem)
+            // "7:32 h" instead of "7 h 32 min": four values have to fit side by side.
+            Metric("Schlaf", formatHours(n.asleepMinutes), Modifier.weight(1f))
+            Metric("Tief", shortMinutes(n.minutes(SleepStage.DEEP)), Modifier.weight(1f), color = Palette.Deep)
+            Metric("REM", shortMinutes(n.minutes(SleepStage.REM)), Modifier.weight(1f), color = Palette.Rem)
             Metric("Score", "${n.score}", Modifier.weight(1f))
         }
         Text(
