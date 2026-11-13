@@ -43,6 +43,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -73,6 +74,9 @@ fun Long.fmt(): String = NumberFormat.getIntegerInstance(German).format(this)
 fun formatMinutes(minutes: Int): String = if (minutes >= 60) "${minutes / 60} h ${minutes % 60} min" else "$minutes min"
 
 fun formatHours(minutes: Int): String = "%d:%02d h".format(minutes / 60, minutes % 60)
+
+/** "38 min" or "1:49 h" – short enough for a value next to others. */
+fun shortMinutes(minutes: Int): String = if (minutes >= 60) formatHours(minutes) else "$minutes min"
 
 fun formatDuration(seconds: Long): String {
     val h = seconds / 3600
@@ -250,9 +254,30 @@ fun StatTile(
 @Composable
 fun Metric(label: String, value: String, modifier: Modifier = Modifier, color: Color = Color.Unspecified) {
     Column(modifier) {
-        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = color)
+        FitText(value, MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold), color)
         Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
+}
+
+/**
+ * One line that shrinks its font until it fits, so several values side by side never wrap into
+ * each other (e.g. with a large font size set on the phone). Shown only once it fits.
+ */
+@Composable
+fun FitText(text: String, style: androidx.compose.ui.text.TextStyle, color: Color = Color.Unspecified, modifier: Modifier = Modifier) {
+    var scale by androidx.compose.runtime.remember(text, style) { androidx.compose.runtime.mutableFloatStateOf(1f) }
+    var ready by androidx.compose.runtime.remember(text, style) { androidx.compose.runtime.mutableStateOf(false) }
+    Text(
+        text,
+        modifier = modifier.drawWithContent { if (ready) drawContent() },
+        style = style.copy(fontSize = style.fontSize * scale),
+        color = color,
+        maxLines = 1,
+        softWrap = false,
+        onTextLayout = { layout ->
+            if (layout.didOverflowWidth && scale > 0.5f) scale *= 0.9f else ready = true
+        },
+    )
 }
 
 @Composable

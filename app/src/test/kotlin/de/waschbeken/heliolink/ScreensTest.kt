@@ -100,6 +100,20 @@ class ScreensTest {
         open(Routes.metric(Metric.HEART.key), "10-heart")
     }
 
+    /** With the phone's font set larger: values side by side must not run into each other. */
+    @Test
+    fun largeFont() {
+        org.robolectric.RuntimeEnvironment.setFontScale(1.3f)
+        DemoData.fill(app.db)
+        start("gross", ThemeMode.DARK)
+        shot("01-heute")
+        open(Routes.DATA, "02-daten")
+        click("Schlaf")
+        shot("02-daten-schlaf")
+        open(Routes.SLEEP, "03-schlaf")
+        open(Routes.metric(Metric.HEART.key), "10-heart")
+    }
+
     private fun start(name: String, theme: ThemeMode) {
         shots = File("build/screenshots/$name").apply { mkdirs() }
         compose.mainClock.autoAdvance = false
