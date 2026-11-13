@@ -42,10 +42,9 @@ import de.waschbeken.heliolink.core.SleepStage
  * Zoom with two fingers or a double tap; hold a finger on it to see the stage with start, end and length.
  */
 @Composable
-fun Hypnogram(stages: List<Pair<Long, SleepStage>>, modifier: Modifier = Modifier.fillMaxWidth().height(170.dp)) {
+fun Hypnogram(stages: List<Pair<Long, SleepStage>>, modifier: Modifier = Modifier.fillMaxWidth().height(196.dp)) {
     val m = rememberTextMeasurer()
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val grid = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
     val tipBg = MaterialTheme.colorScheme.inverseSurface
     val tipFg = MaterialTheme.colorScheme.inverseOnSurface
     val sorted = remember(stages) { stages.sortedBy { it.first } }
@@ -63,40 +62,65 @@ fun Hypnogram(stages: List<Pair<Long, SleepStage>>, modifier: Modifier = Modifie
         }
         out
     }
+    // minutes per stage for the labels on the left
+    val totals = remember(runs) { runs.groupBy { it.third }.mapValues { (_, l) -> (l.sumOf { it.second - it.first } / 60).toInt() } }
     Canvas(modifier.timeZoom(zoom).holdToInspect(inspect)) {
         if (sorted.isEmpty()) return@Canvas
         val from = zoom.start
         val to = zoom.end
         if (to <= from) return@Canvas
         val rows = listOf(SleepStage.AWAKE, SleepStage.REM, SleepStage.LIGHT, SleepStage.DEEP)
-        val left = rows.maxOf { m.measure(stageName(it), TextStyle(fontSize = 10.sp)).size.width } + 8.dp.toPx()
+        val nameStyle = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+        val timeStyle = TextStyle(fontSize = 10.sp, color = labelColor)
+        fun minutesText(s: SleepStage) = (totals[s] ?: 0).let { if (it >= 60) "%d:%02d h".format(it / 60, it % 60) else "$it min" }
+        val left = rows.maxOf { maxOf(m.measure(stageName(it), nameStyle).size.width, m.measure(minutesText(it), timeStyle).size.width) } + 10.dp.toPx()
         val axisH = 18.dp.toPx()
         val w = size.width - left
         val h = size.height - axisH
         val rowH = h / rows.size
         fun x(t: Long) = left + (t - from).toFloat() / (to - from) * w
+        fun top(row: Int) = row * rowH + rowH * 0.15f
+        val bh = rowH * 0.7f
+        val corner = CornerRadius(4.dp.toPx(), 4.dp.toPx())
+        // one soft band per stage, its name and its time on the left
         rows.forEachIndexed { i, s ->
-            label(m, stageName(s), 0f, i * rowH + rowH / 2 - 7.dp.toPx(), Palette.stage(s))
-            drawLine(grid, Offset(left, i * rowH + rowH / 2), Offset(size.width, i * rowH + rowH / 2), 1f)
+            drawRoundRect(Palette.stage(s).copy(alpha = 0.09f), Offset(left, i * rowH + rowH * 0.06f), Size(w, rowH * 0.88f), corner)
+            val name = m.measure(stageName(s), nameStyle.copy(color = Palette.stage(s)))
+            val time = m.measure(minutesText(s), timeStyle)
+            val y = i * rowH + (rowH - name.size.height - time.size.height) / 2
+            drawText(name, topLeft = Offset(0f, y))
+            drawText(time, topLeft = Offset(0f, y + name.size.height))
         }
         clipRect(left, 0f, size.width, h) {
-            var prevCenter: Offset? = null
+            // first the steps from one stage to the next, so the blocks lie on top of them
+            for (i in 1 until runs.size) {
+                val (a, _, st) = runs[i]
+                val prev = runs[i - 1]
+                if (a - prev.second > 120 || a < from || a > to) continue
+                val r0 = rows.indexOf(prev.third)
+                val r1 = rows.indexOf(st)
+                val y0 = top(r0) + bh / 2
+                val y1 = top(r1) + bh / 2
+                drawLine(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        listOf(Palette.stage(if (y0 < y1) prev.third else st), Palette.stage(if (y0 < y1) st else prev.third)),
+                        startY = minOf(y0, y1), endY = maxOf(y0, y1),
+                    ),
+                    Offset(x(a), y0), Offset(x(a), y1), 2.dp.toPx(), alpha = 0.55f,
+                )
+            }
             for ((a, b, st) in runs) {
-                if (b < from || a > to) { prevCenter = null; continue }
+                if (b < from || a > to) continue
                 val row = rows.indexOf(st)
                 val x0 = x(a)
                 val x1 = x(b)
-                val top = row * rowH + rowH * 0.18f
-                val bh = rowH * 0.64f
-                prevCenter?.let { p -> drawLine(labelColor.copy(alpha = 0.25f), Offset(x0, p.y), Offset(x0, top + bh / 2), 1.5f) }
-                drawRoundRect(Palette.stage(st), Offset(x0, top), Size((x1 - x0).coerceAtLeast(2f), bh), CornerRadius(6f, 6f))
+                drawRoundRect(Palette.stage(st), Offset(x0, top(row)), Size((x1 - x0).coerceAtLeast(2f), bh), corner)
                 // zoomed in: the length is written into the bar
                 val text = spanText(b - a)
                 val tw = m.measure(text, TextStyle(fontSize = 10.sp)).size.width
                 if (x1 - x0 > tw + 8.dp.toPx() && zoom.zoomed) {
-                    label(m, text, (x0 + x1) / 2, top + bh / 2 - 7.dp.toPx(), Color.White, center = true)
+                    label(m, text, (x0 + x1) / 2, top(row) + bh / 2 - 7.dp.toPx(), Color.White, center = true)
                 }
-                prevCenter = Offset(x1, top + bh / 2)
             }
         }
         timeAxis(m, from, to, left, w, h + 3.dp.toPx(), labelColor)
@@ -107,8 +131,8 @@ fun Hypnogram(stages: List<Pair<Long, SleepStage>>, modifier: Modifier = Modifie
                 val (a, b, st) = run
                 val row = rows.indexOf(st)
                 drawRoundRect(
-                    labelColor, Offset(x(a), row * rowH + rowH * 0.12f), Size((x(b) - x(a)).coerceAtLeast(2f), rowH * 0.76f),
-                    CornerRadius(7f, 7f), style = Stroke(2.dp.toPx()),
+                    labelColor, Offset(x(a), top(row) - rowH * 0.06f), Size((x(b) - x(a)).coerceAtLeast(2f), bh + rowH * 0.12f),
+                    corner, style = Stroke(2.dp.toPx()),
                 )
                 tooltip(
                     m,
