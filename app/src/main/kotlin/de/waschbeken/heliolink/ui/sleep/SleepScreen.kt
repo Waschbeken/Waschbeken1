@@ -410,37 +410,20 @@ private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(
             Hypnogram(n.stages)
         }
     }
-    item {
-        Panel {
-            val total = n.durationMinutes.coerceAtLeast(1)
-            StackedBar(listOf(SleepStage.DEEP, SleepStage.LIGHT, SleepStage.REM, SleepStage.AWAKE).map { n.minutes(it).toFloat() to Palette.stage(it) }, Modifier.fillMaxWidth().height(12.dp))
-            val hints = mapOf(
-                SleepStage.DEEP to "üblich 13–23 %",
-                SleepStage.LIGHT to "üblich 45–55 %",
-                SleepStage.REM to "üblich 20–25 %",
-                SleepStage.AWAKE to "kurze Wachphasen sind normal",
-            )
-            listOf(SleepStage.DEEP, SleepStage.LIGHT, SleepStage.REM, SleepStage.AWAKE).forEach { s ->
-                val minutes = n.minutes(s)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(10.dp).padding(0.dp)) { StackedBar(listOf(1f to Palette.stage(s)), Modifier.size(10.dp)) }
-                    Spacer(Modifier.width(8.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(stageName(s), style = MaterialTheme.typography.bodyMedium)
-                        Text(hints.getValue(s), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Text("${formatMinutes(minutes)} · ${minutes * 100 / total} %", style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-        }
-    }
+    item { StageShares(n) }
     item {
         val wakeUps = n.stages.zipWithNext().count { (a, b) -> a.second != SleepStage.AWAKE && b.second == SleepStage.AWAKE }
         val onset = n.stages.indexOfFirst { it.second != SleepStage.AWAKE }.coerceAtLeast(0)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            StatTile("Eingeschlafen", clock(n.start + onset * 60L), Modifier.weight(1f))
-            StatTile("Aufgewacht", clock(n.end), Modifier.weight(1f))
-            StatTile("Wachphasen", "$wakeUps", Modifier.weight(1f))
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatTile("Eingeschlafen", clock(n.start + onset * 60L), Modifier.weight(1f))
+                StatTile("Aufgewacht", clock(n.end), Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatTile("Wachphasen", "$wakeUps", Modifier.weight(1f))
+                // every REM phase closes a cycle of about 90 minutes; 4–6 are usual
+                StatTile("Schlafzyklen", "${de.waschbeken.heliolink.core.SleepCycles.count(n.stages)}", Modifier.weight(1f), caption = "üblich 4–6")
+            }
         }
     }
     item { SectionHeader("Während der Nacht") }

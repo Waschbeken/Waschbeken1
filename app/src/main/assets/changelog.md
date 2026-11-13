@@ -1,5 +1,10 @@
 # Was ist neu in HelioLink
 
+## 1.0.40
+- Schlafphasen anschaulicher: Jede Phase hat im Diagramm ihre eigene farbige Spur, links steht, wie lange du in ihr warst. Die Übergänge von einer Phase in die nächste sind als farbige Stufen eingezeichnet.
+- „So verteilt sich die Nacht“: Für Tief, Leicht, REM und Wach zeigt ein Balken deinen Anteil, der übliche Bereich ist hell hinterlegt. Darunter steht „wenig“, „viel“ oder ein Häkchen.
+- Neu: die Zahl deiner Schlafzyklen (jede REM-Phase schließt einen Zyklus von etwa 90 Minuten ab, üblich sind 4–6).
+
 ## 1.0.39
 - „Heute“: Die Zeile „Erholung … = Durchschnitt aus …“ ist weg. Schlaf, HRV und Ruhepuls stehen weiter mit ihren Punkten unter den Ringen.
 - Daten → Schlaf: Schlaf, Tief, REM und Score laufen bei großer Schrift nicht mehr ineinander. Werte, die nebeneinanderstehen, werden jetzt überall etwas kleiner statt umzubrechen.
