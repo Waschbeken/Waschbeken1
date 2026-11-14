@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="de.waschbeken.heliolink.ReminderReceiverTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-11-14T10:10:45.631Z" hostname="runnervmccnms" time="0.174">
+  <properties/>
+  <testcase name="plansTheNextReminder" classname="de.waschbeken.heliolink.ReminderReceiverTest" time="0.037"/>
+  <testcase name="dueReminderNotifiesAndDoneAddsAnEntry" classname="de.waschbeken.heliolink.ReminderReceiverTest" time="0.092"/>
+  <testcase name="muchTooLateIsLeftOut" classname="de.waschbeken.heliolink.ReminderReceiverTest" time="0.044"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[Intent = Intent { act=de.waschbeken.heliolink.REMINDER_DONE cmp=de.waschbeken.heliolink.debug/de.waschbeken.heliolink.service.ReminderReceiver (has extras) }; Matching wrappers: [Wrapper[receiver=[de.waschbeken.heliolink.service.ReminderReceiver@57977f5c], context=[android.app.ContextImpl@3d384835], intentFilter=[android.content.IntentFilter@57c35e1e]]]
+]]></system-err>
+</testsuite>

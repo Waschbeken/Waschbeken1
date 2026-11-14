@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="de.waschbeken.heliolink.DbMigrationTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-11-14T10:10:39.768Z" hostname="runnervmccnms" time="1.284">
+  <properties/>
+  <testcase name="upgradeFromFirstVersionEqualsFreshInstall" classname="de.waschbeken.heliolink.DbMigrationTest" time="1.227"/>
+  <testcase name="version9GetsRoutes" classname="de.waschbeken.heliolink.DbMigrationTest" time="0.057"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
