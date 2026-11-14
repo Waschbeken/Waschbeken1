@@ -1,5 +1,8 @@
 # Was ist neu in HelioLink
 
+## 1.0.41
+- „So verteilt sich die Nacht“: Unter jedem Balken steht jetzt nur noch grau der übliche Bereich, z. B. „13 bis 23 %“.
+
 ## 1.0.40
 - Schlafphasen anschaulicher: Jede Phase hat im Diagramm ihre eigene farbige Spur, links steht, wie lange du in ihr warst. Die Übergänge von einer Phase in die nächste sind als farbige Stufen eingezeichnet.
 - „So verteilt sich die Nacht“: Für Tief, Leicht, REM und Wach zeigt ein Balken deinen Anteil, der übliche Bereich ist hell hinterlegt. Darunter steht „wenig“, „viel“ oder ein Häkchen.

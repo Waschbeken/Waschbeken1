@@ -38,13 +38,10 @@ private val usual = mapOf(
     SleepStage.AWAKE to (0 to 10),
 )
 
-private val inRange = Color(0xFF46A758)
-private val outOfRange = Color(0xFFF59E0B)
-
 /**
  * The night's stages one below the other: how long, which share, and a bar against the usual
- * range (lightly shaded), so it shows at a glance where the night was short of deep sleep or long
- * on REM.
+ * range (lightly shaded and written below in grey), so it shows at a glance where the night was
+ * short of deep sleep or long on REM.
  */
 @Composable
 internal fun StageShares(n: SleepSession) {
@@ -57,11 +54,6 @@ internal fun StageShares(n: SleepSession) {
             val minutes = n.minutes(s)
             val pct = minutes * 100 / total
             val (lo, hi) = usual.getValue(s)
-            val status = when {
-                pct < lo -> "wenig ·"
-                pct > hi -> "viel ·"
-                else -> "✓"
-            }
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(10.dp).background(Palette.stage(s), RoundedCornerShape(3.dp)))
@@ -70,11 +62,8 @@ internal fun StageShares(n: SleepSession) {
                     Text("${shortMinutes(minutes)} · $pct %", style = MaterialTheme.typography.bodyMedium)
                 }
                 ShareBar(pct, lo, hi, scale, Palette.stage(s))
-                Text(
-                    "$status üblich " + if (lo == 0) "bis $hi %" else "$lo–$hi %",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (pct in lo..hi) inRange else outOfRange,
-                )
+                // just the usual range; the bar shows where the night lies against it
+                Text("$lo bis $hi %", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
