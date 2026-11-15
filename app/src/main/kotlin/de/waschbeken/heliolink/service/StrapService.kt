@@ -51,6 +51,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -340,6 +341,21 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             liveRequested = enabled
             repo.update { it.copy(liveHeartRate = enabled) }
             updateHeartRateStreaming()
+        }
+    }
+
+    override fun traceTaps(on: Boolean) {
+        handler.post {
+            val c = connection ?: return@post
+            if (on) {
+                repo.trace.value = emptyList()
+                c.startTrace { source, data ->
+                    val m = de.waschbeken.heliolink.core.TapProbe.Message(System.currentTimeMillis(), source, data.joinToString("") { "%02x".format(it) })
+                    repo.trace.update { (it + m).takeLast(500) }
+                }
+            } else {
+                c.stopTrace()
+            }
         }
     }
 

@@ -102,6 +102,9 @@ interface StrapController {
     fun stopFocus()
     fun reconnect()
     fun shutdown()
+
+    /** Tap test: records every message from the strap into [StrapRepository.trace] while on. */
+    fun traceTaps(on: Boolean) {}
 }
 
 class StrapRepository(prefs: Prefs) {
@@ -112,6 +115,9 @@ class StrapRepository(prefs: Prefs) {
     var controller: StrapController? = null
 
     fun update(block: (StrapUiState) -> StrapUiState) = _state.update(block)
+
+    /** Messages from the strap during the tap test (see [StrapController.traceTaps]). */
+    val trace = MutableStateFlow<List<de.waschbeken.heliolink.core.TapProbe.Message>>(emptyList())
 
     fun log(message: String) = _state.update {
         val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.GERMANY).format(java.util.Date())

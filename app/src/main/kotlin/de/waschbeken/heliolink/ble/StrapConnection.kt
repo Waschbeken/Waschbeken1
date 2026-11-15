@@ -77,6 +77,40 @@ class StrapConnection(
     private var lastFetchActivity = 0L
     private var info = DeviceInfo()
 
+    // ------------------------------------------------------------------ tap test
+
+    /** Receives raw notifications from the channels HelioLink does not use otherwise, while the tap test runs. */
+    private var rawTrace: ((UUID, ByteArray) -> Unit)? = null
+
+    /** Channels switched on only for the tap test. */
+    private val extraChannels = HashSet<UUID>()
+
+    private val usedChannels get() = setOf(Uuids.CHUNKED_READ, Uuids.FETCH_CONTROL, Uuids.FETCH_DATA, Uuids.HEART_RATE_MEASUREMENT)
+
+    /**
+     * Tap test: reports every message from the strap to [onMessage] – the known protocol messages
+     * (also those HelioLink handles) and anything on the other channels, which are switched on
+     * for the test. The heart rate stream is left out, it comes every second.
+     */
+    fun startTrace(onMessage: (source: String, data: ByteArray) -> Unit) {
+        protocol.trace = { endpoint, payload -> onMessage("Endpunkt %04x".format(endpoint), payload) }
+        rawTrace = { uuid, value -> onMessage("Kanal " + uuid.toString().substring(4, 8), value) }
+        for (c in characteristics.values) {
+            val notifies = c.properties and (BluetoothGattCharacteristic.PROPERTY_NOTIFY or BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0
+            if (notifies && c.uuid !in usedChannels && extraChannels.add(c.uuid)) ops.addLast(Op.Notify(c, true))
+        }
+        pump()
+    }
+
+    /** Ends the tap test and switches the extra channels off again. */
+    fun stopTrace() {
+        protocol.trace = null
+        rawTrace = null
+        for (uuid in extraChannels) characteristics[uuid]?.let { ops.addLast(Op.Notify(it, false)) }
+        extraChannels.clear()
+        pump()
+    }
+
     private val opTimeout = Runnable {
         // A GATT operation never completed, skip it so the queue does not get stuck.
         current = null
@@ -189,6 +223,7 @@ class StrapConnection(
     }
 
     private fun resetQueue() {
+        extraChannels.clear()
         handler.removeCallbacks(opTimeout)
         ops.clear()
         current = null
@@ -322,6 +357,7 @@ class StrapConnection(
                 protocol.onFetchDataNotification(value)
             }
             Uuids.HEART_RATE_MEASUREMENT -> protocol.onHeartRateMeasurement(value)
+            else -> rawTrace?.invoke(uuid, value)
         }
     }
 
