@@ -1,5 +1,8 @@
 # Was ist neu in HelioLink
 
+## 1.0.45
+- Tipp-Test: Er schaltet keine zusätzlichen Kanäle des Straps mehr ein – danach hat der Strap bei dir gar nicht mehr geantwortet. Er hört jetzt auf dem normalen Weg mit, auf dem der Strap auch meldet, dass „Strap finden“ an ihm gestoppt wurde. Der Bericht enthält zusätzlich, ob der Akkustand auf dem normalen Weg ankam, und das Verbindungsprotokoll aus der Testzeit.
+
 ## 1.0.44
 - Tipp-Test repariert: Die zusätzlichen Kanäle des Straps werden jetzt vor dem Test eingeschaltet („Vorbereiten …“), erst dann beginnen die 30 Sekunden. Vorher konnten sie die Verbindung so lange aufhalten, dass während des Tests gar nichts ankam. Der Bericht nennt jetzt auch, welche Kanäle eingeschaltet wurden und wie sie reagiert haben.
 

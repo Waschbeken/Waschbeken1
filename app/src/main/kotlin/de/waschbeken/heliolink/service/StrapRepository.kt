@@ -36,6 +36,8 @@ data class LiveWorkout(
 )
 
 data class StrapUiState(
+    /** When the strap last reported its battery level (epoch ms), 0 = not yet. */
+    val batteryAt: Long = 0,
     val link: LinkState = LinkState.DISCONNECTED,
     val linkDetail: String? = null,
     val battery: Int? = null,
@@ -119,7 +121,7 @@ class StrapRepository(prefs: Prefs) {
     /** Messages from the strap during the tap test (see [StrapController.traceTaps]). */
     val trace = MutableStateFlow<List<de.waschbeken.heliolink.core.TapProbe.Message>>(emptyList())
 
-    /** Set once the tap test is ready to start: which extra channels were switched on and how. */
+    /** Set once the tap test is ready to start. */
     val traceReady = MutableStateFlow<String?>(null)
 
     fun log(message: String) = _state.update {

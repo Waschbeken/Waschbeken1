@@ -355,7 +355,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                         val m = de.waschbeken.heliolink.core.TapProbe.Message(System.currentTimeMillis(), source, data.joinToString("") { "%02x".format(it) })
                         repo.trace.update { (it + m).takeLast(500) }
                     },
-                    onReady = { channels -> repo.traceReady.value = channels },
+                    onReady = { repo.traceReady.value = "bereit" },
                 )
             } else {
                 c.stopTrace()
@@ -714,7 +714,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             is StrapEvent.AuthFailed -> repo.log("Anmeldung fehlgeschlagen: ${event.reason}")
             is StrapEvent.Ready -> repo.log("Bereit (${event.encryptedEndpoints.size} verschlüsselte Dienste)")
             is StrapEvent.Battery -> {
-                repo.update { it.copy(battery = event.level, charging = event.charging) }
+                repo.update { it.copy(battery = event.level, charging = event.charging, batteryAt = System.currentTimeMillis()) }
                 updateNotification()
                 checkBattery(event.level, event.charging)
                 val now = System.currentTimeMillis() / 1000
