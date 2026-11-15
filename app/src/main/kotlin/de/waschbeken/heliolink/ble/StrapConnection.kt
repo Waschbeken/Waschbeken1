@@ -99,6 +99,8 @@ class StrapConnection(
             val notifies = c.properties and (BluetoothGattCharacteristic.PROPERTY_NOTIFY or BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0
             if (notifies && c.uuid !in usedChannels && extraChannels.add(c.uuid)) ops.addLast(Op.Notify(c, true))
         }
+        // Control: the answer to this battery request must show up, or the recording does not work.
+        ops.addLast(Op.Run { protocol.requestBattery() })
         pump()
     }
 

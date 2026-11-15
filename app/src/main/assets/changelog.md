@@ -1,5 +1,8 @@
 # Was ist neu in HelioLink
 
+## 1.0.43
+- Tipp-Test mit Kontrolle: Zu Beginn fragt die App den Akkustand ab. Kommt die Antwort an, lief die Aufzeichnung sicher – „Keine Reaktion“ heißt dann wirklich, dass der Strap Antippen nicht meldet. Kommt auch sie nicht an, sagt der Test, dass das Ergebnis unsicher ist.
+
 ## 1.0.42
 - Neu: „Tipp-Test“ unter Mehr → Gerät & Verbindung. Er prüft in 30 Sekunden, ob dein Strap ans Handy meldet, wenn du auf ihn tippst: erst 10 Sekunden nicht berühren, dann dreimal tippen, dann doppelt tippen. Am Ende steht, ob der Strap reagiert hat, und einen Bericht kannst du kopieren oder teilen. Reagiert er, lässt sich daraus z. B. „3× tippen = Nikotin eintragen“ bauen.
 

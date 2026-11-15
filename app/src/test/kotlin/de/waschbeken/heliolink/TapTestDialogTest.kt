@@ -89,7 +89,7 @@ class TapTestDialogTest {
 
         compose.onAllNodes(hasText("Starten") and hasClickAction()).onFirst().performSemanticsAction(SemanticsActions.OnClick)
         seconds(2)
-        // left alone: only the battery level
+        // left alone: only the answer to the control request (battery level)
         message("Endpunkt 0029", "0464")
         seconds(9)
         compose.onNodeWithText("Schritt 2 von 3: 3× tippen").assertExists()
@@ -100,5 +100,18 @@ class TapTestDialogTest {
         compose.onNodeWithText("Der Strap hat reagiert").assertExists()
         compose.onNodeWithText("Nur beim Tippen kam: Kanal 0010 0b", substring = true).assertExists()
         assertEquals(listOf(true, false), strap.calls)
+    }
+
+    @Test
+    fun withoutTheControlTheResultIsUncertain() {
+        app.repo.controller = FakeStrap()
+        app.repo.trace.value = emptyList()
+        app.repo.update { it.copy(link = LinkState.READY) }
+        compose.mainClock.autoAdvance = false
+        compose.setContent { HelioTheme(mode = ThemeMode.LIGHT) { TapTestDialog(onDismiss = {}) } }
+        compose.waitForIdle()
+        compose.onAllNodes(hasText("Starten") and hasClickAction()).onFirst().performSemanticsAction(SemanticsActions.OnClick)
+        seconds(32)
+        compose.onNodeWithText("Nichts empfangen").assertExists()
     }
 }
