@@ -1,5 +1,8 @@
 # Was ist neu in HelioLink
 
+## 1.0.44
+- Tipp-Test repariert: Die zusätzlichen Kanäle des Straps werden jetzt vor dem Test eingeschaltet („Vorbereiten …“), erst dann beginnen die 30 Sekunden. Vorher konnten sie die Verbindung so lange aufhalten, dass während des Tests gar nichts ankam. Der Bericht nennt jetzt auch, welche Kanäle eingeschaltet wurden und wie sie reagiert haben.
+
 ## 1.0.43
 - Tipp-Test mit Kontrolle: Zu Beginn fragt die App den Akkustand ab. Kommt die Antwort an, lief die Aufzeichnung sicher – „Keine Reaktion“ heißt dann wirklich, dass der Strap Antippen nicht meldet. Kommt auch sie nicht an, sagt der Test, dass das Ergebnis unsicher ist.
 
