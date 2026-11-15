@@ -37,4 +37,11 @@ class TapProbeTest {
         assertTrue(TapProbe.report(r, phases, "x").contains("Keine Reaktion"))
         assertTrue(TapProbe.analyse(emptyList(), phases).reactions.isEmpty())
     }
+
+    @Test
+    fun controlShowsTheRecordingWorks() {
+        assertTrue(TapProbe.controlArrived(listOf(TapProbe.Message(500, "Endpunkt 0029", "0464"))))
+        assertTrue(!TapProbe.controlArrived(listOf(TapProbe.Message(500, "Endpunkt 0016", "03"))))
+        assertTrue(!TapProbe.controlArrived(emptyList()))
+    }
 }

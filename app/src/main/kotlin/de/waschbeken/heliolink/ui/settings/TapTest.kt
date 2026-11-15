@@ -77,10 +77,12 @@ internal fun TapTestDialog(onDismiss: () -> Unit) {
             // a moment for the last messages to arrive
             delay(500)
             controller?.traceTaps(false)
-            val result = TapProbe.analyse(app.repo.trace.value, phases)
+            val messages = app.repo.trace.value
+            val result = TapProbe.analyse(messages, phases)
             report = TapProbe.report(
                 result, phases,
-                "HelioLink ${BuildConfig.VERSION_NAME} · Tipp-Test · Firmware ${state.firmware ?: "?"}",
+                "HelioLink ${BuildConfig.VERSION_NAME} · Tipp-Test" + (state.firmware?.let { " · Firmware $it" } ?: "") +
+                    "\nKontrolle (Akku-Abfrage): " + if (TapProbe.controlArrived(messages)) "angekommen" else "nicht angekommen",
             )
             step = steps.size
         } else {
@@ -116,9 +118,13 @@ internal fun TapTestDialog(onDismiss: () -> Unit) {
                         Text("${trace.size} Nachrichten vom Strap bisher", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     result != null -> {
-                        if (result.reactions.isEmpty()) {
+                        val recorded = TapProbe.controlArrived(trace)
+                        if (result.reactions.isEmpty() && recorded) {
                             Text("Keine Reaktion", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text("Beim Tippen kam nichts anderes vom Strap als in der Ruhe. Er meldet Antippen also nicht – zumindest nicht so.")
+                            Text("Die Aufzeichnung lief – die Kontroll-Abfrage kam an. Beim Tippen kam aber nichts vom Strap: Er meldet Antippen nicht.")
+                        } else if (result.reactions.isEmpty()) {
+                            Text("Nichts empfangen", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text("Auch die Kontroll-Abfrage kam nicht an, das Ergebnis ist also nicht sicher. Prüfe, ob der Strap verbunden ist, und starte den Test noch einmal.")
                         } else {
                             Text("Der Strap hat reagiert", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                             Text("Nur beim Tippen kam: ${result.reactions.joinToString(", ")}. Schick mir den Bericht – damit lässt sich „3× tippen = Eintrag“ bauen.")

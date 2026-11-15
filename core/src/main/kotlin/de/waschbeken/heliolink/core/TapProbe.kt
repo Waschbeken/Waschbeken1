@@ -21,6 +21,11 @@ object TapProbe {
         val byPhase: Map<Phase, List<Message>>,
     )
 
+    /** The test starts with a battery request; its answer shows the recording works. */
+    const val CONTROL_SOURCE = "Endpunkt 0029"
+
+    fun controlArrived(messages: List<Message>): Boolean = messages.any { it.source == CONTROL_SOURCE }
+
     fun analyse(messages: List<Message>, phases: List<Phase>): Result {
         val byPhase = phases.associateWith { p -> messages.filter { it.atMs >= p.fromMs && it.atMs < p.toMs } }
         val quiet = byPhase.filterKeys { !it.tapping }.values.flatten().map { it.key }.toSet()
