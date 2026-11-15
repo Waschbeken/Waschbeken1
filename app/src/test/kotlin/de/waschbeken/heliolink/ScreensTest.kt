@@ -167,6 +167,13 @@ class ScreensTest {
             periods("10-${m.key}")
         }
         SettingsCategory.entries.forEach { c -> open(Routes.settings(c.key), "20-${c.key}") }
+        // The tap test starts with an explanation (only while the strap is connected).
+        open(Routes.settings(SettingsCategory.DEVICE.key), "20-device")
+        if (compose.onAllNodes(hasText("Tipp-Test") and hasClickAction()).fetchSemanticsNodes().isNotEmpty()) {
+            click("Tipp-Test")
+            shot("21-tipp-test")
+            click("Abbrechen")
+        }
         // The explanations of a settings page sit behind the ⓘ in the top bar.
         open(Routes.settings(SettingsCategory.BATTERY.key), "20-battery")
         clickDescription("Erklärungen anzeigen")

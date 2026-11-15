@@ -115,6 +115,9 @@ internal fun DevicePage(state: StrapUiState, onForget: () -> Unit) {
         enabled = state.connected,
     ) { controller?.setLiveHeartRate(it) }
     SettingRow("Einstellungen neu laden", "Liest alle Messeinstellungen erneut vom Strap", enabled = state.connected) { controller?.refresh() }
+    var tapTest by remember { mutableStateOf(false) }
+    SettingRow("Tipp-Test", "Prüft, ob der Strap meldet, wenn du auf ihn tippst", enabled = state.connected) { tapTest = true }
+    if (tapTest) TapTestDialog(onDismiss = { tapTest = false })
     SettingRow("Neu verbinden", "Trennt die Verbindung und baut sie neu auf") { controller?.reconnect() }
 
     SettingsHeader("Anmeldung")

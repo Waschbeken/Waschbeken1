@@ -129,8 +129,12 @@ class StrapProtocol(
         emit(StrapEvent.HeartRate(bpm, rr))
     }
 
+    /** Set while the tap test runs: receives every message from the strap, known or not. */
+    var trace: ((endpoint: Int, payload: ByteArray) -> Unit)? = null
+
     private fun handleMessage(endpoint: Int, payload: ByteArray) {
         if (payload.isEmpty()) return
+        trace?.invoke(endpoint, payload)
         when (endpoint) {
             Endpoint.AUTH -> handleAuth(payload)
             Endpoint.SERVICES -> handleServices(payload)
