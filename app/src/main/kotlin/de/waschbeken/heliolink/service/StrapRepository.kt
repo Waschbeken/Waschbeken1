@@ -119,6 +119,9 @@ class StrapRepository(prefs: Prefs) {
     /** Messages from the strap during the tap test (see [StrapController.traceTaps]). */
     val trace = MutableStateFlow<List<de.waschbeken.heliolink.core.TapProbe.Message>>(emptyList())
 
+    /** Set once the tap test is ready to start: which extra channels were switched on and how. */
+    val traceReady = MutableStateFlow<String?>(null)
+
     fun log(message: String) = _state.update {
         val time = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.GERMANY).format(java.util.Date())
         it.copy(log = (listOf("$time  $message") + it.log).take(200))

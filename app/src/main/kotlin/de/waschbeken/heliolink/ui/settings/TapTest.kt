@@ -35,6 +35,8 @@ import de.waschbeken.heliolink.BuildConfig
 import de.waschbeken.heliolink.app
 import de.waschbeken.heliolink.core.TapProbe
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** The steps of the test: what to do and whether the strap is being tapped. */
 private val steps = listOf(
@@ -43,6 +45,7 @@ private val steps = listOf(
     Triple("Doppelt tippen", "Tippe jetzt zweimal schnell hintereinander, kurz warten, noch einmal zweimal.", true),
 )
 private const val STEP_SECONDS = 10
+private const val PREPARING = -2
 
 /**
  * Finds out whether the strap reports being tapped (see [TapProbe]): ten seconds without touching
@@ -57,12 +60,27 @@ internal fun TapTestDialog(onDismiss: () -> Unit) {
     val trace by app.repo.trace.collectAsState()
     val state by app.repo.state.collectAsState()
     val clipboard = LocalClipboardManager.current
-    // -1 = not started, 0..2 = running step, 3 = done
+    // -1 = not started, PREPARING = switching the channels on, 0..2 = running step, 3 = done
     var step by remember { mutableIntStateOf(-1) }
+    val ready by app.repo.traceReady.collectAsState()
+    var failed by remember { mutableStateOf(false) }
     var left by remember { mutableIntStateOf(STEP_SECONDS) }
     var stepStart by remember { mutableLongStateOf(0L) }
     val phases = remember { mutableStateListOf<TapProbe.Phase>() }
     var report by remember { mutableStateOf<String?>(null) }
+
+    // The test only starts once every extra channel is switched on, so nothing waits during it.
+    LaunchedEffect(step) {
+        if (step != PREPARING) return@LaunchedEffect
+        val channels = withTimeoutOrNull(90_000) { app.repo.traceReady.first { it != null } }
+        if (channels == null) {
+            controller?.traceTaps(false)
+            failed = true
+            step = steps.size
+        } else {
+            step = 0
+        }
+    }
 
     LaunchedEffect(step) {
         if (step !in steps.indices) return@LaunchedEffect
@@ -82,7 +100,8 @@ internal fun TapTestDialog(onDismiss: () -> Unit) {
             report = TapProbe.report(
                 result, phases,
                 "HelioLink ${BuildConfig.VERSION_NAME} · Tipp-Test" + (state.firmware?.let { " · Firmware $it" } ?: "") +
-                    "\nKontrolle (Akku-Abfrage): " + if (TapProbe.controlArrived(messages)) "angekommen" else "nicht angekommen",
+                    "\nKontrolle (Akku-Abfrage): " + (if (TapProbe.controlArrived(messages)) "angekommen" else "nicht angekommen") +
+                    "\nKanäle: " + (app.repo.traceReady.value ?: "?"),
             )
             step = steps.size
         } else {
@@ -91,16 +110,25 @@ internal fun TapTestDialog(onDismiss: () -> Unit) {
     }
     // Leaving early: switch the extra channels off again.
     DisposableEffect(Unit) {
-        onDispose { if (step in steps.indices) controller?.traceTaps(false) }
+        onDispose { if (step in steps.indices || step == PREPARING) controller?.traceTaps(false) }
     }
 
     val result = remember(report) { if (report == null) null else TapProbe.analyse(trace, phases.toList()) }
     AlertDialog(
-        onDismissRequest = { if (step !in steps.indices) onDismiss() },
+        onDismissRequest = { if (step !in steps.indices && step != PREPARING) onDismiss() },
         title = { Text("Tipp-Test") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 when {
+                    step == PREPARING -> {
+                        Text("Vorbereiten …", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text("Die App schaltet die Kanäle des Straps ein. Das kann bis zu einer Minute dauern – noch nicht tippen.")
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+                    failed -> {
+                        Text("Vorbereitung hat nicht geklappt", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text("Der Strap hat die Kanäle nicht rechtzeitig eingeschaltet. Prüfe die Verbindung und versuche es noch einmal.")
+                    }
                     step < 0 -> {
                         Text("Prüft, ob dein Strap meldet, wenn du auf ihn tippst. Dauert 30 Sekunden; leg das Handy dafür vor dich hin.")
                         Text(
@@ -115,7 +143,11 @@ internal fun TapTestDialog(onDismiss: () -> Unit) {
                         Text(what)
                         Text("noch $left s", style = MaterialTheme.typography.headlineMedium)
                         LinearProgressIndicator(progress = { (STEP_SECONDS - left) / STEP_SECONDS.toFloat() }, modifier = Modifier.fillMaxWidth())
-                        Text("${trace.size} Nachrichten vom Strap bisher", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(
+                            "${trace.size} Nachrichten vom Strap bisher · Kontrolle " + if (TapProbe.controlArrived(trace)) "angekommen ✓" else "wartet …",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                     result != null -> {
                         val recorded = TapProbe.controlArrived(trace)
@@ -149,11 +181,11 @@ internal fun TapTestDialog(onDismiss: () -> Unit) {
         },
         confirmButton = {
             when {
-                step < 0 -> TextButton(
+                step == -1 -> TextButton(
                     enabled = state.connected && controller != null,
                     onClick = {
                         controller?.traceTaps(true)
-                        step = 0
+                        step = PREPARING
                     },
                 ) { Text(if (state.connected) "Starten" else "Strap nicht verbunden") }
                 step >= steps.size -> TextButton(onClick = onDismiss) { Text("Fertig") }
@@ -162,7 +194,7 @@ internal fun TapTestDialog(onDismiss: () -> Unit) {
         dismissButton = {
             if (step < steps.size) {
                 TextButton(onClick = {
-                    if (step in steps.indices) controller?.traceTaps(false)
+                    if (step in steps.indices || step == PREPARING) controller?.traceTaps(false)
                     onDismiss()
                 }) { Text("Abbrechen") }
             }

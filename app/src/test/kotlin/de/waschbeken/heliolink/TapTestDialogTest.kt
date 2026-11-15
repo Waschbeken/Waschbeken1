@@ -36,9 +36,13 @@ class TapTestDialogTest {
     private val app get() = ApplicationProvider.getApplicationContext<HelioApp>()
 
     /** Remembers only what the test switches on and off. */
-    private class FakeStrap : StrapController {
+    private class FakeStrap(val app: HelioApp) : StrapController {
         val calls = ArrayList<Boolean>()
-        override fun traceTaps(on: Boolean) { calls += on }
+        override fun traceTaps(on: Boolean) {
+            calls += on
+            // like the service: ready once the channels are on
+            if (on) app.repo.traceReady.value = "0010 ok"
+        }
         override fun syncNow() = Unit
         override fun probeSleepCode() = Unit
         override fun saveAlarm(alarm: StrapAlarm, label: String) = Unit
@@ -80,7 +84,8 @@ class TapTestDialogTest {
 
     @Test
     fun findsWhatOnlyComesWhileTapping() {
-        val strap = FakeStrap()
+        val strap = FakeStrap(app)
+        app.repo.traceReady.value = null
         app.repo.controller = strap
         app.repo.update { it.copy(link = LinkState.READY) }
         compose.mainClock.autoAdvance = false
@@ -103,8 +108,27 @@ class TapTestDialogTest {
     }
 
     @Test
+    fun preparationThatNeverFinishesIsReported() {
+        val strap = object : StrapController by FakeStrap(app) {
+            override fun traceTaps(on: Boolean) = Unit
+        }
+        app.repo.controller = strap
+        app.repo.traceReady.value = null
+        app.repo.update { it.copy(link = LinkState.READY) }
+        compose.mainClock.autoAdvance = false
+        compose.setContent { HelioTheme(mode = ThemeMode.LIGHT) { TapTestDialog(onDismiss = {}) } }
+        compose.waitForIdle()
+        compose.onAllNodes(hasText("Starten") and hasClickAction()).onFirst().performSemanticsAction(SemanticsActions.OnClick)
+        seconds(2)
+        compose.onNodeWithText("Vorbereiten …").assertExists()
+        seconds(90)
+        compose.onNodeWithText("Vorbereitung hat nicht geklappt").assertExists()
+    }
+
+    @Test
     fun withoutTheControlTheResultIsUncertain() {
-        app.repo.controller = FakeStrap()
+        app.repo.controller = FakeStrap(app)
+        app.repo.traceReady.value = null
         app.repo.trace.value = emptyList()
         app.repo.update { it.copy(link = LinkState.READY) }
         compose.mainClock.autoAdvance = false

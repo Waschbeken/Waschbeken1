@@ -92,17 +92,32 @@ class StrapConnection(
      * (also those HelioLink handles) and anything on the other channels, which are switched on
      * for the test. The heart rate stream is left out, it comes every second.
      */
-    fun startTrace(onMessage: (source: String, data: ByteArray) -> Unit) {
+    fun startTrace(onMessage: (source: String, data: ByteArray) -> Unit, onReady: (channels: String) -> Unit) {
         protocol.trace = { endpoint, payload -> onMessage("Endpunkt %04x".format(endpoint), payload) }
-        rawTrace = { uuid, value -> onMessage("Kanal " + uuid.toString().substring(4, 8), value) }
+        rawTrace = { uuid, value -> onMessage("Kanal " + shortId(uuid), value) }
+        traceResults.clear()
         for (c in characteristics.values) {
             val notifies = c.properties and (BluetoothGattCharacteristic.PROPERTY_NOTIFY or BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0
             if (notifies && c.uuid !in usedChannels && extraChannels.add(c.uuid)) ops.addLast(Op.Notify(c, true))
         }
-        // Control: the answer to this battery request must show up, or the recording does not work.
-        ops.addLast(Op.Run { protocol.requestBattery() })
+        // Only once every channel answered (or timed out) does the test start, so nothing waits in
+        // the queue during it; then the control: the answer to this battery request must show up.
+        ops.addLast(
+            Op.Run {
+                onReady(
+                    if (extraChannels.isEmpty()) "keine weiteren Kanäle"
+                    else extraChannels.joinToString(", ") { "${shortId(it)} ${traceResults[it] ?: "?"}" },
+                )
+                protocol.requestBattery()
+            },
+        )
         pump()
     }
+
+    /** How switching on each extra channel went, for the report: "ok", "Fehler 5", "keine Antwort". */
+    private val traceResults = HashMap<UUID, String>()
+
+    private fun shortId(uuid: UUID) = uuid.toString().substring(4, 8)
 
     /** Ends the tap test and switches the extra channels off again. */
     fun stopTrace() {
@@ -115,6 +130,7 @@ class StrapConnection(
 
     private val opTimeout = Runnable {
         // A GATT operation never completed, skip it so the queue does not get stuck.
+        (current as? Op.Notify)?.let { op -> if (op.c.uuid in extraChannels) traceResults[op.c.uuid] = "keine Antwort" }
         current = null
         pump()
     }
@@ -405,7 +421,11 @@ class StrapConnection(
         }
 
         override fun onDescriptorWrite(g: BluetoothGatt, d: BluetoothGattDescriptor, status: Int) {
-            handler.post { if (current is Op.Notify) completeOp() }
+            handler.post {
+                val uuid = d.characteristic.uuid
+                if (uuid in extraChannels) traceResults[uuid] = if (status == BluetoothGatt.GATT_SUCCESS) "ok" else "Fehler $status"
+                if (current is Op.Notify) completeOp()
+            }
         }
 
         override fun onCharacteristicRead(g: BluetoothGatt, c: BluetoothGattCharacteristic, value: ByteArray, status: Int) {
