@@ -96,6 +96,8 @@ class TapTestDialogTest {
         seconds(2)
         // left alone: only the answer to the control request (battery level)
         message("Endpunkt 0029", "0464")
+        app.repo.update { it.copy(batteryAt = System.currentTimeMillis()) }
+        app.repo.log("Akku 64 %")
         seconds(9)
         compose.onNodeWithText("Schritt 2 von 3: 3× tippen").assertExists()
         message("Endpunkt 0029", "0463")
@@ -104,6 +106,9 @@ class TapTestDialogTest {
 
         compose.onNodeWithText("Der Strap hat reagiert").assertExists()
         compose.onNodeWithText("Nur beim Tippen kam: Kanal 0010 0b", substring = true).assertExists()
+        // the report: control, battery on the normal way, the app's log of the test time
+        compose.onNodeWithText("Akku-Antwort auf dem normalen Weg: angekommen", substring = true).assertExists()
+        compose.onNodeWithText("Akku 64 %", substring = true).assertExists()
         assertEquals(listOf(true, false), strap.calls)
     }
 

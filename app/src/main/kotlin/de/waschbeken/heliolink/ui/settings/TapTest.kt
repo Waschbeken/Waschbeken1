@@ -60,8 +60,11 @@ internal fun TapTestDialog(onDismiss: () -> Unit) {
     val trace by app.repo.trace.collectAsState()
     val state by app.repo.state.collectAsState()
     val clipboard = LocalClipboardManager.current
-    // -1 = not started, PREPARING = switching the channels on, 0..2 = running step, 3 = done
+    // -1 = not started, PREPARING = getting ready, 0..2 = running step, 3 = done
     var step by remember { mutableIntStateOf(-1) }
+    var startedAt by remember { mutableLongStateOf(0L) }
+    // the newest line of the app's log when the test started; the report adds what came after it
+    var logMarker by remember { mutableStateOf<String?>(null) }
     val ready by app.repo.traceReady.collectAsState()
     var failed by remember { mutableStateOf(false) }
     var left by remember { mutableIntStateOf(STEP_SECONDS) }
@@ -69,11 +72,11 @@ internal fun TapTestDialog(onDismiss: () -> Unit) {
     val phases = remember { mutableStateListOf<TapProbe.Phase>() }
     var report by remember { mutableStateOf<String?>(null) }
 
-    // The test only starts once every extra channel is switched on, so nothing waits during it.
+    // The test only starts once the service is listening.
     LaunchedEffect(step) {
         if (step != PREPARING) return@LaunchedEffect
-        val channels = withTimeoutOrNull(90_000) { app.repo.traceReady.first { it != null } }
-        if (channels == null) {
+        val readyNow = withTimeoutOrNull(90_000) { app.repo.traceReady.first { it != null } }
+        if (readyNow == null) {
             controller?.traceTaps(false)
             failed = true
             step = steps.size
@@ -97,12 +100,16 @@ internal fun TapTestDialog(onDismiss: () -> Unit) {
             controller?.traceTaps(false)
             val messages = app.repo.trace.value
             val result = TapProbe.analyse(messages, phases)
+            val now = app.repo.state.value
+            // The app's own log since the start, oldest first: connection changes, errors.
+            val log = now.log.takeWhile { it != logMarker }.take(30).reversed()
             report = TapProbe.report(
                 result, phases,
                 "HelioLink ${BuildConfig.VERSION_NAME} · Tipp-Test" + (state.firmware?.let { " · Firmware $it" } ?: "") +
-                    "\nKontrolle (Akku-Abfrage): " + (if (TapProbe.controlArrived(messages)) "angekommen" else "nicht angekommen") +
-                    "\nKanäle: " + (app.repo.traceReady.value ?: "?"),
-            )
+                    "\nKontrolle (Akku-Abfrage) in der Aufzeichnung: " + (if (TapProbe.controlArrived(messages)) "angekommen" else "nicht angekommen") +
+                    "\nAkku-Antwort auf dem normalen Weg: " + (if (now.batteryAt >= startedAt) "angekommen" else "nicht angekommen") +
+                    "\nVerbindung am Ende: " + now.link,
+            ) + "\nProtokoll der App während des Tests (${log.size}):\n" + log.joinToString("\n") { "  $it" }
             step = steps.size
         } else {
             step++
@@ -122,12 +129,12 @@ internal fun TapTestDialog(onDismiss: () -> Unit) {
                 when {
                     step == PREPARING -> {
                         Text("Vorbereiten …", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text("Die App schaltet die Kanäle des Straps ein. Das kann bis zu einer Minute dauern – noch nicht tippen.")
+                        Text("Noch nicht tippen – gleich geht es los.")
                         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                     }
                     failed -> {
                         Text("Vorbereitung hat nicht geklappt", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text("Der Strap hat die Kanäle nicht rechtzeitig eingeschaltet. Prüfe die Verbindung und versuche es noch einmal.")
+                        Text("Die App konnte nicht mit dem Mithören beginnen. Prüfe die Verbindung und versuche es noch einmal.")
                     }
                     step < 0 -> {
                         Text("Prüft, ob dein Strap meldet, wenn du auf ihn tippst. Dauert 30 Sekunden; leg das Handy dafür vor dich hin.")
@@ -184,6 +191,8 @@ internal fun TapTestDialog(onDismiss: () -> Unit) {
                 step == -1 -> TextButton(
                     enabled = state.connected && controller != null,
                     onClick = {
+                        startedAt = System.currentTimeMillis()
+                        logMarker = state.log.firstOrNull()
                         controller?.traceTaps(true)
                         step = PREPARING
                     },

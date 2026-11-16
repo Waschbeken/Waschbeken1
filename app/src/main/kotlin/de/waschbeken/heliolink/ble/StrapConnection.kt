@@ -79,58 +79,26 @@ class StrapConnection(
 
     // ------------------------------------------------------------------ tap test
 
-    /** Receives raw notifications from the channels HelioLink does not use otherwise, while the tap test runs. */
-    private var rawTrace: ((UUID, ByteArray) -> Unit)? = null
-
-    /** Channels switched on only for the tap test. */
-    private val extraChannels = HashSet<UUID>()
-
-    private val usedChannels get() = setOf(Uuids.CHUNKED_READ, Uuids.FETCH_CONTROL, Uuids.FETCH_DATA, Uuids.HEART_RATE_MEASUREMENT)
-
     /**
-     * Tap test: reports every message from the strap to [onMessage] – the known protocol messages
-     * (also those HelioLink handles) and anything on the other channels, which are switched on
-     * for the test. The heart rate stream is left out, it comes every second.
+     * Tap test: reports every message from the strap to [onMessage] – the known protocol messages,
+     * also those HelioLink handles, among them the one the strap sends when "find strap" is stopped
+     * on it. Then a battery request as control: its answer must show up.
+     *
+     * Switching on the strap's other channels for the test made it stop answering altogether
+     * (tried with 1.0.42–1.0.44), so the test stays on the channels HelioLink uses anyway.
      */
-    fun startTrace(onMessage: (source: String, data: ByteArray) -> Unit, onReady: (channels: String) -> Unit) {
+    fun startTrace(onMessage: (source: String, data: ByteArray) -> Unit, onReady: () -> Unit) {
         protocol.trace = { endpoint, payload -> onMessage("Endpunkt %04x".format(endpoint), payload) }
-        rawTrace = { uuid, value -> onMessage("Kanal " + shortId(uuid), value) }
-        traceResults.clear()
-        for (c in characteristics.values) {
-            val notifies = c.properties and (BluetoothGattCharacteristic.PROPERTY_NOTIFY or BluetoothGattCharacteristic.PROPERTY_INDICATE) != 0
-            if (notifies && c.uuid !in usedChannels && extraChannels.add(c.uuid)) ops.addLast(Op.Notify(c, true))
-        }
-        // Only once every channel answered (or timed out) does the test start, so nothing waits in
-        // the queue during it; then the control: the answer to this battery request must show up.
-        ops.addLast(
-            Op.Run {
-                onReady(
-                    if (extraChannels.isEmpty()) "keine weiteren Kanäle"
-                    else extraChannels.joinToString(", ") { "${shortId(it)} ${traceResults[it] ?: "?"}" },
-                )
-                protocol.requestBattery()
-            },
-        )
-        pump()
+        onReady()
+        protocol.requestBattery()
     }
 
-    /** How switching on each extra channel went, for the report: "ok", "Fehler 5", "keine Antwort". */
-    private val traceResults = HashMap<UUID, String>()
-
-    private fun shortId(uuid: UUID) = uuid.toString().substring(4, 8)
-
-    /** Ends the tap test and switches the extra channels off again. */
     fun stopTrace() {
         protocol.trace = null
-        rawTrace = null
-        for (uuid in extraChannels) characteristics[uuid]?.let { ops.addLast(Op.Notify(it, false)) }
-        extraChannels.clear()
-        pump()
     }
 
     private val opTimeout = Runnable {
         // A GATT operation never completed, skip it so the queue does not get stuck.
-        (current as? Op.Notify)?.let { op -> if (op.c.uuid in extraChannels) traceResults[op.c.uuid] = "keine Antwort" }
         current = null
         pump()
     }
@@ -241,7 +209,6 @@ class StrapConnection(
     }
 
     private fun resetQueue() {
-        extraChannels.clear()
         handler.removeCallbacks(opTimeout)
         ops.clear()
         current = null
@@ -375,7 +342,6 @@ class StrapConnection(
                 protocol.onFetchDataNotification(value)
             }
             Uuids.HEART_RATE_MEASUREMENT -> protocol.onHeartRateMeasurement(value)
-            else -> rawTrace?.invoke(uuid, value)
         }
     }
 
@@ -421,11 +387,7 @@ class StrapConnection(
         }
 
         override fun onDescriptorWrite(g: BluetoothGatt, d: BluetoothGattDescriptor, status: Int) {
-            handler.post {
-                val uuid = d.characteristic.uuid
-                if (uuid in extraChannels) traceResults[uuid] = if (status == BluetoothGatt.GATT_SUCCESS) "ok" else "Fehler $status"
-                if (current is Op.Notify) completeOp()
-            }
+            handler.post { if (current is Op.Notify) completeOp() }
         }
 
         override fun onCharacteristicRead(g: BluetoothGatt, c: BluetoothGattCharacteristic, value: ByteArray, status: Int) {
