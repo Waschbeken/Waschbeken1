@@ -29,6 +29,7 @@ object Notifications {
     const val ID_FOCUS = 11
     const val ID_STRESS = 12
     const val ID_MONTHLY = 13
+    const val ID_WAKE = 14
 
     /** Reminders use this plus their id. */
     const val ID_REMINDER = 1000

@@ -107,6 +107,10 @@ interface StrapController {
 
     /** Tap test: records every message from the strap into [StrapRepository.trace] while on. */
     fun traceTaps(on: Boolean) {}
+
+    /** "Länger wecken": keeps the strap vibrating for up to [seconds] until it is stopped (see [WakeBoost]). */
+    fun startWakeBoost(seconds: Int) {}
+    fun stopWakeBoost() {}
 }
 
 class StrapRepository(prefs: Prefs) {

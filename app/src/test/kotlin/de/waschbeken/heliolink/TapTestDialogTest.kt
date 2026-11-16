@@ -11,12 +11,8 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import de.waschbeken.heliolink.ble.LinkState
-import de.waschbeken.heliolink.core.HealthSetting
-import de.waschbeken.heliolink.core.IntervalPlan
-import de.waschbeken.heliolink.core.StrapAlarm
 import de.waschbeken.heliolink.core.TapProbe
 import de.waschbeken.heliolink.data.ThemeMode
-import de.waschbeken.heliolink.service.StrapController
 import de.waschbeken.heliolink.ui.HelioTheme
 import de.waschbeken.heliolink.ui.settings.TapTestDialog
 import org.junit.After
@@ -34,35 +30,6 @@ class TapTestDialogTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     private val app get() = ApplicationProvider.getApplicationContext<HelioApp>()
-
-    /** Remembers only what the test switches on and off. */
-    private class FakeStrap(val app: HelioApp) : StrapController {
-        val calls = ArrayList<Boolean>()
-        override fun traceTaps(on: Boolean) {
-            calls += on
-            // like the service: ready once the channels are on
-            if (on) app.repo.traceReady.value = "0010 ok"
-        }
-        override fun syncNow() = Unit
-        override fun probeSleepCode() = Unit
-        override fun saveAlarm(alarm: StrapAlarm, label: String) = Unit
-        override fun deleteAlarm(position: Int) = Unit
-        override fun refreshAlarms() = Unit
-        override fun setLiveHeartRate(enabled: Boolean) = Unit
-        override fun findStrap() = Unit
-        override fun refresh() = Unit
-        override fun applySettings(values: Map<HealthSetting, Int>, lists: Map<HealthSetting, List<Int>>) = Unit
-        override fun startWorkout(sport: String, gps: Boolean) = Unit
-        override fun startIntervals(sport: String, plan: IntervalPlan, gps: Boolean) = Unit
-        override fun startRecording(seconds: Int?) = Unit
-        override fun setPaused(paused: Boolean) = Unit
-        override fun stopWorkout() = Unit
-        override fun buzz(count: Int, onMs: Long) = Unit
-        override fun startFocus(plan: IntervalPlan) = Unit
-        override fun stopFocus() = Unit
-        override fun reconnect() = Unit
-        override fun shutdown() = Unit
-    }
 
     @After
     fun noController() {
@@ -114,7 +81,7 @@ class TapTestDialogTest {
 
     @Test
     fun preparationThatNeverFinishesIsReported() {
-        val strap = object : StrapController by FakeStrap(app) {
+        val strap = object : de.waschbeken.heliolink.service.StrapController by FakeStrap(app) {
             override fun traceTaps(on: Boolean) = Unit
         }
         app.repo.controller = strap
