@@ -13,6 +13,14 @@ class StartReceiver : BroadcastReceiver() {
         val action = intent.action
         // Reminders on the arm are planned again after a reboot, an update or a new time zone.
         ReminderScheduler.schedule(context)
+        val pending = goAsync()
+        kotlin.concurrent.thread(name = "plan-alarms") {
+            try {
+                WakeBoost.schedule(context)
+            } finally {
+                pending.finish()
+            }
+        }
         if (action != Intent.ACTION_BOOT_COMPLETED && action != Intent.ACTION_MY_PACKAGE_REPLACED) return
         if (action == Intent.ACTION_MY_PACKAGE_REPLACED && ShizukuInstaller.consumeSilentInstall(context)) {
             Notifications.installed(context, BuildConfig.VERSION_NAME.substringBefore("-"))

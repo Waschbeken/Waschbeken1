@@ -1,5 +1,8 @@
 # Was ist neu in HelioLink
 
+## 1.0.46
+- Wecker: „Länger wecken“. Der Strap brummt von sich aus nur kurz. Jetzt vibriert er danach weiter, bis du ihn stoppst – mit „Aus“ in der Benachrichtigung oder am Strap selbst –, höchstens 2, 5 oder 10 Minuten (einstellbar unter Wecker, Standard 5 Minuten). Mit „Testen“ probierst du es 20 Sekunden lang aus. Klappt, solange das Handy mit dem Strap verbunden ist; der Wecker auf dem Strap weckt wie bisher auch ohne Handy.
+
 ## 1.0.45
 - Tipp-Test: Er schaltet keine zusätzlichen Kanäle des Straps mehr ein – danach hat der Strap bei dir gar nicht mehr geantwortet. Er hört jetzt auf dem normalen Weg mit, auf dem der Strap auch meldet, dass „Strap finden“ an ihm gestoppt wurde. Der Bericht enthält zusätzlich, ob der Akkustand auf dem normalen Weg ankam, und das Verbindungsprotokoll aus der Testzeit.
 

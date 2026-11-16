@@ -110,6 +110,11 @@
             android:name=".service.ReminderReceiver"
             android:exported="false" />
 
+        <!-- "Länger wecken": keeps the strap vibrating after its alarm until stopped. -->
+        <receiver
+            android:name=".service.WakeBoostReceiver"
+            android:exported="false" />
+
         <receiver
             android:name=".widget.HelioWidget"
             android:exported="false"

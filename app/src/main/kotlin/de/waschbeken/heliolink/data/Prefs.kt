@@ -299,6 +299,11 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getBoolean("progress_hint_seen", false)
         set(v) = edit { putBoolean("progress_hint_seen", v) }
 
+    /** "Länger wecken": minutes the strap keeps vibrating after an alarm until stopped, 0 = off. */
+    var alarmBoostMinutes: Int
+        get() = sp.getInt("alarm_boost_minutes", 5)
+        set(v) = edit { putInt("alarm_boost_minutes", v) }
+
     /** Reminders on the arm (the strap vibrates at set times). */
     var reminders: List<de.waschbeken.heliolink.core.Reminder>
         get() = sp.getString("reminders", null)?.split('\n')?.mapNotNull { de.waschbeken.heliolink.core.Reminder.decode(it) } ?: emptyList()

@@ -188,6 +188,7 @@ fun AlarmsScreen(nav: NavHostController) {
                     }
                 }
             }
+            item { LongerWake(app, state.connected, tick) }
             if (!state.connected) {
                 item {
                     Panel {
@@ -239,6 +240,39 @@ fun AlarmsScreen(nav: NavHostController) {
                 }
             }
         }
+    }
+}
+
+/**
+ * "Länger wecken": after the strap's own short buzz it keeps vibrating until stopped, for at most
+ * the chosen minutes (see [de.waschbeken.heliolink.service.WakeBoost]). "Testen" tries it for 20
+ * seconds, also to find out how it can be stopped on the strap.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LongerWake(app: HelioApp, connected: Boolean, tick: Int) {
+    val minutes = app.prefs.alarmBoostMinutes.also { tick }
+    Panel {
+        Text("Länger wecken", style = MaterialTheme.typography.titleMedium)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(0 to "Aus", 2 to "2 min", 5 to "5 min", 10 to "10 min").forEach { (m, label) ->
+                FilterChip(
+                    selected = minutes == m,
+                    onClick = {
+                        app.prefs.alarmBoostMinutes = m
+                        kotlin.concurrent.thread(name = "plan-alarms") { de.waschbeken.heliolink.service.WakeBoost.schedule(app) }
+                    },
+                    label = { Text(label) },
+                )
+            }
+        }
+        Text(
+            if (minutes > 0) "Nach dem Wecker vibriert der Strap weiter, bis du ihn stoppst – am Strap oder mit „Aus“ in der Benachrichtigung. Nur mit verbundenem Handy."
+            else "Der Strap brummt nur so kurz, wie er es von sich aus tut.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        TextButton(onClick = { app.repo.controller?.startWakeBoost(20) }, enabled = connected) { Text("Testen (20 s)") }
     }
 }
 
