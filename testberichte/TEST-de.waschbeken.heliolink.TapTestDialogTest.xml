@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="de.waschbeken.heliolink.TapTestDialogTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-11-17T06:30:34.552Z" hostname="runnervmccnms" time="1.201">
+  <properties/>
+  <testcase name="findsWhatOnlyComesWhileTapping" classname="de.waschbeken.heliolink.TapTestDialogTest" time="0.372"/>
+  <testcase name="withoutTheControlTheResultIsUncertain" classname="de.waschbeken.heliolink.TapTestDialogTest" time="0.236"/>
+  <testcase name="preparationThatNeverFinishesIsReported" classname="de.waschbeken.heliolink.TapTestDialogTest" time="0.593"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

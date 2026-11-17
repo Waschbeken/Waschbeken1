@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="de.waschbeken.heliolink.NightsCacheTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-11-17T06:23:38.243Z" hostname="runnervmccnms" time="0.781">
+  <properties/>
+  <testcase name="cacheFollowsChanges" classname="de.waschbeken.heliolink.NightsCacheTest" time="0.781"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
