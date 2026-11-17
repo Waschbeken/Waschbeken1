@@ -16,6 +16,7 @@ object Notifications {
     const val CHANNEL_UPDATES = "updates"
     const val CHANNEL_HEALTH = "health"
     const val CHANNEL_REMINDERS = "reminders"
+    const val CHANNEL_WAKE = "wake"
 
     const val ID_BATTERY = 2
     const val ID_SYNC = 3
@@ -41,6 +42,14 @@ object Notifications {
         nm.createNotificationChannel(NotificationChannel(CHANNEL_UPDATES, "App-Updates", NotificationManager.IMPORTANCE_DEFAULT))
         nm.createNotificationChannel(NotificationChannel(CHANNEL_HEALTH, "Schlaf & Erholung", NotificationManager.IMPORTANCE_DEFAULT))
         nm.createNotificationChannel(NotificationChannel(CHANNEL_REMINDERS, "Erinnerungen", NotificationManager.IMPORTANCE_HIGH))
+        // Shows on top of the screen and on the lock screen, without a sound: the strap is the alarm.
+        nm.createNotificationChannel(
+            NotificationChannel(CHANNEL_WAKE, "Wecker", NotificationManager.IMPORTANCE_HIGH).apply {
+                setSound(null, null)
+                enableVibration(false)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+            },
+        )
     }
 
     fun show(context: Context, id: Int, channel: String, title: String, text: String, intent: Intent? = null) {

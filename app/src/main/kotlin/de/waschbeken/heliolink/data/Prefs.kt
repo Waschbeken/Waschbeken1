@@ -304,6 +304,16 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getInt("alarm_boost_minutes", 5)
         set(v) = edit { putInt("alarm_boost_minutes", v) }
 
+    /** One-time alarms ("slot:hour:minute") that already got their long vibration, see WakeBoost. */
+    var boostedOnce: Set<String>
+        get() = sp.getStringSet("boosted_once", emptySet()).orEmpty()
+        set(v) = edit { putStringSet("boosted_once", v) }
+
+    /** When the next long vibration is planned (epoch ms), 0 = none. */
+    var wakeBoostAt: Long
+        get() = sp.getLong("wake_boost_at", 0)
+        set(v) = edit { putLong("wake_boost_at", v) }
+
     /** Reminders on the arm (the strap vibrates at set times). */
     var reminders: List<de.waschbeken.heliolink.core.Reminder>
         get() = sp.getString("reminders", null)?.split('\n')?.mapNotNull { de.waschbeken.heliolink.core.Reminder.decode(it) } ?: emptyList()

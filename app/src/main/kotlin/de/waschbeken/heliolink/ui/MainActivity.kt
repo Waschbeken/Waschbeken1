@@ -281,6 +281,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Opening HelioLink means: awake. Ends the long vibration of an alarm (see WakeBoost).
+        if (app.repo.state.value.wakeBoost) app.repo.controller?.stopWakeBoost()
         permissionGranted = hasBluetoothPermission()
         if (configured && permissionGranted) {
             if (app.repo.controller == null) StrapService.start(this) else app.repo.controller?.refresh()

@@ -36,6 +36,8 @@ data class LiveWorkout(
 )
 
 data class StrapUiState(
+    /** "Länger wecken" is running: the strap vibrates until it is stopped. */
+    val wakeBoost: Boolean = false,
     /** When the strap last reported its battery level (epoch ms), 0 = not yet. */
     val batteryAt: Long = 0,
     val link: LinkState = LinkState.DISCONNECTED,
