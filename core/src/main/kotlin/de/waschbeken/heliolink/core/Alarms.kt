@@ -72,6 +72,13 @@ object AlarmCodec {
     }
 }
 
+/**
+ * The alarms that ring at [time]: same hour and minute, on that weekday or once – enabled or not,
+ * because the strap switches a one-time alarm off the moment it rings.
+ */
+fun alarmsAt(alarms: List<StrapAlarm>, time: java.time.ZonedDateTime): List<StrapAlarm> =
+    alarms.filter { it.hour == time.hour && it.minute == time.minute && (it.repetition == 0 || it.repeatsOn(time.dayOfWeek)) }
+
 /** The next time one of the enabled [alarms] rings, or null. */
 fun nextAlarm(alarms: List<StrapAlarm>, now: java.time.ZonedDateTime = java.time.ZonedDateTime.now()): java.time.ZonedDateTime? {
     var best: java.time.ZonedDateTime? = null

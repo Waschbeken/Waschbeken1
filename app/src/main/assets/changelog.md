@@ -1,5 +1,10 @@
 # Was ist neu in HelioLink
 
+## 1.0.47
+- Wecker: Das lange Vibrieren („Länger wecken“) ließ sich schlecht ausschalten. Jetzt geht es aus, sobald du das Handy entsperrst, HelioLink öffnest oder aufstehst und ein paar Schritte gehst – oder mit „Aus“ in der Benachrichtigung, die jetzt oben am Bildschirm und auf dem Sperrbildschirm erscheint. Am Strap selbst lässt es sich nicht stoppen.
+- Es startet nicht mehr, wenn du das Handy zur Weckzeit schon benutzt, und nur, wenn zu der Zeit wirklich ein Wecker gestellt ist. Ein einmaliger Wecker wird nur einmal verlängert.
+- Auf der Wecker-Seite gibt es „Vibrieren stoppen“, solange es läuft.
+
 ## 1.0.46
 - Wecker: „Länger wecken“. Der Strap brummt von sich aus nur kurz. Jetzt vibriert er danach weiter, bis du ihn stoppst – mit „Aus“ in der Benachrichtigung oder am Strap selbst –, höchstens 2, 5 oder 10 Minuten (einstellbar unter Wecker, Standard 5 Minuten). Mit „Testen“ probierst du es 20 Sekunden lang aus. Klappt, solange das Handy mit dem Strap verbunden ist; der Wecker auf dem Strap weckt wie bisher auch ohne Handy.
 

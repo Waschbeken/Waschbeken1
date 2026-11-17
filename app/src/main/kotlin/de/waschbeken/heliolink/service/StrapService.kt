@@ -180,6 +180,9 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             this, bluetoothReceiver, android.content.IntentFilter(android.bluetooth.BluetoothAdapter.ACTION_STATE_CHANGED),
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
+        ContextCompat.registerReceiver(
+            this, unlockReceiver, android.content.IntentFilter(Intent.ACTION_USER_PRESENT), ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
         // React to settings that change the heart rate streaming (continuous recording).
         scope.launch {
             var last = prefs.continuousHrSeconds
@@ -225,9 +228,11 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
     }
 
     override fun onDestroy() {
-        try {
-            unregisterReceiver(bluetoothReceiver)
-        } catch (_: IllegalArgumentException) {
+        for (r in listOf(bluetoothReceiver, unlockReceiver)) {
+            try {
+                unregisterReceiver(r)
+            } catch (_: IllegalArgumentException) {
+            }
         }
         scope.cancel()
         repo.controller = null
@@ -302,6 +307,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             db.saveAlarm(alarm, label, pending = !ready)
             if (ready) connection?.protocol?.setAlarm(alarm)
             repo.dataChanged()
+            WakeBoost.alarmChanged(this, alarm.position)
             WakeBoost.schedule(this)
         }
     }
@@ -317,6 +323,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 }
             }
             repo.dataChanged()
+            WakeBoost.alarmChanged(this, position)
             WakeBoost.schedule(this)
         }
     }
@@ -370,38 +377,72 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
 
     private var wakeUntil = 0L
 
+    /** The strap's step count when the long vibration started; a few steps more mean: got up. */
+    private var wakeStartSteps: Long? = null
+
     /** Restarts the find vibration now and then: how long the strap keeps it up by itself is not known. */
     private val wakeTick = object : Runnable {
         override fun run() {
-            val c = connection ?: return stopWakeBoost()
-            if (System.currentTimeMillis() >= wakeUntil || c.state != LinkState.READY) return stopWakeBoost()
+            val c = connection
+            if (c == null || c.state != LinkState.READY) return endWakeBoost("Verbindung getrennt")
+            if (System.currentTimeMillis() >= wakeUntil) return endWakeBoost("Zeit abgelaufen")
             c.protocol.findStrap(true)
             handler.postDelayed(this, 15_000)
         }
     }
 
+    /** Unlocking the phone means: awake. */
+    private val unlockReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            handler.post { endWakeBoost("Handy entsperrt") }
+        }
+    }
+
     override fun startWakeBoost(seconds: Int) {
         handler.post {
-            if (connection?.state != LinkState.READY) {
+            val c = connection
+            if (c == null || c.state != LinkState.READY) {
                 repo.log("Wecker: Strap nicht verbunden, nur sein eigener Wecker hat geweckt")
                 return@post
             }
             wakeUntil = System.currentTimeMillis() + seconds * 1000L
+            wakeStartSteps = null
+            // Steps as the strap counts them: getting up ends the alarm.
+            c.protocol.setRealtimeSteps(true)
+            c.protocol.requestSteps()
             handler.removeCallbacks(wakeTick)
             handler.post(wakeTick)
+            repo.update { it.copy(wakeBoost = true) }
             WakeBoost.notify(this)
             repo.log("Wecker: Strap vibriert weiter, bis er gestoppt wird")
         }
     }
 
     override fun stopWakeBoost() {
-        handler.post {
-            if (wakeUntil == 0L) return@post
-            wakeUntil = 0L
-            handler.removeCallbacks(wakeTick)
-            connection?.protocol?.findStrap(false)
-            WakeBoost.cancelNotification(this)
+        handler.post { endWakeBoost("ausgeschaltet") }
+    }
+
+    /** On the strap thread. Does nothing when the long vibration is not running. */
+    private fun endWakeBoost(reason: String) {
+        if (wakeUntil == 0L) return
+        wakeUntil = 0L
+        wakeStartSteps = null
+        handler.removeCallbacks(wakeTick)
+        connection?.protocol?.let {
+            it.findStrap(false)
+            it.setRealtimeSteps(false)
         }
+        repo.update { it.copy(wakeBoost = false) }
+        WakeBoost.cancelNotification(this)
+        repo.log("Wecker aus: $reason")
+    }
+
+    /** Steps while the long vibration runs (strap thread). */
+    private fun checkWakeSteps(steps: Long) {
+        if (wakeUntil == 0L) return
+        val start = wakeStartSteps
+        if (start == null || steps < start) wakeStartSteps = steps
+        else if (steps - start >= WakeBoost.STEPS_TO_STOP) endWakeBoost("aufgestanden (${steps - start} Schritte)")
     }
 
     override fun findStrap() {
@@ -765,8 +806,9 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 }
                 updateWidget(force = true)
             }
-            is StrapEvent.Steps -> repo.update {
-                it.copy(steps = event.steps, distanceMeters = event.distanceMeters, calories = event.calories)
+            is StrapEvent.Steps -> {
+                repo.update { it.copy(steps = event.steps, distanceMeters = event.distanceMeters, calories = event.calories) }
+                checkWakeSteps(event.steps)
             }
             is StrapEvent.HeartRate -> onHeartRate(event)
             is StrapEvent.SleepState -> repo.update { it.copy(asleep = event.asleep) }
@@ -778,14 +820,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 if (event.status == 1) "Strap hat die Einstellung bestätigt" else "Strap antwortet auf Einstellung mit Status ${event.status}"
             )
             is StrapEvent.FindAcknowledged -> repo.log("Strap vibriert")
-            is StrapEvent.FindStoppedOnStrap -> {
-                if (wakeUntil != 0L) {
-                    repo.log("Wecker am Strap ausgeschaltet")
-                    stopWakeBoost()
-                } else {
-                    repo.log("Suche am Strap beendet")
-                }
-            }
+            is StrapEvent.FindStoppedOnStrap -> if (wakeUntil != 0L) endWakeBoost("am Strap gestoppt") else repo.log("Suche am Strap beendet")
             is StrapEvent.SyncProgress -> repo.update {
                 val pct = if (event.expectedBytes > 0) (event.receivedBytes * 100 / event.expectedBytes).coerceAtMost(100) else 0
                 it.copy(syncing = true, syncText = "${event.type.label}: $pct %")

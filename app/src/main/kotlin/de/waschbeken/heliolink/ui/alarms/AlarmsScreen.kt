@@ -106,6 +106,7 @@ private fun save(app: HelioApp, alarm: StrapAlarm, label: String) {
     if (c != null) c.saveAlarm(alarm, label) else {
         app.db.saveAlarm(alarm, label, pending = true)
         app.repo.dataChanged()
+        replanWake(app, alarm.position)
     }
 }
 
@@ -114,6 +115,15 @@ private fun delete(app: HelioApp, row: HealthDb.AlarmRow) {
     if (c != null) c.deleteAlarm(row.alarm.position) else {
         app.db.saveAlarm(row.alarm, row.label, pending = true, deleted = true)
         app.repo.dataChanged()
+        replanWake(app, row.alarm.position)
+    }
+}
+
+/** Without the running service: plan "Länger wecken" for the changed alarms here. */
+private fun replanWake(app: HelioApp, position: Int) {
+    kotlin.concurrent.thread(name = "plan-alarms") {
+        de.waschbeken.heliolink.service.WakeBoost.alarmChanged(app, position)
+        de.waschbeken.heliolink.service.WakeBoost.schedule(app)
     }
 }
 
@@ -188,7 +198,7 @@ fun AlarmsScreen(nav: NavHostController) {
                     }
                 }
             }
-            item { LongerWake(app, state.connected, tick) }
+            item { LongerWake(app, state.connected, state.wakeBoost, tick) }
             if (!state.connected) {
                 item {
                     Panel {
@@ -246,11 +256,11 @@ fun AlarmsScreen(nav: NavHostController) {
 /**
  * "Länger wecken": after the strap's own short buzz it keeps vibrating until stopped, for at most
  * the chosen minutes (see [de.waschbeken.heliolink.service.WakeBoost]). "Testen" tries it for 20
- * seconds, also to find out how it can be stopped on the strap.
+ * seconds, e.g. to see that walking a few steps ends it.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun LongerWake(app: HelioApp, connected: Boolean, tick: Int) {
+private fun LongerWake(app: HelioApp, connected: Boolean, running: Boolean, tick: Int) {
     val minutes = app.prefs.alarmBoostMinutes.also { tick }
     Panel {
         Text("Länger wecken", style = MaterialTheme.typography.titleMedium)
@@ -267,12 +277,17 @@ private fun LongerWake(app: HelioApp, connected: Boolean, tick: Int) {
             }
         }
         Text(
-            if (minutes > 0) "Nach dem Wecker vibriert der Strap weiter, bis du ihn stoppst – am Strap oder mit „Aus“ in der Benachrichtigung. Nur mit verbundenem Handy."
+            if (minutes > 0) "Nach dem Wecker vibriert der Strap weiter. Aus: Handy entsperren, ein paar Schritte gehen oder „Aus“ in der " +
+                "Benachrichtigung – am Strap selbst geht es nicht."
             else "Der Strap brummt nur so kurz, wie er es von sich aus tut.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        TextButton(onClick = { app.repo.controller?.startWakeBoost(20) }, enabled = connected) { Text("Testen (20 s)") }
+        if (running) {
+            Button(onClick = { app.repo.controller?.stopWakeBoost() }) { Text("Vibrieren stoppen") }
+        } else {
+            TextButton(onClick = { app.repo.controller?.startWakeBoost(20) }, enabled = connected) { Text("Testen (20 s)") }
+        }
     }
 }
 
