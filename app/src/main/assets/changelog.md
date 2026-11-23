@@ -1,5 +1,9 @@
 # Was ist neu in HelioLink
 
+## 1.0.48
+- „Heute“ wechselt nach dem Aufwachen schneller von gestern auf heute: sofort, wenn du die Nacht korrigiert hast und die Aufwachzeit vorbei ist, oder sobald der Strap 100 Schritte zählt. Beim Öffnen der App werden neue Daten geholt, wenn die letzte Synchronisierung länger her ist.
+- Steht noch „Gestern“ da, stellt „Ich bin wach“ direkt auf heute um. Einmal umgestellt, springt es bis Mittag nicht mehr zurück.
+
 ## 1.0.47
 - Wecker: Das lange Vibrieren („Länger wecken“) ließ sich schlecht ausschalten. Jetzt geht es aus, sobald du das Handy entsperrst, HelioLink öffnest oder aufstehst und ein paar Schritte gehst – oder mit „Aus“ in der Benachrichtigung, die jetzt oben am Bildschirm und auf dem Sperrbildschirm erscheint. Am Strap selbst lässt es sich nicht stoppen.
 - Es startet nicht mehr, wenn du das Handy zur Weckzeit schon benutzt, und nur, wenn zu der Zeit wirklich ein Wecker gestellt ist. Ein einmaliger Wecker wird nur einmal verlängert.
