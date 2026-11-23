@@ -304,6 +304,11 @@ class Prefs(context: Context) : SyncCursor {
         get() = sp.getInt("alarm_boost_minutes", 5)
         set(v) = edit { putInt("alarm_boost_minutes", v) }
 
+    /** The day (epoch day) the start page already switched to after waking up; it stays there until noon. */
+    var awakeDay: Long
+        get() = sp.getLong("awake_day", 0)
+        set(v) = edit { putLong("awake_day", v) }
+
     /** One-time alarms ("slot:hour:minute") that already got their long vibration, see WakeBoost. */
     var boostedOnce: Set<String>
         get() = sp.getStringSet("boosted_once", emptySet()).orEmpty()

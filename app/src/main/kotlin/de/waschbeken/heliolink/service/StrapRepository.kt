@@ -45,6 +45,8 @@ data class StrapUiState(
     val battery: Int? = null,
     val charging: Boolean = false,
     val steps: Long? = null,
+    /** When the strap last reported [steps] (epoch ms); the counter starts again at midnight. */
+    val stepsAt: Long = 0,
     val distanceMeters: Long? = null,
     val calories: Long? = null,
     val heartRate: Int? = null,

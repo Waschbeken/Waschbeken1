@@ -131,7 +131,15 @@ fun HomeScreen(nav: NavHostController) {
     val profile = remember(tick) { app.prefs.profile }
     val hidden = remember(tick) { app.prefs.hiddenTiles }
     val order = remember(tick) { app.prefs.tileOrder }
-    val data by de.waschbeken.heliolink.ui.cachedDbValue("home", state.dataVersion, tick, state.heartRateAt / 300_000) { HomeData.load(it, profile.stepGoal) }
+    // Reaching the steps that show you are up switches from yesterday to today at once
+    // (only a count the strap reported today: it starts again at midnight).
+    val liveSteps = state.steps?.takeIf {
+        java.time.Instant.ofEpochMilli(state.stepsAt).atZone(java.time.ZoneId.systemDefault()).toLocalDate() == java.time.LocalDate.now()
+    }
+    val up = (liveSteps ?: 0) >= HomeData.AWAKE_STEPS
+    val data by de.waschbeken.heliolink.ui.cachedDbValue("home", state.dataVersion, tick, state.heartRateAt / 300_000, up) {
+        HomeData.load(it, profile.stepGoal, liveSteps)
+    }
     val controller = app.repo.controller
     val startRecording = de.waschbeken.heliolink.ui.record.rememberRecordStarter(nav)
     val sections = de.waschbeken.heliolink.ui.rememberSections()
@@ -212,7 +220,16 @@ fun HomeScreen(nav: NavHostController) {
                 val d = data
                 // The strap's live counter only for today; before waking up the page shows the previous day.
                 val todaySteps = state.steps?.toInt()?.takeIf { d?.date == java.time.LocalDate.now() } ?: d?.week?.lastOrNull()?.steps ?: 0
-                if (d != null && d.date != java.time.LocalDate.now()) item { SectionHeader("Gestern – bis du aufwachst") }
+                if (d != null && d.date != java.time.LocalDate.now()) {
+                    item {
+                        SectionHeader("Gestern – bis du aufwachst") {
+                            TextButton(onClick = {
+                                app.prefs.awakeDay = java.time.LocalDate.now().toEpochDay()
+                                app.repo.dataChanged()
+                            }) { Text("Ich bin wach") }
+                        }
+                    }
+                }
                 item {
                     RingsCard(
                         d, todaySteps, profile.stepGoal, profile.sleepGoalMinutes, hidden,

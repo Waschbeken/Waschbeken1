@@ -476,6 +476,8 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
             if (c.state == LinkState.READY) {
                 c.protocol.requestBattery()
                 c.protocol.requestSteps()
+                // Opening the app: fresh data if the last sync is a while ago, e.g. the night that just ended.
+                if (prefs.autoSyncMinutes > 0 && System.currentTimeMillis() - prefs.lastSync > 10 * 60_000L) sync(full = false)
             } else if (c.state == LinkState.DISCONNECTED) {
                 c.connect()
             }
@@ -807,7 +809,7 @@ class StrapService : Service(), StrapController, StrapConnection.Listener {
                 updateWidget(force = true)
             }
             is StrapEvent.Steps -> {
-                repo.update { it.copy(steps = event.steps, distanceMeters = event.distanceMeters, calories = event.calories) }
+                repo.update { it.copy(steps = event.steps, stepsAt = System.currentTimeMillis(), distanceMeters = event.distanceMeters, calories = event.calories) }
                 checkWakeSteps(event.steps)
             }
             is StrapEvent.HeartRate -> onHeartRate(event)

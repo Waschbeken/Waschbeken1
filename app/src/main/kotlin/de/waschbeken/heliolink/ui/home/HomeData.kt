@@ -64,20 +64,34 @@ class HomeData(
          * up (a night ending today was found and you were awake for a few minutes after it) or until
          * noon, so it does not jump to zero at 00:00.
          */
-        fun homeDay(db: HealthDb, zone: ZoneId): LocalDate {
-            val now = java.time.LocalDateTime.now()
+        fun homeDay(db: HealthDb, zone: ZoneId, liveSteps: Long? = null, now: java.time.LocalDateTime = java.time.LocalDateTime.now()): LocalDate {
             val today = now.toLocalDate()
             if (now.hour >= 12) return today
+            val prefs = db.prefs
+            // Once switched it stays, even if the strap later counts lying in bed as sleep again.
+            if (prefs.awakeDay == today.toEpochDay()) return today
             val night = Queries.night(db, today, zone) ?: return today.minusDays(1)
-            // Awake: a few minutes worn and not asleep after the night (not just a sync in the middle of it).
-            val nowSec = System.currentTimeMillis() / 1000
-            val awakeMinutes = db.activity(night.end, nowSec + 60).count { !it.isSleep && !it.notWorn }
-            return if (awakeMinutes >= 3) today else today.minusDays(1)
+            val nowSec = now.atZone(zone).toEpochSecond()
+            val awake = when {
+                // The user corrected the night and said when they woke up: that counts.
+                db.sleepEdits(today.toEpochDay(), today.toEpochDay())[today.toEpochDay()]
+                    ?.let { !it.deleted && it.end <= nowSec } == true -> true
+                // Walking around after the night: the strap's live step counter (today since midnight).
+                now.hour >= 5 && liveSteps != null && liveSteps >= AWAKE_STEPS && nowSec - night.end >= 10 * 60 -> true
+                // A few minutes worn and not asleep after the night (not just a sync in the middle of it).
+                else -> db.activity(night.end, nowSec + 60).count { !it.isSleep && !it.notWorn } >= 3
+            }
+            if (!awake) return today.minusDays(1)
+            prefs.awakeDay = today.toEpochDay()
+            return today
         }
 
-        fun load(db: HealthDb, stepGoal: Int): HomeData {
+        /** Steps since midnight that show you are up (a trip to the bathroom at night stays below). */
+        const val AWAKE_STEPS = 100L
+
+        fun load(db: HealthDb, stepGoal: Int, liveSteps: Long? = null): HomeData {
             val zone = ZoneId.systemDefault()
-            val today = homeDay(db, zone)
+            val today = homeDay(db, zone, liveSteps)
             val (dayStart, dayEnd) = Queries.dayWindow(today, zone)
             val (nightStart, _) = Queries.nightWindow(today, zone)
             val day = db.activity(dayStart, dayEnd)
