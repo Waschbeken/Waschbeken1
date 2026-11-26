@@ -162,7 +162,10 @@ fun TrainingScreen(nav: NavHostController) {
                     item { LiveWorkoutCard(live, state.heartRate.takeIf { System.currentTimeMillis() - state.heartRateAt < 15_000 }, profile.maxHeartRate, rest, state.connected) { controller?.stopWorkout() } }
                 } else {
                     item {
-                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                        ) {
                             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text("Training starten", style = MaterialTheme.typography.titleLarge)
                                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

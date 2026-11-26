@@ -2,6 +2,9 @@ package de.waschbeken.heliolink.ui.home
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Column
@@ -417,12 +420,19 @@ private fun LiveHeartCard(state: StrapUiState, maxHr: Int, rest: Int?, onRecord:
         zone >= 0 -> "Zone ${zone + 1} · ${HeartRateZones.names[zone]}" + (state.hrv?.let { " · HRV ${it.toInt()} ms" } ?: "")
         else -> null
     }
-    Panel(onClick = onRecord) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Favorite, contentDescription = null, tint = Palette.Heart)
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+    Surface(
+        Modifier.fillMaxWidth().clip(shape).clickable(onClick = onRecord),
+        shape = shape,
+        color = MaterialTheme.colorScheme.surfaceContainer,
+    ) {
+        Row(Modifier.padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(30.dp).background(Palette.Heart.copy(alpha = 0.15f), androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Favorite, contentDescription = null, tint = Palette.Heart, modifier = Modifier.size(18.dp))
+            }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Text("Puls live", style = MaterialTheme.typography.titleMedium)
+                Text("Puls live", style = MaterialTheme.typography.titleSmall)
                 if (line != null) {
                     Text(line, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                 }

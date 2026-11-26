@@ -1,5 +1,11 @@
 # Was ist neu in HelioLink
 
+## 1.0.49
+- Neues, ruhigeres Design: weiße Karten auf hellgrauem Grund statt überall Lachs-Ton, nachts dunkelgraue Karten statt Braunrot. Die Akzentfarbe steht nur noch für das, was man antippen kann.
+- Überschriften und aufklappbare Bereiche sehen überall gleich aus, Kartentitel sind kräftiger.
+- Ringe und Balken zeigen ihren leeren Teil in der eigenen Farbe, „Puls live“ ist eine schmale Zeile, die Einstellungssuche ist rund.
+- Weniger Erklärtext bei Schlaf, Sauerstoff, Körper-Check und Training.
+
 ## 1.0.48
 - „Heute“ wechselt nach dem Aufwachen schneller von gestern auf heute: sofort, wenn du die Nacht korrigiert hast und die Aufwachzeit vorbei ist, oder sobald der Strap 100 Schritte zählt. Beim Öffnen der App werden neue Daten geholt, wenn die letzte Synchronisierung länger her ist.
 - Steht noch „Gestern“ da, stellt „Ich bin wach“ direkt auf heute um. Einmal umgestellt, springt es bis Mittag nicht mehr zurück.

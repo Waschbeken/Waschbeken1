@@ -64,44 +64,76 @@ fun stageName(s: SleepStage) = when (s) {
     SleepStage.DEEP -> "Tief"
 }
 
-private fun lightScheme(accent: Color): ColorScheme = lightColorScheme(
-    primary = accent,
-    onPrimary = Color.White,
-    primaryContainer = lerp(accent, Color.White, 0.82f),
-    onPrimaryContainer = lerp(accent, Color.Black, 0.6f),
-    secondary = lerp(accent, Color(0xFF64748B), 0.55f),
-    secondaryContainer = lerp(accent, Color.White, 0.9f),
-    onSecondaryContainer = lerp(accent, Color.Black, 0.65f),
-    tertiary = lerp(accent, Color(0xFF0D9488), 0.6f),
-    tertiaryContainer = lerp(Color(0xFF0D9488), Color.White, 0.85f),
-    surface = Color(0xFFFCFCFF),
-    surfaceContainerLowest = Color.White,
-    surfaceContainerLow = lerp(accent, Color.White, 0.97f),
-    surfaceContainer = lerp(accent, Color.White, 0.95f),
-    surfaceContainerHigh = lerp(accent, Color.White, 0.93f),
-    surfaceContainerHighest = lerp(accent, Color.White, 0.9f),
-    background = Color(0xFFFCFCFF),
-)
+/*
+ * Calm surfaces: white cards on a light grey page (dark grey cards on near black at night), only
+ * a hint of the accent in the greys. The accent itself is kept for what you can tap and for the
+ * selected tab; the data brings its own colors.
+ */
+private val Ink = Color(0xFF1A1C21)
+private val InkSoft = Color(0xFF5C616C)
+private val Teal = Color(0xFF0D9488)
+
+private fun lightScheme(accent: Color): ColorScheme {
+    fun grey(c: Long) = lerp(Color(c), accent, 0.025f)
+    return lightColorScheme(
+        primary = accent,
+        onPrimary = Color.White,
+        primaryContainer = lerp(accent, Color.White, 0.86f),
+        onPrimaryContainer = lerp(accent, Color.Black, 0.62f),
+        secondary = lerp(accent, Color(0xFF64748B), 0.55f),
+        secondaryContainer = lerp(accent, Color.White, 0.9f),
+        onSecondaryContainer = lerp(accent, Color.Black, 0.65f),
+        tertiary = lerp(accent, Teal, 0.6f),
+        tertiaryContainer = lerp(Teal, Color.White, 0.88f),
+        onTertiaryContainer = lerp(Teal, Color.Black, 0.6f),
+        errorContainer = Color(0xFFFDE4E1),
+        onErrorContainer = Color(0xFF7A1710),
+        background = grey(0xFFF2F3F6),
+        onBackground = Ink,
+        surface = grey(0xFFF2F3F6),
+        onSurface = Ink,
+        onSurfaceVariant = InkSoft,
+        surfaceContainerLowest = Color.White,
+        surfaceContainerLow = grey(0xFFF7F8FA),
+        surfaceContainer = Color.White,
+        surfaceContainerHigh = grey(0xFFF0F1F4),
+        surfaceContainerHighest = grey(0xFFE5E7EC),
+        surfaceVariant = grey(0xFFE5E7EC),
+        outline = Color(0xFF7C818C),
+        outlineVariant = grey(0xFFDADDE3),
+    )
+}
 
 private fun darkScheme(accent: Color): ColorScheme {
     val light = lerp(accent, Color.White, 0.35f)
+    val card = lerp(Color(0xFF1C1E24), accent, 0.03f)
+    fun grey(c: Long) = lerp(Color(c), accent, 0.03f)
     return darkColorScheme(
         primary = light,
         onPrimary = lerp(accent, Color.Black, 0.7f),
-        primaryContainer = lerp(accent, Color.Black, 0.45f),
-        onPrimaryContainer = lerp(accent, Color.White, 0.8f),
+        primaryContainer = lerp(accent, card, 0.72f),
+        onPrimaryContainer = lerp(accent, Color.White, 0.82f),
         secondary = lerp(light, Color(0xFF94A3B8), 0.5f),
-        secondaryContainer = lerp(accent, Color.Black, 0.65f),
+        secondaryContainer = lerp(accent, card, 0.8f),
         onSecondaryContainer = lerp(accent, Color.White, 0.85f),
         tertiary = lerp(light, Color(0xFF5EEAD4), 0.6f),
-        tertiaryContainer = lerp(Color(0xFF0D9488), Color.Black, 0.55f),
-        surface = Color(0xFF121218),
-        surfaceContainerLowest = Color(0xFF0C0C11),
-        surfaceContainerLow = lerp(accent, Color(0xFF121218), 0.94f),
-        surfaceContainer = lerp(accent, Color(0xFF121218), 0.91f),
-        surfaceContainerHigh = lerp(accent, Color(0xFF121218), 0.88f),
-        surfaceContainerHighest = lerp(accent, Color(0xFF121218), 0.84f),
-        background = Color(0xFF121218),
+        tertiaryContainer = lerp(Teal, card, 0.75f),
+        onTertiaryContainer = lerp(Teal, Color.White, 0.8f),
+        errorContainer = lerp(Color(0xFFE5484D), card, 0.7f),
+        onErrorContainer = Color(0xFFFFDAD6),
+        background = grey(0xFF101115),
+        onBackground = Color(0xFFE6E7EB),
+        surface = grey(0xFF101115),
+        onSurface = Color(0xFFE6E7EB),
+        onSurfaceVariant = Color(0xFFA3A8B2),
+        surfaceContainerLowest = grey(0xFF0B0C0F),
+        surfaceContainerLow = grey(0xFF16171C),
+        surfaceContainer = card,
+        surfaceContainerHigh = grey(0xFF25272E),
+        surfaceContainerHighest = grey(0xFF2F3239),
+        surfaceVariant = grey(0xFF2F3239),
+        outline = Color(0xFF8A8F99),
+        outlineVariant = grey(0xFF363940),
     )
 }
 
@@ -129,7 +161,13 @@ fun HelioTheme(
 }
 
 private fun scaledTypography(scale: Float): Typography {
-    val base = Typography()
+    val plain = Typography()
+    // Titles a little firmer, so a card's heading stands out from its values and text.
+    val base = plain.copy(
+        titleLarge = plain.titleLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
+        titleMedium = plain.titleMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
+        titleSmall = plain.titleSmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold),
+    )
     if (scale == 1f) return base
     fun androidx.compose.ui.text.TextStyle.s() = copy(fontSize = fontSize * scale, lineHeight = lineHeight * scale)
     return base.copy(
