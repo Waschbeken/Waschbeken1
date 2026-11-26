@@ -1,5 +1,6 @@
 package de.waschbeken.heliolink.ui.sleep
 
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.verticalScroll
@@ -142,10 +143,13 @@ fun SleepScreen(nav: NavHostController) {
     }
 
     val askCheck = app.prefs.sleepAskCheck && app.prefs.sleepCheckedDay != LocalDate.now().toEpochDay()
+    val scroll = androidx.compose.material3.TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
+        modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
             TopAppBar(
                 title = { Text("Schlaf") },
+                scrollBehavior = scroll,
                 actions = {
                     IconButton(onClick = { nav.navigate(Routes.ALARMS) }) {
                         Icon(Icons.Default.Alarm, contentDescription = "Wecker")

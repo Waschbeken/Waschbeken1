@@ -1,5 +1,6 @@
 package de.waschbeken.heliolink.ui.settings
 
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -120,7 +121,11 @@ fun SettingsScreen(nav: NavHostController) {
     }
 
     var query by rememberSaveable { mutableStateOf("") }
-    Scaffold(topBar = { TopAppBar(title = { Text("Einstellungen") }) }) { padding ->
+    val scroll = androidx.compose.material3.TopAppBarDefaults.pinnedScrollBehavior()
+    Scaffold(
+        modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
+        topBar = { TopAppBar(title = { Text("Einstellungen") }, scrollBehavior = scroll) },
+    ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),

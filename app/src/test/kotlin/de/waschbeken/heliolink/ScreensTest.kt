@@ -140,6 +140,13 @@ class ScreensTest {
         open(Routes.SLEEP, "03-schlaf")
         periods("03-schlaf")
         open(Routes.TRAINING, "04-sport")
+        // "Training starten" folded away: one line with the sport and a round start button.
+        click("Training starten")
+        compose.onNode(hasContentDescription("Start") and hasClickAction()).assertExists()
+        org.junit.Assert.assertFalse(app.prefs.isExpanded("training-start", true))
+        shot("04-sport-zu")
+        click("Training starten")
+        org.junit.Assert.assertTrue(app.prefs.isExpanded("training-start", false))
         // A running workout that records its route with the phone's GPS.
         val nowSeconds = System.currentTimeMillis() / 1000
         app.repo.update {

@@ -1,5 +1,6 @@
 package de.waschbeken.heliolink.ui.body
 
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -131,7 +132,11 @@ fun BodyScreen(nav: NavHostController) {
     val insights by de.waschbeken.heliolink.ui.cachedDbValue("body-insights", state.dataVersion) {
         de.waschbeken.heliolink.ui.home.HomeData.load(it, stepGoal).insights
     }
-    Scaffold(topBar = { TopAppBar(title = { Text("Körper") }) }) { padding ->
+    val scroll = androidx.compose.material3.TopAppBarDefaults.pinnedScrollBehavior()
+    Scaffold(
+        modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
+        topBar = { TopAppBar(title = { Text("Körper") }, scrollBehavior = scroll) },
+    ) { padding ->
         de.waschbeken.heliolink.ui.SyncRefreshBox(Modifier.fillMaxSize().padding(padding)) {
             LazyColumn(
                 Modifier.fillMaxSize(),
@@ -212,6 +217,7 @@ private fun FeelingCard(d: BodyData, onChanged: () -> Unit) {
         app.repo.dataChanged()
     }
     val sections = de.waschbeken.heliolink.ui.rememberSections()
+    val haptics = de.waschbeken.heliolink.ui.rememberHaptics()
     val open = sections.isOpen("body-feeling", default = true)
     Panel {
         Row(
@@ -243,6 +249,7 @@ private fun FeelingCard(d: BodyData, onChanged: () -> Unit) {
                 val selected = score == value
                 Surface(
                     onClick = {
+                        haptics.tick()
                         score = if (selected) 0 else value
                         dirty++
                     },

@@ -173,6 +173,7 @@ fun QuickEntryCard(dataVersion: Int, helpers: @Composable () -> Unit = {}, onSho
     val context = LocalContext.current
     val app = context.app
     val scope = rememberCoroutineScope()
+    val haptics = de.waschbeken.heliolink.ui.rememberHaptics()
     prefsTick()
     var reload by remember { mutableIntStateOf(0) }
     val zone = ZoneId.systemDefault()
@@ -189,6 +190,7 @@ fun QuickEntryCard(dataVersion: Int, helpers: @Composable () -> Unit = {}, onSho
     val sections = rememberSections()
 
     fun add(tag: String, note: String = "") {
+        haptics.confirm()
         val ts = at ?: System.currentTimeMillis() / 1000
         at = null
         scope.launch {

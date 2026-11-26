@@ -184,12 +184,17 @@ fun Heatmap(values: List<Pair<java.time.LocalDate, Float>>, color: Color, modifi
 fun ProgressRing(progress: Float, color: Color, modifier: Modifier) {
     // the ring's own color, faint: shows at once which ring it is even when it is nearly empty
     val track = color.copy(alpha = 0.16f)
+    // fills up when it appears and moves to a new value instead of jumping
+    val shown = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
+    androidx.compose.runtime.LaunchedEffect(progress) {
+        shown.animateTo(progress.coerceIn(0f, 1f), androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+    }
     Canvas(modifier) {
         val stroke = size.minDimension * 0.12f
         val inset = stroke / 2
         val arcSize = Size(size.width - stroke, size.height - stroke)
         drawArc(track, 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(stroke))
-        drawArc(color, -90f, 360f * progress.coerceIn(0f, 1f), false, Offset(inset, inset), arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
+        if (shown.value > 0f) drawArc(color, -90f, 360f * shown.value, false, Offset(inset, inset), arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
     }
 }
 

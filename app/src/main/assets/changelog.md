@@ -1,5 +1,12 @@
 # Was ist neu in HelioLink
 
+## 1.0.50
+- Training: „Training starten“ lässt sich zuklappen. Zugeklappt bleibt eine Zeile mit der gewählten Sportart und einem runden Start-Knopf.
+- Seiten gleiten beim Öffnen von rechts herein, die Tabs blenden weich ineinander. Wischst du aus der App zurück, zeigt neueres Android vorher den Startbildschirm.
+- Aufklappbare Bereiche klappen weich auf und zu, Ringe füllen sich beim Öffnen, Karten geben beim Antippen leicht nach.
+- Ein kurzes Tippen im Handy bestätigt Einträge, den Trainingsstart, Schalter und das Herunterziehen zum Aktualisieren.
+- Die Kopfzeile setzt sich beim Scrollen ab; während „Heute“ lädt, stehen Platzhalter statt einer leeren Seite da. Der Startbildschirm hat dieselbe Farbe wie die App.
+
 ## 1.0.49
 - Neues, ruhigeres Design: weiße Karten auf hellgrauem Grund statt überall Lachs-Ton, nachts dunkelgraue Karten statt Braunrot. Die Akzentfarbe steht nur noch für das, was man antippen kann.
 - Überschriften und aufklappbare Bereiche sehen überall gleich aus, Kartentitel sind kräftiger.

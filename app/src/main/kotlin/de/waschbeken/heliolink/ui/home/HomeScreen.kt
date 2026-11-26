@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import de.waschbeken.heliolink.ui.pressClick
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -147,9 +149,12 @@ fun HomeScreen(nav: NavHostController) {
     val startRecording = de.waschbeken.heliolink.ui.record.rememberRecordStarter(nav)
     val sections = de.waschbeken.heliolink.ui.rememberSections()
 
+    val scroll = androidx.compose.material3.TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
+        modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
             TopAppBar(
+                scrollBehavior = scroll,
                 title = {
                     Column {
                         Text(greeting(), style = MaterialTheme.typography.titleLarge)
@@ -251,7 +256,7 @@ fun HomeScreen(nav: NavHostController) {
                     }
                 }
                 item { de.waschbeken.heliolink.ui.record.RecordingBanner(nav) }
-                if (d != null) item { TileGrid(d, state, hidden, order, nav) }
+                if (d != null) item { TileGrid(d, state, hidden, order, nav) } else item { TileSkeleton() }
                 item {
                     LiveHeartCard(state, profile.maxHeartRate, d?.resting?.let { profile.zoneRest(it) }, onRecord = startRecording) {
                         controller?.setLiveHeartRate(it)
@@ -306,16 +311,15 @@ fun HomeScreen(nav: NavHostController) {
                         val open = sections.isOpen("home-activities")
                         val total = d.workouts.size + d.activities.size
                         item {
+                            Column {
                             CollapsibleHeader(
                                 "Aktivitäten heute", open, count = total,
                                 summary = (d.workouts.map { it.sport } + d.activities.map { it.kind.label }).distinct().joinToString(", "),
                             ) { sections.toggle("home-activities") }
-                        }
-                        if (open) {
                             // trainings, recordings and detected activities together, newest first
                             val rows = d.workouts.map { w -> w.start to w } + d.activities.map { a -> a.start to a }
+                            de.waschbeken.heliolink.ui.ExpandableRows(open) {
                             rows.sortedByDescending { it.first }.forEach { (_, row) ->
-                                item {
                                     when (row) {
                                         is de.waschbeken.heliolink.data.Workout -> ActivityRow(
                                             if (row.sport == de.waschbeken.heliolink.service.RECORDING_SPORT) Icons.Default.FiberManualRecord else Icons.Default.Favorite,
@@ -333,7 +337,8 @@ fun HomeScreen(nav: NavHostController) {
                                         ) { nav.navigate(Routes.metric("steps")) }
                                         else -> Unit
                                     }
-                                }
+                            }
+                            }
                             }
                         }
                     }
@@ -421,8 +426,9 @@ private fun LiveHeartCard(state: StrapUiState, maxHr: Int, rest: Int?, onRecord:
         else -> null
     }
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
+    val haptics = de.waschbeken.heliolink.ui.rememberHaptics()
     Surface(
-        Modifier.fillMaxWidth().clip(shape).clickable(onClick = onRecord),
+        Modifier.fillMaxWidth().then(Modifier.pressClick(shape, onClick = onRecord)),
         shape = shape,
         color = MaterialTheme.colorScheme.surfaceContainer,
     ) {
@@ -442,7 +448,23 @@ private fun LiveHeartCard(state: StrapUiState, maxHr: Int, rest: Int?, onRecord:
                 Text(" bpm", style = MaterialTheme.typography.bodySmall)
                 Spacer(Modifier.width(10.dp))
             }
-            Switch(checked = state.liveHeartRate, onCheckedChange = onToggle, enabled = state.connected)
+            Switch(checked = state.liveHeartRate, onCheckedChange = {
+                haptics.toggle(it)
+                onToggle(it)
+            }, enabled = state.connected)
+        }
+    }
+}
+
+/** Where the tiles will be, while the day's values load. */
+@Composable
+private fun TileSkeleton() {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        repeat(3) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                de.waschbeken.heliolink.ui.Skeleton(Modifier.weight(1f).height(58.dp))
+                de.waschbeken.heliolink.ui.Skeleton(Modifier.weight(1f).height(58.dp))
+            }
         }
     }
 }

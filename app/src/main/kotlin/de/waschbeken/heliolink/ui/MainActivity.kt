@@ -92,9 +92,9 @@ object Routes {
     const val HELP = "help"
 }
 
-private data class Tab(val route: String, val label: String, val icon: ImageVector)
+internal data class Tab(val route: String, val label: String, val icon: ImageVector)
 
-private val tabs = listOf(
+internal val tabs = listOf(
     Tab(Routes.HOME, "Heute", Icons.Filled.MonitorHeart),
     Tab(Routes.DATA, "Daten", Icons.Filled.Insights),
     Tab(Routes.SLEEP, "Schlaf", Icons.Filled.Bedtime),
@@ -385,7 +385,13 @@ internal fun AppContent(pendingRoute: String?, onRouteShown: () -> Unit, onForge
         },
     ) { padding ->
         val bottom = if (showBar) PaddingValues(bottom = padding.calculateBottomPadding()) else PaddingValues()
-        NavHost(nav, startDestination = Routes.HOME, modifier = Modifier.padding(bottom).consumeWindowInsets(bottom)) {
+        NavHost(
+            nav, startDestination = Routes.HOME, modifier = Modifier.padding(bottom).consumeWindowInsets(bottom),
+            enterTransition = PageTransitions.enter,
+            exitTransition = PageTransitions.exit,
+            popEnterTransition = PageTransitions.popEnter,
+            popExitTransition = PageTransitions.popExit,
+        ) {
             composable(Routes.HOME) { HomeScreen(nav) }
             composable(Routes.DATA) { de.waschbeken.heliolink.ui.data.DataScreen(nav) }
             composable(Routes.RECORDING) { de.waschbeken.heliolink.ui.record.RecordingScreen(nav) }

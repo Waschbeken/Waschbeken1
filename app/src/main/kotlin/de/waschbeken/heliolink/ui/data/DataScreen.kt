@@ -1,5 +1,6 @@
 package de.waschbeken.heliolink.ui.data
 
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -203,10 +204,13 @@ fun DataScreen(nav: NavHostController) {
     val scope = rememberCoroutineScope()
     val data by de.waschbeken.heliolink.ui.cachedDbValue("data-$date", state.dataVersion) { loadDay(it, date) }
 
+    val scroll = androidx.compose.material3.TopAppBarDefaults.pinnedScrollBehavior()
     Scaffold(
+        modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         topBar = {
             TopAppBar(
                 title = { Text("Daten") },
+                scrollBehavior = scroll,
                 actions = {
                     if (date != LocalDate.now()) {
                         IconButton(onClick = { dateEpoch = LocalDate.now().toEpochDay() }) { Icon(Icons.Default.Today, contentDescription = "Heute") }
