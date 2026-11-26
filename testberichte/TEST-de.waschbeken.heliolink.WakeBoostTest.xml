@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="de.waschbeken.heliolink.WakeBoostTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-26T12:00:55.426Z" hostname="runnervm0hi8g" time="6.265">
+  <properties/>
+  <testcase name="notWhileThePhoneIsInUse" classname="de.waschbeken.heliolink.WakeBoostTest" time="3.074"/>
+  <testcase name="plannedJustAfterTheNextAlarm" classname="de.waschbeken.heliolink.WakeBoostTest" time="0.068"/>
+  <testcase name="startsAfterAnAlarmAndStops" classname="de.waschbeken.heliolink.WakeBoostTest" time="0.042"/>
+  <testcase name="oneTimeAlarmIsBoostedOnce" classname="de.waschbeken.heliolink.WakeBoostTest" time="0.023"/>
+  <testcase name="aboutToFireIsLeftAlone" classname="de.waschbeken.heliolink.WakeBoostTest" time="0.02"/>
+  <testcase name="notWithoutAnAlarmAtThatTime" classname="de.waschbeken.heliolink.WakeBoostTest" time="3.038"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

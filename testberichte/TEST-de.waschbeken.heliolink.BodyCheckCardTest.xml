@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="de.waschbeken.heliolink.BodyCheckCardTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-11-26T11:53:51.758Z" hostname="runnervm0hi8g" time="3.81">
+  <properties/>
+  <testcase name="foldsAndRemembers" classname="de.waschbeken.heliolink.BodyCheckCardTest" time="3.81"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
