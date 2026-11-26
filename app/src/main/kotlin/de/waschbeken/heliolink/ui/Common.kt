@@ -44,6 +44,9 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -197,12 +200,17 @@ fun Panel(
 ) {
     val shape = RoundedCornerShape(20.dp)
     Surface(
-        modifier = modifier.fillMaxWidth().clip(shape).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        modifier = modifier.fillMaxWidth().then(if (onClick != null) Modifier.pressClick(shape, onClick = onClick) else Modifier.clip(shape)),
         shape = shape,
         color = color,
     ) {
         androidx.compose.runtime.CompositionLocalProvider(LocalInPanel provides true) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+            // what changes inside (a section opening, values arriving) grows and shrinks smoothly
+            Column(
+                Modifier.animateContentSize(tween(220, easing = androidx.compose.animation.core.FastOutSlowInEasing)).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                content = content,
+            )
         }
     }
 }
@@ -502,8 +510,13 @@ fun rememberSections(): SectionStates {
 @Composable
 fun CollapsibleHeader(title: String, expanded: Boolean, count: Int? = null, summary: String? = null, onToggle: () -> Unit) {
     val nested = LocalInPanel.current
+    val haptics = rememberHaptics()
+    val turn by androidx.compose.animation.core.animateFloatAsState(if (expanded) 180f else 0f, tween(220), label = "chevron")
     Surface(
-        onClick = onToggle,
+        onClick = {
+            haptics.tick()
+            onToggle()
+        },
         shape = RoundedCornerShape(if (nested) 14.dp else 20.dp),
         color = nestedColor(),
         modifier = Modifier.fillMaxWidth(),
@@ -520,9 +533,10 @@ fun CollapsibleHeader(title: String, expanded: Boolean, count: Int? = null, summ
                 Spacer(Modifier.width(8.dp))
             }
             Icon(
-                if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                Icons.Default.ExpandMore,
                 contentDescription = if (expanded) "Zuklappen" else "Aufklappen",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.graphicsLayer { rotationZ = turn },
             )
         }
     }
@@ -540,6 +554,7 @@ fun SyncRefreshBox(modifier: Modifier = Modifier, content: @Composable androidx.
     val app = context.app
     val state by app.repo.state.collectAsStateWithLifecycle()
     var pulled by remember { mutableStateOf(false) }
+    val haptics = rememberHaptics()
     LaunchedEffect(state.syncing) { if (!state.syncing) pulled = false }
     LaunchedEffect(pulled) {
         // If no sync starts (e.g. not connected), do not spin forever.
@@ -551,6 +566,7 @@ fun SyncRefreshBox(modifier: Modifier = Modifier, content: @Composable androidx.
     androidx.compose.material3.pulltorefresh.PullToRefreshBox(
         isRefreshing = pulled,
         onRefresh = {
+            haptics.confirm()
             pulled = true
             if (app.repo.state.value.connected) {
                 app.repo.controller?.syncNow()

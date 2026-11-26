@@ -120,15 +120,19 @@ private fun Key(color: Color, text: String) {
 @Composable
 fun PaiRing(total: Float, today: Float, modifier: Modifier) {
     val track = Palette.Pai.copy(alpha = 0.16f)
+    val grow = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(0f) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        grow.animateTo(1f, androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+    }
     Canvas(modifier) {
         val stroke = size.minDimension * 0.1f
         val inset = stroke / 2
         val arcSize = Size(size.width - stroke, size.height - stroke)
         val topLeft = Offset(inset, inset)
         drawArc(track, 0f, 360f, false, topLeft, arcSize, style = Stroke(stroke))
-        val end = 360f * (total / 100f).coerceIn(0f, 1f)
+        val end = 360f * (total / 100f).coerceIn(0f, 1f) * grow.value
         // Above 100 the ring is full; today's part still shows at its end.
-        val before = (end - 360f * (today / 100f).coerceIn(0f, 1f)).coerceAtLeast(0f)
+        val before = (end - 360f * (today / 100f).coerceIn(0f, 1f) * grow.value).coerceAtLeast(0f)
         if (before > 0f) drawArc(Palette.Pai, -90f, before, false, topLeft, arcSize, style = Stroke(stroke, cap = StrokeCap.Butt))
         if (end - before > 0.5f) {
             drawArc(PaiToday, -90f + before, end - before, false, topLeft, arcSize, style = Stroke(stroke, cap = StrokeCap.Butt))

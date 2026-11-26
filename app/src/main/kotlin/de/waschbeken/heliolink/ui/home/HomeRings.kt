@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.waschbeken.heliolink.ui.Palette
 import de.waschbeken.heliolink.ui.ProgressRing
+import de.waschbeken.heliolink.ui.pressClick
 import de.waschbeken.heliolink.ui.fmt
 import de.waschbeken.heliolink.ui.formatHours
 import de.waschbeken.heliolink.ui.metrics.PaiRing
@@ -156,7 +157,7 @@ private fun ReadinessParts(r: Readiness, d: HomeData) {
 @Composable
 private fun RingItem(ring: Ring, size: Dp) {
     Column(
-        Modifier.width(size).clip(RoundedCornerShape(14.dp)).clickable(onClick = ring.onClick),
+        Modifier.width(size).pressClick(RoundedCornerShape(14.dp), onClick = ring.onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Box(Modifier.size(size).padding(3.dp), contentAlignment = Alignment.Center) {
@@ -195,7 +196,7 @@ internal fun MiniTile(
     onClick: () -> Unit,
 ) {
     val shape = RoundedCornerShape(16.dp)
-    Surface(modifier.clip(shape).clickable(onClick = onClick), shape = shape, color = de.waschbeken.heliolink.ui.nestedColor()) {
+    Surface(modifier.pressClick(shape, onClick = onClick), shape = shape, color = de.waschbeken.heliolink.ui.nestedColor()) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(30.dp).background(tint.copy(alpha = 0.15f), CircleShape), contentAlignment = Alignment.Center) {
                 Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))

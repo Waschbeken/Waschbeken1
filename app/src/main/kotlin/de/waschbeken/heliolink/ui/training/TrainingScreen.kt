@@ -11,6 +11,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.clickable
+import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material.icons.filled.ExpandMore
+import de.waschbeken.heliolink.ui.ExpandableRows
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -148,8 +156,13 @@ fun TrainingScreen(nav: NavHostController) {
     val summary by de.waschbeken.heliolink.ui.cachedDbValue("training-summary", state.dataVersion, tick) { loadTrainingSummary(it, profile) }
     val rest = profile.zoneRest(data?.restingHr)
     val sections = de.waschbeken.heliolink.ui.rememberSections()
+    val haptics = de.waschbeken.heliolink.ui.rememberHaptics()
+    val scroll = TopAppBarDefaults.pinnedScrollBehavior()
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Training") }) }) { padding ->
+    Scaffold(
+        modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
+        topBar = { TopAppBar(title = { Text("Training") }, scrollBehavior = scroll) },
+    ) { padding ->
         de.waschbeken.heliolink.ui.SyncRefreshBox(Modifier.fillMaxSize().padding(padding)) {
             LazyColumn(
                 Modifier.fillMaxSize(),
@@ -162,35 +175,48 @@ fun TrainingScreen(nav: NavHostController) {
                     item { LiveWorkoutCard(live, state.heartRate.takeIf { System.currentTimeMillis() - state.heartRateAt < 15_000 }, profile.maxHeartRate, rest, state.connected) { controller?.stopWorkout() } }
                 } else {
                     item {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+                        val open = sections.isOpen("training-start", default = true)
+                        val start: () -> Unit = {
+                            haptics.confirm()
+                            if (useIntervals) controller?.startIntervals(sport, plan, useGps) else controller?.startWorkout(sport, useGps)
+                        }
+                        StartCard(
+                            open = open,
+                            summary = listOfNotNull(sport, if (useIntervals) "Intervalle" else null, if (useGps) "GPS" else null).joinToString(" · "),
+                            connected = state.connected,
+                            onToggle = { sections.toggle("training-start", default = true) },
+                            onStart = start,
                         ) {
-                            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text("Training starten", style = MaterialTheme.typography.titleLarge)
-                                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    sports.forEach { (name, _) -> FilterChip(selected = sport == name, onClick = { sport = name }, label = { Text(name) }) }
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                sports.forEach { (name, _) ->
+                                    FilterChip(selected = sport == name, onClick = {
+                                        haptics.tick()
+                                        sport = name
+                                    }, label = { Text(name) })
                                 }
-                                FilterChip(
-                                    selected = useIntervals,
-                                    onClick = { useIntervals = !useIntervals },
-                                    label = { Text("Intervalle mit Vibration") },
-                                    leadingIcon = { Icon(Icons.Default.Timer, contentDescription = null) },
-                                )
-                                if (useIntervals) IntervalChooser(plan) { plan = it }
-                                GpsChoice(useGps) {
-                                    useGps = it
-                                    app.prefs.workoutGps = it
-                                }
-                                Button(
-                                    onClick = { if (useIntervals) controller?.startIntervals(sport, plan, useGps) else controller?.startWorkout(sport, useGps) },
-                                    enabled = state.connected,
-                                    modifier = Modifier.fillMaxWidth(),
-                                ) {
-                                    Icon(Icons.Default.PlayArrow, contentDescription = null)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(if (!state.connected) "Strap nicht verbunden" else if (useIntervals) "Intervalle starten" else "Start")
-                                }
+                            }
+                            FilterChip(
+                                selected = useIntervals,
+                                onClick = {
+                                    haptics.tick()
+                                    useIntervals = !useIntervals
+                                },
+                                label = { Text("Intervalle mit Vibration") },
+                                leadingIcon = { Icon(Icons.Default.Timer, contentDescription = null) },
+                            )
+                            if (useIntervals) IntervalChooser(plan) { plan = it }
+                            GpsChoice(useGps) {
+                                useGps = it
+                                app.prefs.workoutGps = it
+                            }
+                            Button(
+                                onClick = start,
+                                enabled = state.connected,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Icon(Icons.Default.PlayArrow, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text(if (!state.connected) "Strap nicht verbunden" else if (useIntervals) "Intervalle starten" else "Start")
                             }
                         }
                     }
@@ -216,9 +242,7 @@ fun TrainingScreen(nav: NavHostController) {
                                 "Automatisch erkannt (7 Tage)", open, count = d.detected.size,
                                 summary = "${d.detected.count { it.kind == DetectedActivity.Kind.RUN }} Läufe · ${d.detected.count { it.kind != DetectedActivity.Kind.RUN }} Spaziergänge",
                             ) { sections.toggle("training-detected") }
-                        }
-                        if (open) d.detected.take(20).forEach { a ->
-                            item {
+                            ExpandableRows(open) { d.detected.take(20).forEach { a ->
                                 Panel(onClick = { nav.navigate(Routes.metric("heart")) }) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
@@ -236,7 +260,7 @@ fun TrainingScreen(nav: NavHostController) {
                                         }
                                     }
                                 }
-                            }
+                            } }
                         }
                     }
                     item { SectionHeader("Verlauf") }
@@ -255,9 +279,7 @@ fun TrainingScreen(nav: NavHostController) {
                                 summary = "${formatDuration(list.sumOf { it.end - it.start })} · ${list.sumOf { it.calories }} kcal · " +
                                     list.groupingBy { it.sport }.eachCount().entries.joinToString(", ") { "${it.value}× ${it.key}" },
                             ) { sections.toggle(key, default = index == 0) }
-                        }
-                        if (open) list.sortedByDescending { it.start }.forEach { w ->
-                            item {
+                            ExpandableRows(open) { list.sortedByDescending { it.start }.forEach { w ->
                                 Panel(onClick = { nav.navigate(Routes.workout(w.id)) }) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
@@ -283,10 +305,64 @@ fun TrainingScreen(nav: NavHostController) {
                                         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
                                     }
                                 }
-                            }
+                            } }
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * "Training starten": open with sport, intervals, GPS and the big button; closed one line with
+ * what is chosen and a round start button, so a training starts just as quickly.
+ */
+@Composable
+private fun StartCard(
+    open: Boolean,
+    summary: String,
+    connected: Boolean,
+    onToggle: () -> Unit,
+    onStart: () -> Unit,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    val haptics = de.waschbeken.heliolink.ui.rememberHaptics()
+    val turn by androidx.compose.animation.core.animateFloatAsState(if (open) 180f else 0f, label = "chevron")
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+    ) {
+        Column(Modifier.padding(horizontal = 20.dp, vertical = if (open) 20.dp else 12.dp).animateContentSize()) {
+            Row(
+                Modifier.fillMaxWidth().clickable {
+                    haptics.tick()
+                    onToggle()
+                },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Training starten", style = if (open) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium)
+                    if (!open) {
+                        Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                    }
+                }
+                if (!open) {
+                    FilledIconButton(onClick = onStart, enabled = connected) {
+                        Icon(Icons.Default.PlayArrow, contentDescription = "Start")
+                    }
+                    Spacer(Modifier.width(4.dp))
+                }
+                Icon(
+                    Icons.Default.ExpandMore,
+                    contentDescription = if (open) "Zuklappen" else "Aufklappen",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.graphicsLayer { rotationZ = turn },
+                )
+            }
+            if (open) {
+                Spacer(Modifier.height(10.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
             }
         }
     }
