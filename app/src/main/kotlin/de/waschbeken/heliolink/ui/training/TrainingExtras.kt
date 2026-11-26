@@ -113,7 +113,7 @@ fun TrainingSummaryPanel(t: TrainingSummary, profile: UserProfile) {
         )
         Text(
             t.balance?.let { b -> "Letzte 7 Tage Ø ${b.acute.roundToInt()} pro Tag, die 4 Wochen davor Ø ${b.chronic.roundToInt()}. ${b.status.text}" }
-                ?: "Belastung zählt Minuten mit deutlich erhöhtem Puls (ab 40 % der Pulsreserve). Ab zwei Wochen Daten erscheint der Vergleich.",
+                ?: "Vergleich ab zwei Wochen Daten.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -122,12 +122,9 @@ fun TrainingSummaryPanel(t: TrainingSummary, profile: UserProfile) {
                 StatTile("Fitness (VO₂max)", "${v.roundToInt()}", Modifier.weight(1f), caption = Vo2Max.rating(v, profile.age, profile.male))
                 StatTile("Ruhe / Max.", "${t.restingHr} / ${t.maxHr}", Modifier.weight(1f), caption = "bpm")
             }
-            Text(
-                "Grobe Schätzung aus Ruhepuls und Maximalpuls (15,3 × Max ÷ Ruhe). " +
-                    if (t.maxFromProfile) "Sinkt dein Ruhepuls, steigt der Wert." else "Der Maximalpuls ist aus dem Alter geschätzt – trag ihn unter Training & Zonen ein, wenn du ihn kennst.",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            if (!t.maxFromProfile) {
+                Text("Max. aus dem Alter geschätzt", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }

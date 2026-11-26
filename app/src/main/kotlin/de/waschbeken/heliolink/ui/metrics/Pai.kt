@@ -119,7 +119,7 @@ private fun Key(color: Color, text: String) {
 /** The ring: track, the PAI from the days before, then what [today] added – full at 100. */
 @Composable
 fun PaiRing(total: Float, today: Float, modifier: Modifier) {
-    val track = MaterialTheme.colorScheme.surfaceContainerHighest
+    val track = Palette.Pai.copy(alpha = 0.16f)
     Canvas(modifier) {
         val stroke = size.minDimension * 0.1f
         val inset = stroke / 2

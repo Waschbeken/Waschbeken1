@@ -99,8 +99,8 @@ internal fun RingsCard(
             PaiRing(pai?.total ?: 0f, today, m)
         }
     }
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-        Column(Modifier.padding(horizontal = 10.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), shape = RoundedCornerShape(24.dp)) {
+        Column(Modifier.padding(horizontal = 10.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val gap = 6.dp
                 val size: Dp = ((maxWidth - gap * (rings.size - 1)) / rings.size).coerceAtMost(96.dp)
@@ -119,9 +119,10 @@ internal fun RingsCard(
  */
 @Composable
 private fun ReadinessParts(r: Readiness, d: HomeData) {
-    val onCard = MaterialTheme.colorScheme.onPrimaryContainer
+    val onCard = MaterialTheme.colorScheme.onSurface
+    val soft = MaterialTheme.colorScheme.onSurfaceVariant
     Column(Modifier.padding(horizontal = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        HorizontalDivider(color = onCard.copy(alpha = 0.15f))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             r.parts.forEach { (name, points) ->
                 val basis = when (name) {
@@ -140,11 +141,11 @@ private fun ReadinessParts(r: Readiness, d: HomeData) {
                         progress = { points / 100f },
                         modifier = Modifier.fillMaxWidth().height(4.dp),
                         color = scoreColor(points),
-                        trackColor = onCard.copy(alpha = 0.12f),
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                         drawStopIndicator = {},
                     )
                     if (basis != null) {
-                        Text(basis, style = MaterialTheme.typography.labelSmall, color = onCard.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(basis, style = MaterialTheme.typography.labelSmall, color = soft, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -175,7 +176,7 @@ private fun RingItem(ring: Ring, size: Dp) {
         Text(
             ring.caption,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -194,7 +195,7 @@ internal fun MiniTile(
     onClick: () -> Unit,
 ) {
     val shape = RoundedCornerShape(16.dp)
-    Surface(modifier.clip(shape).clickable(onClick = onClick), shape = shape, color = MaterialTheme.colorScheme.surfaceContainer) {
+    Surface(modifier.clip(shape).clickable(onClick = onClick), shape = shape, color = de.waschbeken.heliolink.ui.nestedColor()) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(30.dp).background(tint.copy(alpha = 0.15f), CircleShape), contentAlignment = Alignment.Center) {
                 Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
@@ -238,13 +239,14 @@ private fun OxygenPanel(o: de.waschbeken.heliolink.core.OxygenDrops.Result?, str
                 " pro Stunde · niedrigster Wert ${o.lowest} %" + if (o.minutesBelow90 > 0) " · ${o.minutesBelow90} min unter 90 %" else "",
             style = MaterialTheme.typography.bodyMedium,
         )
-        Text(
-            (if (o.perHour >= 15) "Viele Abfälle können auf Atemaussetzer (Schlafapnoe) hindeuten – vor allem mit Schnarchen oder Müdigkeit am Tag. Wenn das öfter so ist, sprich ärztlich darüber. " else "") +
-                "Gemessen etwa alle ${o.spacingMinutes.roundToInt().coerceAtLeast(1)} min, kurze Abfälle können fehlen" +
-                (if (o.spacingMinutes > 4) " – genauer wird es mit „Atmungsqualität“ unter Einstellungen → Messungen" else "") + ". Keine Diagnose.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        if (o.perHour >= 15) {
+            Text(
+                "Viele Abfälle können auf Atemaussetzer (Schlafapnoe) hindeuten – vor allem mit Schnarchen oder Müdigkeit am Tag. " +
+                    "Wenn das öfter so ist, sprich ärztlich darüber. Keine Diagnose.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -318,13 +320,13 @@ private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(
 ) {
     item {
         var explain by remember { mutableStateOf(false) }
-        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer), shape = RoundedCornerShape(24.dp)) {
             Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(92.dp), contentAlignment = Alignment.Center) {
                     ProgressRing(n.score / 100f, scoreColor(n.score), Modifier.size(92.dp))
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("${n.score}", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-                        Text("Score", style = MaterialTheme.typography.labelSmall)
+                        Text("Score", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 Spacer(Modifier.width(18.dp))
@@ -335,18 +337,19 @@ private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(
                     Text(
                         if (diff >= 0) "Ziel erreicht (+${formatMinutes(diff)})" else "${formatMinutes(-diff)} unter deinem Ziel",
                         style = MaterialTheme.typography.bodySmall,
+                        color = if (diff >= 0) Palette.Hrv else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
                         (if (n.strapScore != null) "Score vom Strap · HelioLink schätzt ${n.estimatedScore}\n" else "") +
                             n.scoreParts.joinToString(" · ") { (name, points, max) -> "$name $points/$max" },
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
                         "Wie entsteht der Score? ›",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(top = 4.dp).clickable { explain = true },
                     )
                 }
@@ -360,10 +363,6 @@ private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(
             if (!answered) {
                 Panel(color = MaterialTheme.colorScheme.tertiaryContainer) {
                     Text("Stimmt deine Nacht?", style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        "Wenn Einschlafen, Aufwachen oder Wachphasen nicht passen, korrigiere sie – das macht Score und Statistik genauer.",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = {
                             answered = true
@@ -393,8 +392,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.nightItems(
                     Icon(Icons.Default.Info, contentDescription = null)
                     Spacer(Modifier.width(10.dp))
                     Text(
-                        "Phasen geschätzt: Für diese Nacht hat der Strap keine eigenen Schlafphasen geliefert. HelioLink schätzt sie aus Puls " +
-                            "und Bewegung (trifft etwa 7 von 10 Minuten). Tippen für die Schlaf-Einstellungen, oben rechts kannst du die Nacht korrigieren.",
+                        "Phasen geschätzt – der Strap hat für diese Nacht keine geliefert.",
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }

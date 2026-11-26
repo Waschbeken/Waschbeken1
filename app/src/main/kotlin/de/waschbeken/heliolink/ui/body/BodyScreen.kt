@@ -182,7 +182,7 @@ fun BodyScreen(nav: NavHostController) {
 
 @Composable
 private fun LinkRow(title: String, text: String, onClick: () -> Unit) {
-    Surface(onClick = onClick, shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceContainerLow, modifier = Modifier.fillMaxWidth()) {
+    Surface(onClick = onClick, shape = RoundedCornerShape(14.dp), color = de.waschbeken.heliolink.ui.nestedColor(), modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleSmall)
@@ -213,15 +213,16 @@ private fun FeelingCard(d: BodyData, onChanged: () -> Unit) {
     }
     val sections = de.waschbeken.heliolink.ui.rememberSections()
     val open = sections.isOpen("body-feeling", default = true)
-    Panel(color = MaterialTheme.colorScheme.primaryContainer) {
+    Panel {
         Row(
             Modifier.fillMaxWidth().clickable { sections.toggle("body-feeling", default = true) },
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Wie geht's dir heute?", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Text("Wie geht's dir heute?", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
             Icon(
                 if (open) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                 contentDescription = if (open) "Zuklappen" else "Aufklappen",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         if (!open) {
@@ -253,7 +254,7 @@ private fun FeelingCard(d: BodyData, onChanged: () -> Unit) {
                         Text(
                             label,
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onPrimaryContainer,
+                            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
                         )
                     }
@@ -329,10 +330,10 @@ private fun CheckPanel(check: BodyCheck.Result?) {
         }
         Text(
             when (check.level) {
-                BodyCheck.Level.NORMAL -> "Abweichungen in Grau sind im normalen Schwankungsbereich."
-                BodyCheck.Level.WATCH -> "Einzeln heißt das wenig – behalte es im Auge. Steigen mehrere Werte, meldet sich HelioLink deutlicher."
-                BodyCheck.Level.ALERT -> "So sieht es oft aus, bevor man krank wird. Gönn dir Ruhe, trink genug und schlaf früh. Wird es nicht besser, frag ärztlich nach."
-            } + " Vergleich mit deinen letzten ${check.baselineNights} Nächten · keine Diagnose.",
+                BodyCheck.Level.NORMAL -> "Vergleich mit deinen letzten ${check.baselineNights} Nächten"
+                BodyCheck.Level.WATCH -> "Einzeln heißt das wenig – behalte es im Auge. Vergleich mit deinen letzten ${check.baselineNights} Nächten · keine Diagnose."
+                BodyCheck.Level.ALERT -> "So sieht es oft aus, bevor man krank wird. Gönn dir Ruhe, trink genug und schlaf früh. Wird es nicht besser, frag ärztlich nach. Keine Diagnose."
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

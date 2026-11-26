@@ -43,6 +43,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -173,12 +174,20 @@ fun SectionHeader(text: String, modifier: Modifier = Modifier, trailing: @Compos
         modifier = modifier.fillMaxWidth().padding(top = 12.dp, bottom = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f))
+        Text(text, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
         trailing()
     }
 }
 
-/** Rounded panel like the cards of the Lernkarten app. */
+/** Whether we are inside a [Panel]: what sits in a card is set off a shade darker than the card. */
+val LocalInPanel = androidx.compose.runtime.staticCompositionLocalOf { false }
+
+/** The color of something set off inside a card, or of a card of its own on the page. */
+@Composable
+fun nestedColor(): Color =
+    if (LocalInPanel.current) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surfaceContainer
+
+/** Rounded card: white on the grey page (dark grey at night). */
 @Composable
 fun Panel(
     modifier: Modifier = Modifier,
@@ -186,12 +195,15 @@ fun Panel(
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val shape = RoundedCornerShape(20.dp)
     Surface(
-        modifier = modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        shape = RoundedCornerShape(20.dp),
+        modifier = modifier.fillMaxWidth().clip(shape).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+        shape = shape,
         color = color,
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+        androidx.compose.runtime.CompositionLocalProvider(LocalInPanel provides true) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+        }
     }
 }
 
@@ -229,7 +241,7 @@ fun StatTile(
     Surface(
         modifier = modifier.then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer,
+        color = nestedColor(),
     ) {
         Column(Modifier.padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -489,15 +501,16 @@ fun rememberSections(): SectionStates {
 /** Header of a list that opens and closes, with the number of entries and a short summary when closed. */
 @Composable
 fun CollapsibleHeader(title: String, expanded: Boolean, count: Int? = null, summary: String? = null, onToggle: () -> Unit) {
+    val nested = LocalInPanel.current
     Surface(
         onClick = onToggle,
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(if (nested) 14.dp else 20.dp),
+        color = nestedColor(),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.padding(horizontal = if (nested) 14.dp else 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
                 if (!expanded && summary != null) {
                     Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
@@ -509,6 +522,7 @@ fun CollapsibleHeader(title: String, expanded: Boolean, count: Int? = null, summ
             Icon(
                 if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                 contentDescription = if (expanded) "Zuklappen" else "Aufklappen",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

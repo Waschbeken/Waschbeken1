@@ -136,6 +136,12 @@ fun SettingsScreen(nav: NavHostController) {
                         if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Default.Close, contentDescription = "Leeren") }
                     },
                     singleLine = true,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(28.dp),
+                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                    ),
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 )
             }

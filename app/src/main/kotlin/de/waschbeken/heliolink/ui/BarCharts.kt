@@ -40,7 +40,8 @@ fun BarChart(
 ) {
     val m = rememberTextMeasurer()
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val track = MaterialTheme.colorScheme.surfaceContainerHighest
+    // the empty part of each bar: the bar's color, faint
+    val track = color.copy(alpha = 0.13f)
     val goalColor = MaterialTheme.colorScheme.primary
     val tipBg = MaterialTheme.colorScheme.inverseSurface
     val tipFg = MaterialTheme.colorScheme.inverseOnSurface
@@ -181,7 +182,8 @@ fun Heatmap(values: List<Pair<java.time.LocalDate, Float>>, color: Color, modifi
 
 @Composable
 fun ProgressRing(progress: Float, color: Color, modifier: Modifier) {
-    val track = MaterialTheme.colorScheme.surfaceContainerHighest
+    // the ring's own color, faint: shows at once which ring it is even when it is nearly empty
+    val track = color.copy(alpha = 0.16f)
     Canvas(modifier) {
         val stroke = size.minDimension * 0.12f
         val inset = stroke / 2
